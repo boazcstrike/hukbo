@@ -404,12 +404,22 @@ internal sealed class SandataGame : Game
     private ImmutableArray<CombatEffect> _combatEffects = ImmutableArray<CombatEffect>.Empty;
 
     /// <summary>
-    /// Every shooter whose most recent executed tick carried at least one
-    /// automatic round. Presentation only: it exists so that a burst's end can
-    /// be detected — a shooter in this list and not in the next tick's has
-    /// stopped firing — and so its tail cue can play, per design section 10.
+    /// Every shooter the client still considers mid-burst. Presentation only:
+    /// it exists so that a burst's end can be detected and its tail cue can
+    /// play, per design section 10.
     /// </summary>
-    private ImmutableArray<ulong> _automaticShootersLastTick = ImmutableArray<ulong>.Empty;
+    /// <remarks>
+    /// This held "shooters that fired on the previous tick" until 2026-08-14,
+    /// which reported a burst as ended on the first tick a shooter did not
+    /// fire on and then forgot the shooter. At 600 rounds per minute that
+    /// first quiet tick is one of the four gaps inside a burst, so the end was
+    /// reported three ticks early, once, and the real end never at all — see
+    /// <see cref="AutomaticBurstTracking"/> and decision D4 of that day's
+    /// design. A shooter now stays here until
+    /// <see cref="SandataSoundPlayer.HandleAutomaticFireStopped"/> reports the
+    /// burst genuinely over.
+    /// </remarks>
+    private ImmutableArray<ulong> _shootersMidBurst = ImmutableArray<ulong>.Empty;
 
     private bool _isPaused;
     private int _speedIndex = DefaultSpeedIndex;
@@ -716,6 +726,7 @@ internal sealed class SandataGame : Game
                     executedTick));
 
             SoundShotsFiredOn(executedTick);
+            LogWeaponStateTransitionsOn(executedTick);
             LogRosterIfChanged();
         }
     }
@@ -742,14 +753,12 @@ internal sealed class SandataGame : Game
     private void SoundShotsFiredOn(long executedTick)
     {
         var feed = _simulation.State.EventFeed.Events;
-        if (feed.IsDefaultOrEmpty)
-        {
-            return;
-        }
-
         var automaticShootersThisTick = ImmutableArray.CreateBuilder<ulong>();
 
-        foreach (var missionEvent in feed)
+        // An empty feed means nobody fired this tick, which is a tick that can
+        // still end a burst — so it walks no events and reports the stops all
+        // the same, rather than returning early as it did before 2026-08-14.
+        foreach (var missionEvent in feed.IsDefaultOrEmpty ? ImmutableArray<MissionEvent>.Empty : feed)
         {
             if (missionEvent.Kind != MissionEventKind.ShotFired ||
                 missionEvent.Tick != executedTick)
@@ -783,32 +792,52 @@ internal sealed class SandataGame : Game
     }
 
     /// <summary>
-    /// Plays the tail for every shooter that was firing automatically on the
-    /// previous tick and is not on this one — design section 10's loop-plus-tail
-    /// model, whose tail is the one cue nothing in the client had ever
-    /// requested, because nothing in the client had ever reported an automatic
-    /// round in the first place.
+    /// Reports a possible burst end for every shooter that is mid-burst and
+    /// fired no automatic round this tick, and plays the tail for the ones the
+    /// sound player says have genuinely stopped — design section 10's
+    /// loop-plus-tail model.
     /// </summary>
+    /// <remarks>
+    /// The report is made on every quiet tick rather than only the first one,
+    /// and a shooter leaves <see cref="_shootersMidBurst"/> only when
+    /// <see cref="SandataSoundPlayer.HandleAutomaticFireStopped"/> answers
+    /// <see langword="true"/>. That is decision D4's client half: the window
+    /// that tells a gap between rounds from the end of a burst lives in the
+    /// player, in one place, and this method's job is to keep asking until it
+    /// answers. A shooter that can no longer be resolved to an operator is
+    /// dropped in the same pass — it will never report another round, and
+    /// carrying it forever would leak.
+    /// </remarks>
     private void SoundAutomaticFireStops(long executedTick, ImmutableArray<ulong> automaticShootersThisTick)
     {
-        foreach (var shooterEntityId in _automaticShootersLastTick)
+        var quietShooters = AutomaticBurstTracking.QuietShooters(
+            _shootersMidBurst, automaticShootersThisTick);
+
+        var endedThisTick = ImmutableArray.CreateBuilder<ulong>();
+        foreach (var shooterEntityId in quietShooters)
         {
-            if (automaticShootersThisTick.Contains(shooterEntityId) ||
-                !TryFindOperator(shooterEntityId, out var shooter))
+            if (!TryFindOperator(shooterEntityId, out var shooter))
             {
+                endedThisTick.Add(shooterEntityId);
                 continue;
             }
 
-            _soundPlayer.HandleAutomaticFireStopped(
+            var burstEnded = _soundPlayer.HandleAutomaticFireStopped(
                 FirearmCatalog.Rows[(int)shooter.Firearm].Caliber,
                 RangeToNearestHostileWu(shooter),
                 shooterIsIndoors: false,
                 suppressorFitted: false,
                 executedTick,
                 shooterEntityId);
+
+            if (burstEnded)
+            {
+                endedThisTick.Add(shooterEntityId);
+            }
         }
 
-        _automaticShootersLastTick = automaticShootersThisTick;
+        _shootersMidBurst = AutomaticBurstTracking.NextMidBurst(
+            _shootersMidBurst, automaticShootersThisTick, endedThisTick.ToImmutable());
     }
 
     /// <summary>
@@ -883,6 +912,63 @@ internal sealed class SandataGame : Game
         return nearestSquared == double.MaxValue
             ? 0
             : (int)Math.Sqrt(nearestSquared);
+    }
+
+    /// <summary>
+    /// Writes one <see cref="LogEvents.SimSandataWeaponState"/> line for every
+    /// <c>WeaponLowered</c> or <c>WeaponRaised</c> event the tick just
+    /// executed emitted, so a run leaves behind a record of a transition that
+    /// is about half a second of screen time on a fourteen-pixel operator.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The simulation has emitted both event kinds since 2026-08-12 and
+    /// nothing anywhere read them: there was no <c>LogEvents</c> constant,
+    /// both <c>EventFeed</c> readers filter to <c>ShotFired</c>, and
+    /// <c>SandataEventLog</c> is never instantiated. Three debug logs from the
+    /// 2026-08-14 smoke session contain zero weapon events, which is what that
+    /// wiring predicts. This method is decision D3 of that day's design.
+    /// </para>
+    /// <para>
+    /// <c>Debug</c> rather than <c>Trace</c>: the transition fires a handful
+    /// of times in a whole mission, not once per tick. The level and channel
+    /// are tested before the feed is walked, so a <c>Release</c> run does no
+    /// work and allocates nothing, and the feed being walked is one the frame
+    /// already holds rather than a new question asked of the simulation.
+    /// </para>
+    /// </remarks>
+    private void LogWeaponStateTransitionsOn(long executedTick)
+    {
+        if (!_log.IsEnabledFor(LogLevel.Debug, LogChannel.Simulation))
+        {
+            return;
+        }
+
+        var feed = _simulation.State.EventFeed.Events;
+        if (feed.IsDefaultOrEmpty)
+        {
+            return;
+        }
+
+        foreach (var missionEvent in feed)
+        {
+            if (missionEvent.Tick != executedTick)
+            {
+                continue;
+            }
+
+            if (missionEvent.Kind != MissionEventKind.WeaponLowered &&
+                missionEvent.Kind != MissionEventKind.WeaponRaised)
+            {
+                continue;
+            }
+
+            _log.SetTick(executedTick);
+            _log.Write(
+                LogLevel.Debug, LogChannel.Simulation, LogEvents.SimSandataWeaponState,
+                "entityId", missionEvent.SubjectId,
+                "lowered", missionEvent.Kind == MissionEventKind.WeaponLowered);
+        }
     }
 
     /// <summary>
@@ -1072,7 +1158,7 @@ internal sealed class SandataGame : Game
         _pathDrawState = PathDrawState.CreateEmpty();
         _goCodeEntries = ImmutableArray<GoCodePanel.GoCodeEntry>.Empty;
         _orderQueueEntries = ImmutableArray<OrderQueueView.Entry>.Empty;
-        _automaticShootersLastTick = ImmutableArray<ulong>.Empty;
+        _shootersMidBurst = ImmutableArray<ulong>.Empty;
 
         _log.Write(
             LogLevel.Information, LogChannel.Input, LogEvents.InputSandataTransport,
@@ -1952,7 +2038,9 @@ internal sealed class SandataGame : Game
             ResolutionPositionY: selected.PositionY,
             ActiveOrderId: null,
             OrderNodeIndex: null,
-            OrderClearReasonCode: null);
+            OrderClearReasonCode: null,
+            Firearm: selected.Firearm,
+            WeaponLowered: selected.WeaponLowered);
     }
 
     /// <summary>

@@ -206,7 +206,16 @@ internal sealed class SandataSoundPlayer
     /// <see cref="_automaticBurstRounds"/> so the caller's repeated reports
     /// of the same stop do not replay the tail every tick after that.
     /// </summary>
-    public void HandleAutomaticFireStopped(
+    /// <returns>
+    /// <see langword="true"/> when this call ended a real burst, so the caller
+    /// can stop reporting that shooter; <see langword="false"/> when the call
+    /// was a quiet tick inside a burst, or concerned a shooter with no live
+    /// burst at all. <see cref="AutomaticBurstTracking"/> is the caller's half
+    /// of this contract: it keeps a shooter in its mid-burst set until this
+    /// method answers <see langword="true"/>, which is what stops a four-tick
+    /// gap between rounds from being reported once and then forgotten.
+    /// </returns>
+    public bool HandleAutomaticFireStopped(
         CaliberFamily caliber,
         int rangeWu,
         bool shooterIsIndoors,
@@ -217,7 +226,7 @@ internal sealed class SandataSoundPlayer
         var burstIndex = IndexOfBurstRound(shooterEntityId);
         if (burstIndex < 0)
         {
-            return;
+            return false;
         }
 
         if (tick - _automaticBurstRounds[burstIndex].Tick <= BurstEndGraceWindowTicks)
@@ -226,7 +235,7 @@ internal sealed class SandataSoundPlayer
             // end. Leave the last-round tick and the loop-fallback state
             // alone so the next round in this burst still reads as a
             // renewal, not a fresh burst.
-            return;
+            return false;
         }
 
         _automaticBurstRounds = _automaticBurstRounds.RemoveAt(burstIndex);
@@ -239,10 +248,14 @@ internal sealed class SandataSoundPlayer
 
         if (!_budget.TryReserve(shooterEntityId, tailSlot.Family, tick, tailSlot.TailTicks, out _))
         {
-            return;
+            // The burst did end — the shooter was dropped from the burst list
+            // above — so the caller stops reporting it even though the pool
+            // had no slot left for the tail cue.
+            return true;
         }
 
         _output.Play(tailSlot, variantNumber, shooterEntityId);
+        return true;
     }
 
     /// <summary>

@@ -1,3 +1,5 @@
+using System;
+using System.Linq;
 using Hukbo.Core.Mathematics;
 using Sandata.Client.UI;
 using Sandata.Core.Combat;
@@ -20,7 +22,9 @@ public sealed class OperatorInspectorTests
         int? slotIndex = 3,
         ulong? activeOrderId = 7,
         int? orderNodeIndex = 2,
-        int? orderClearReasonCode = 1) =>
+        int? orderClearReasonCode = 1,
+        FirearmId firearm = FirearmId.Ak47,
+        bool weaponLowered = false) =>
         new(
             Intent: 2,
             ReasonCode: PathReasonCode.PathValid,
@@ -39,7 +43,55 @@ public sealed class OperatorInspectorTests
             ResolutionPositionY: FixedPoint.FromWhole(21),
             ActiveOrderId: activeOrderId,
             OrderNodeIndex: orderNodeIndex,
-            OrderClearReasonCode: orderClearReasonCode);
+            OrderClearReasonCode: orderClearReasonCode,
+            Firearm: firearm,
+            WeaponLowered: weaponLowered);
+
+    /// <summary>
+    /// Decision D2 of the 2026-08-14 lowered-weapon design: the inspector
+    /// names the weapon, so a tester can tell which of two operators walking
+    /// the same route is the rifle carrier whose weapon is supposed to lower.
+    /// </summary>
+    [Fact]
+    public void BuildLines_NamesTheFirearmAndItsClass()
+    {
+        var lines = OperatorInspector.BuildLines(CreateContent(firearm: FirearmId.Ak47));
+
+        var weaponLine = Assert.Single(lines, line => line.StartsWith("Weapon:", StringComparison.Ordinal));
+        Assert.Contains(
+            WeaponNameSets.GetName(FirearmId.Ak47, OperatorInspector.NameSet),
+            weaponLine,
+            StringComparison.Ordinal);
+        Assert.Contains(WeaponClass.Rifle.ToString(), weaponLine, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The pistol carrier's row names a pistol, which is the other half of
+    /// the comparison smoke row <c>SD-4</c> asks a person to make.
+    /// </summary>
+    [Fact]
+    public void BuildLines_NamesAPistolAsAPistol()
+    {
+        var lines = OperatorInspector.BuildLines(CreateContent(firearm: FirearmId.Glock17Gen5));
+
+        var weaponLine = Assert.Single(lines, line => line.StartsWith("Weapon:", StringComparison.Ordinal));
+        Assert.Contains(WeaponClass.Pistol.ToString(), weaponLine, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The weapon-state row reads the flag straight through, both ways round.
+    /// It is the row that makes a half-second transition legible on a paused,
+    /// single-stepped run.
+    /// </summary>
+    [Theory]
+    [InlineData(true, "Weapon state: lowered")]
+    [InlineData(false, "Weapon state: raised")]
+    public void BuildLines_ReportsTheWeaponState(bool weaponLowered, string expected)
+    {
+        var lines = OperatorInspector.BuildLines(CreateContent(weaponLowered: weaponLowered));
+
+        Assert.Contains(expected, lines);
+    }
 
     [Fact]
     public void BuildLines_ReturnsExactlyLineCountEntries()
