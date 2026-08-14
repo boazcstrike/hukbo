@@ -427,4 +427,121 @@ public sealed class ContactMemoryTests
 
         Assert.Equal(withoutList.ToArray(), withEmptyList.ToArray());
     }
+
+    // --- Update: an Identified ghost decays to QuestionMark, never further --
+
+    /// <summary>
+    /// Exact-threshold pairing, mirroring <c>ClassifyTier</c>'s own style
+    /// above: one tick short of <c>IdentifiedMemoryTicks</c> unseen, an
+    /// <see cref="ContactTier.Identified"/> ghost has not yet aged out. The
+    /// asserted tick count is a literal computed in this test, not read back
+    /// from <c>ContactMemory.IdentifiedMemoryTicks</c>, so the test still
+    /// binds if that constant moves.
+    /// </summary>
+    [Fact]
+    public void Update_IdentifiedGhostUnseenOneTickShortOfThreshold_StaysIdentified()
+    {
+        const long identifiedMemoryTicks = 100;
+        var existing = ImmutableArray.Create(
+            new ContactMemoryEntry(EnemyEntityId: 3, LastKnownCellIndex: 50, ContactTier: (int)ContactTier.Identified, LastSeenTick: 40L));
+
+        var result = ContactMemory.Update(
+            existing, ReadOnlySpan<ContactObservation>.Empty, currentTick: 40L + identifiedMemoryTicks - 1);
+
+        var ghost = Assert.Single(result);
+        Assert.Equal((int)ContactTier.Identified, ghost.ContactTier);
+        Assert.Equal(50, ghost.LastKnownCellIndex);
+        Assert.Equal(40L, ghost.LastSeenTick);
+    }
+
+    /// <summary>
+    /// Exactly <c>IdentifiedMemoryTicks</c> unseen, the ghost downgrades to
+    /// <see cref="ContactTier.QuestionMark"/>. The entry survives the
+    /// downgrade rather than being dropped: its last-known cell and its
+    /// last-seen tick — the age anchor a caller reads back — are untouched.
+    /// </summary>
+    [Fact]
+    public void Update_IdentifiedGhostUnseenForThreshold_DowngradesToQuestionMarkButSurvives()
+    {
+        const long identifiedMemoryTicks = 100;
+        var existing = ImmutableArray.Create(
+            new ContactMemoryEntry(EnemyEntityId: 3, LastKnownCellIndex: 50, ContactTier: (int)ContactTier.Identified, LastSeenTick: 40L));
+
+        var result = ContactMemory.Update(
+            existing, ReadOnlySpan<ContactObservation>.Empty, currentTick: 40L + identifiedMemoryTicks);
+
+        var ghost = Assert.Single(result);
+        Assert.Equal((int)ContactTier.QuestionMark, ghost.ContactTier);
+        Assert.Equal(50, ghost.LastKnownCellIndex);
+        Assert.Equal(40L, ghost.LastSeenTick);
+    }
+
+    /// <summary>
+    /// A ghost that has already decayed to <see cref="ContactTier.QuestionMark"/>
+    /// never decays further, no matter how old it gets — there is no tier
+    /// below <see cref="ContactTier.QuestionMark"/> for a remembered contact
+    /// to fall to short of being dropped outright, which this type only ever
+    /// does for a confirmed-dead subject, never for age alone.
+    /// </summary>
+    [Fact]
+    public void Update_QuestionMarkGhost_NeverDecaysFurtherNoMatterHowOld()
+    {
+        var existing = ImmutableArray.Create(
+            new ContactMemoryEntry(EnemyEntityId: 3, LastKnownCellIndex: 50, ContactTier: (int)ContactTier.QuestionMark, LastSeenTick: 40L));
+
+        var result = ContactMemory.Update(
+            existing, ReadOnlySpan<ContactObservation>.Empty, currentTick: 1_000_000L);
+
+        var ghost = Assert.Single(result);
+        Assert.Equal((int)ContactTier.QuestionMark, ghost.ContactTier);
+        Assert.Equal(50, ghost.LastKnownCellIndex);
+        Assert.Equal(40L, ghost.LastSeenTick);
+    }
+
+    /// <summary>
+    /// Re-observing an aged ghost restores <see cref="ContactTier.Identified"/>
+    /// and refreshes <c>LastSeenTick</c> to the observing tick, exactly like
+    /// <c>Update_EnemyReObservedCloser_RefreshesTierCellAndTick</c> above —
+    /// aging is not a one-way trip once the subject is seen again.
+    /// </summary>
+    [Fact]
+    public void Update_AgedGhostReObserved_RestoresIdentifiedAndRefreshesLastSeenTick()
+    {
+        const long identifiedMemoryTicks = 100;
+        var existing = ImmutableArray.Create(
+            new ContactMemoryEntry(EnemyEntityId: 3, LastKnownCellIndex: 50, ContactTier: (int)ContactTier.Identified, LastSeenTick: 40L));
+        var reObserveTick = 40L + identifiedMemoryTicks + 500L; // long past the aging threshold.
+        var observations = new ContactObservation[]
+        {
+            new(EnemyEntityId: 3, HasLineOfSightThisTick: true, RangeSquaredWu: 0, CurrentCellIndex: 60),
+        };
+
+        var result = ContactMemory.Update(existing, observations, currentTick: reObserveTick);
+
+        var refreshed = Assert.Single(result);
+        Assert.Equal((int)ContactTier.Identified, refreshed.ContactTier);
+        Assert.Equal(60, refreshed.LastKnownCellIndex);
+        Assert.Equal(reObserveTick, refreshed.LastSeenTick);
+    }
+
+    /// <summary>
+    /// A dead subject is forgotten outright even when it is also old enough
+    /// to have qualified for the age-based downgrade — death takes priority
+    /// over decay, and the entry never lingers as a downgraded ghost first.
+    /// </summary>
+    [Fact]
+    public void Update_DeadSubjectAlsoOldEnoughToDecay_IsStillForgottenOutright()
+    {
+        const long identifiedMemoryTicks = 100;
+        var existing = ImmutableArray.Create(
+            new ContactMemoryEntry(EnemyEntityId: 3, LastKnownCellIndex: 50, ContactTier: (int)ContactTier.Identified, LastSeenTick: 40L));
+
+        var result = ContactMemory.Update(
+            existing,
+            observationsThisTick: default,
+            currentTick: 40L + identifiedMemoryTicks + 1000L,
+            deadEnemyEntityIds: new ulong[] { 3UL });
+
+        Assert.Empty(result);
+    }
 }

@@ -80,19 +80,23 @@ public readonly record struct ContactObservation(
 /// <see cref="ContactObservation"/> at all, or one with
 /// <see cref="ContactObservation.HasLineOfSightThisTick"/> false, or one whose
 /// range classifies as <see cref="ContactTier.Unknown"/> — keeps its prior
-/// <c>Sandata.Core.Simulation.ContactMemoryEntry</c> completely unchanged:
-/// same <c>LastKnownCellIndex</c>, same <c>ContactTier</c>, same
-/// <c>LastSeenTick</c>. Nothing in this type computes an age; a caller who
-/// wants one subtracts the unchanged <c>LastSeenTick</c> from the current
+/// <c>Sandata.Core.Simulation.ContactMemoryEntry</c>'s <c>LastKnownCellIndex</c>
+/// and <c>LastSeenTick</c> completely unchanged; a caller who wants the
+/// ghost's age subtracts the unchanged <c>LastSeenTick</c> from the current
 /// tick, and that subtraction grows every tick the ghost is not re-observed —
-/// which is the whole of what "remembered rather than live" means here. An
-/// enemy who has never been observed at all — no prior entry, and this tick's
-/// observation (if any) does not clear <see cref="ContactTier.Unknown"/> —
-/// has no entry whatsoever; <see cref="ContactTier.Unknown"/> is never written
-/// into a stored entry, only ever returned transiently by
-/// <see cref="ClassifyTier"/> and read by <see cref="Update"/> to decide
-/// whether an entry should exist at all. See <see cref="ContactTier.Unknown"/>'s
-/// own remarks.
+/// which is the whole of what "remembered rather than live" means here. The
+/// one field a ghost does not keep forever is its <c>ContactTier</c>: see
+/// <see cref="IdentifiedMemoryTicks"/> and <see cref="Decay"/> for the single,
+/// one-way, terminal downgrade an <see cref="ContactTier.Identified"/> ghost
+/// undergoes once it has aged past that threshold, and <see cref="Update"/>'s
+/// <c>deadEnemyEntityIds</c> remarks for the one case a ghost is dropped
+/// outright rather than downgraded. An enemy who has never been observed at
+/// all — no prior entry, and this tick's observation (if any) does not clear
+/// <see cref="ContactTier.Unknown"/> — has no entry whatsoever;
+/// <see cref="ContactTier.Unknown"/> is never written into a stored entry,
+/// only ever returned transiently by <see cref="ClassifyTier"/> and read by
+/// <see cref="Update"/> to decide whether an entry should exist at all. See
+/// <see cref="ContactTier.Unknown"/>'s own remarks.
 /// </para>
 /// <para>
 /// <b>Determinism.</b> The returned array is always sorted ascending by
@@ -134,6 +138,28 @@ public static class ContactMemory
 
     private const long IdentifyRangeSquaredWu = (long)IdentifyRangeWu * IdentifyRangeWu;
     private const long DetectRangeSquaredWu = (long)DetectRangeWu * DetectRangeWu;
+
+    /// <summary>
+    /// How many ticks an <see cref="ContactTier.Identified"/> ghost may go
+    /// unseen before it downgrades to <see cref="ContactTier.QuestionMark"/>.
+    /// At <c>TickRate</c> 50 this is 2 seconds. <b>Provisional
+    /// reconstruction, unmeasured</b> — like <see cref="IdentifyRangeWu"/> and
+    /// <see cref="DetectRangeWu"/>, this figure is not published anywhere in
+    /// the design document; it exists only so an identified contact does not
+    /// stay <c>Engage</c>-ranked forever once its subject has broken line of
+    /// sight (see <see cref="Update"/>'s <c>deadEnemyEntityIds</c> remarks for
+    /// the sibling bug this shares a root cause with — an
+    /// <c>IntentSelection</c> that never revisits a stale
+    /// <see cref="ContactTier.Identified"/> entry). Whichever future task can
+    /// observe actual firefights is expected to confirm or revise it. The
+    /// downgrade is one-way and terminal: a ghost that has already reached
+    /// <see cref="ContactTier.QuestionMark"/> this way never decays further,
+    /// because <see cref="ContactTier.QuestionMark"/> already means "not
+    /// shootable" and there is nothing below it but dropping the entry
+    /// outright, which would erase the last-known-cell age the HUD is
+    /// specified to display (design section 4's "last known cell" table).
+    /// </summary>
+    public const long IdentifiedMemoryTicks = 100;
 
     /// <summary>
     /// Classifies a sighted enemy's contact tier from nothing but the squared
@@ -223,21 +249,29 @@ public static class ContactMemory
     /// <para>
     /// A ghost survives losing sight of its subject, by design — that is what
     /// "world state is remembered rather than live" means. It does not survive
-    /// its subject dying, because nothing in this type decays a ghost and
-    /// nothing else forgets one: a contact identified once would otherwise
-    /// stay <see cref="ContactTier.Identified"/> for the rest of the mission,
-    /// and <c>IntentSelection</c> ranks an identified contact as
-    /// <c>Engage</c> above every other intent unconditionally. Measured
-    /// 2026-08-15 before this parameter existed: an operator whose target died
-    /// at tick 672 still held <c>Engage</c> at tick 35,999, standing over the
-    /// body while a live hostile elsewhere on the map was never approached.
+    /// its subject dying, and is dropped outright rather than merely
+    /// downgraded, because a dead subject is never coming back into view to
+    /// re-earn the entry — unlike an <see cref="IdentifiedMemoryTicks"/> aging
+    /// out, which reflects a live enemy the operator has simply lost sight of.
+    /// Before this parameter existed, and before <see cref="IdentifiedMemoryTicks"/>
+    /// existed, a contact identified once stayed <see cref="ContactTier.Identified"/>
+    /// for the rest of the mission, and <c>IntentSelection</c> ranks an
+    /// identified contact as <c>Engage</c> above every other intent
+    /// unconditionally. Measured 2026-08-15 before this parameter existed: an
+    /// operator whose target died at tick 672 still held <c>Engage</c> at tick
+    /// 35,999, standing over the body while a live hostile elsewhere on the
+    /// map was never approached.
     /// </para>
     /// <para>
     /// Forgetting is deliberately not gated on the observer having seen the
     /// death. Gating it that way would leave exactly the same permanent ghost
-    /// whenever the kill happened out of sight, and this type has no decay
-    /// rule to fall back on. Whether ghosts should age out on their own is a
-    /// separate, open design question this parameter does not answer.
+    /// whenever the kill happened out of sight, and — before
+    /// <see cref="IdentifiedMemoryTicks"/> existed — this type had no decay
+    /// rule to fall back on. That decay rule now exists for the living-but-
+    /// unseen case; it is deliberately not reused for the dead case, because
+    /// dropping the entry immediately is strictly more correct once the
+    /// subject is confirmed dead, and there is no reason to wait out an aging
+    /// window first.
     /// </para>
     /// </param>
     public static ImmutableArray<Simulation.ContactMemoryEntry> Update(
@@ -286,7 +320,10 @@ public static class ContactMemory
 
             if (!matched)
             {
-                buffer[count++] = existing; // ghost: unobserved this tick, nothing changes.
+                // Ghost: unobserved this tick. Cell and tick never change, but
+                // an Identified ghost still ages toward its QuestionMark
+                // downgrade — see Decay.
+                buffer[count++] = Decay(existing, currentTick);
             }
         }
 
@@ -396,10 +433,32 @@ public static class ContactMemory
     {
         var tier = TierOf(observation);
         return tier == ContactTier.Unknown
-            ? ghost // lost this tick: the prior entry persists as a ghost, wholly unchanged.
+            // Lost this tick: the prior entry persists as a ghost. Cell and
+            // tick never change, but an Identified ghost still ages toward
+            // its QuestionMark downgrade — see Decay.
+            ? Decay(ghost, currentTick)
             : new Simulation.ContactMemoryEntry(
                 observation.EnemyEntityId, observation.CurrentCellIndex, (int)tier, currentTick);
     }
+
+    /// <summary>
+    /// Ages a ghost by one tick's worth of possible downgrade. An
+    /// <see cref="ContactTier.Identified"/> entry unseen for at least
+    /// <see cref="IdentifiedMemoryTicks"/> becomes <see cref="ContactTier.QuestionMark"/>;
+    /// every other tier — including a <see cref="ContactTier.QuestionMark"/>
+    /// ghost that has already decayed once — passes through unchanged. This
+    /// only ever runs against a ghost being carried forward, never against a
+    /// freshly observed entry, so <see cref="Simulation.ContactMemoryEntry.LastSeenTick"/>
+    /// and <see cref="Simulation.ContactMemoryEntry.LastKnownCellIndex"/> are
+    /// never touched here — decay changes the tier only, and the age anchor
+    /// this method reads (<paramref name="currentTick"/> minus the ghost's own
+    /// <c>LastSeenTick</c>) must itself remain untouched for the next call to
+    /// keep measuring from the tick the subject was actually last seen.
+    /// </summary>
+    private static Simulation.ContactMemoryEntry Decay(Simulation.ContactMemoryEntry ghost, long currentTick) =>
+        ghost.ContactTier == (int)ContactTier.Identified && currentTick - ghost.LastSeenTick >= IdentifiedMemoryTicks
+            ? ghost with { ContactTier = (int)ContactTier.QuestionMark }
+            : ghost;
 
     private static ContactTier TierOf(ContactObservation observation) =>
         observation.HasLineOfSightThisTick ? ClassifyTier(observation.RangeSquaredWu) : ContactTier.Unknown;
