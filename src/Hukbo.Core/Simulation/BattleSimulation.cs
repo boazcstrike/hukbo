@@ -705,8 +705,15 @@ public sealed class BattleSimulation
                     index);
             }
 
+            // Not covered by UsesBattlefieldRealism or by
+            // YieldsLastStandEngagement: this is its own single-value identity
+            // test, and it is the one a reader of those two predicates misses.
+            // A preset omitted here deploys its armies in a different shape
+            // from V13's, which silently invalidates every comparison between
+            // the two.
             var spreadCohortsLaterally =
-                scenario.MovementPreset is MovementPresetId.CohortLateralSpreadV13;
+                scenario.MovementPreset is MovementPresetId.CohortLateralSpreadV13
+                    or MovementPresetId.EvasiveFootworkV14;
             faction0Deployment = CohortDeploymentAssignment.AssignForFaction(
                 deployment, faction0Loadouts, rules, spreadCohortsLaterally);
             faction1Deployment = CohortDeploymentAssignment.AssignForFaction(
@@ -1532,7 +1539,8 @@ public sealed class BattleSimulation
     private static bool YieldsLastStandEngagement(MovementPresetId preset) =>
         preset is MovementPresetId.LastStandEngagementV11
             or MovementPresetId.ContingentShapeV12
-            or MovementPresetId.CohortLateralSpreadV13;
+            or MovementPresetId.CohortLateralSpreadV13
+            or MovementPresetId.EvasiveFootworkV14;
 
     /// <summary>
     /// Derives <see cref="_factionRallyEngaged"/> for both factions: whether
@@ -5215,7 +5223,8 @@ public sealed class BattleSimulation
         preset is MovementPresetId.BattlefieldRealismV10
             or MovementPresetId.LastStandEngagementV11
             or MovementPresetId.ContingentShapeV12
-            or MovementPresetId.CohortLateralSpreadV13;
+            or MovementPresetId.CohortLateralSpreadV13
+            or MovementPresetId.EvasiveFootworkV14;
 
     /// <summary>
     /// The single approved reach test. Attack range is measured centre to

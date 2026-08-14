@@ -1,4 +1,8 @@
+using Hukbo.Core.Combat;
+using Hukbo.Core.Determinism;
 using Hukbo.Core.Movement;
+using Hukbo.Core.Simulation;
+using Hukbo.Headless;
 
 namespace Hukbo.Core.Tests.Movement;
 
@@ -151,4 +155,101 @@ public sealed class EvasiveFootworkV14Tests
         Assert.False(ruleset.UsesEquipmentRelativeFootwork);
         Assert.Empty(ruleset.LoadoutMovementProfiles);
     }
+
+    /// <summary>
+    /// The completeness proof for the three closed identity gates of design
+    /// section 3. V14 is admitted to <c>UsesBattlefieldRealism</c>,
+    /// <c>YieldsLastStandEngagement</c>, and the single-value
+    /// <c>spreadCohortsLaterally</c> test, and it carries no behaviour of its
+    /// own yet, so it must reproduce V13 exactly: same positions, same event
+    /// fold, same terminal tick.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A preset omitted from any one of those three gates still compiles, still
+    /// registers, and still runs — it simply loses a behaviour, quietly. Commit
+    /// <c>3163fbf</c> exists because that happened to V13. This test is the
+    /// only thing that would catch the same omission for V14, and it catches
+    /// all three gates at once: the cohort gate changes the deployment, the
+    /// realism gate changes the ranged retreat and the melee-threat scratch,
+    /// and the last-stand gate changes the regroup yield. Any of the three
+    /// going missing moves a position, which moves this assertion.
+    /// </para>
+    /// <para>
+    /// <b>This test has a known expiry.</b> It holds only while V14 has no
+    /// evasive rung of its own. When the first rung lands, V14 begins to
+    /// diverge from V13 deliberately, and this test must be superseded by the
+    /// one-faction control described in the plan's amendment to task 9 — never
+    /// weakened or deleted outright, because deleting it removes the only proof
+    /// that the gating is complete.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void EvasiveFootworkV14ReproducesCohortLateralSpreadV13Exactly()
+    {
+        var v13 = RunToTermination(MovementPresetId.CohortLateralSpreadV13);
+        var v14 = RunToTermination(MovementPresetId.EvasiveFootworkV14);
+
+        Assert.Equal(v13.TerminalTick, v14.TerminalTick);
+        Assert.Equal(v13.Outcome, v14.Outcome);
+        Assert.Equal(v13.EventFold, v14.EventFold);
+        Assert.Equal(v13.Positions, v14.Positions);
+
+        // The state hash must differ even though every position matches,
+        // because StateHasher folds the movement preset identity itself. If
+        // these were equal, the two presets would be indistinguishable in a
+        // replay and the identity gating would have no hash to hang on.
+        Assert.NotEqual(v13.StateHash, v14.StateHash);
+    }
+
+    /// <summary>
+    /// Runs one preset to its own termination, folding the ordered event stream
+    /// exactly the way <c>HeadlessRunner</c> folds it for the determinism
+    /// workload — the same helper shape
+    /// <c>CohortLateralSpreadV13Tests.RunToCompletion</c> uses, restated here
+    /// because this project's test classes do not share private helpers across
+    /// files.
+    /// </summary>
+    private static RunSummary RunToTermination(MovementPresetId movementPreset)
+    {
+        var scenario = Scenario.CreateDefault(seed: 1, totalAgents: 200) with
+        {
+            MovementPreset = movementPreset,
+            CombatPreset = CombatPresetId.PrecolonialPhilippinesV5,
+        };
+        scenario.Validate();
+
+        var simulation = BattleSimulation.Create(scenario);
+        var fold = Fnv1a.OffsetBasis;
+        while (simulation.Outcome == BattleOutcome.Ongoing)
+        {
+            simulation.AdvanceOneTick();
+
+            foreach (var battleEvent in simulation.LastEvents)
+            {
+                HeadlessRunner.AddEventToHash(ref fold, battleEvent);
+            }
+        }
+
+        var positions = new List<(ulong Id, int XRaw, int YRaw, bool IsAlive)>(
+            simulation.Agents.Count);
+        foreach (var agent in simulation.Agents)
+        {
+            positions.Add((agent.EntityId, agent.XRaw, agent.YRaw, agent.IsAlive));
+        }
+
+        return new RunSummary(
+            simulation.Tick,
+            simulation.Outcome,
+            simulation.ComputeStateHash(),
+            fold,
+            positions);
+    }
+
+    private sealed record RunSummary(
+        long TerminalTick,
+        BattleOutcome Outcome,
+        ulong StateHash,
+        ulong EventFold,
+        IReadOnlyList<(ulong Id, int XRaw, int YRaw, bool IsAlive)> Positions);
 }
