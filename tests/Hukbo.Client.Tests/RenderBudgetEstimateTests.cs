@@ -136,6 +136,98 @@ public sealed class RenderBudgetEstimateTests
                 $"({RenderBudgetEstimate.ArenaBatchQuadsAt500UnitsEstimate}).");
     }
 
+    /// <summary>
+    /// PV-8: the whole-screen effects-quad assertion. Every fixed-capacity
+    /// effect pool the presentation layer owns — blood bursts, blood ground
+    /// marks, lethal spurts, hit effects, and clash effects, none of which
+    /// the two tests above account for, plus dust and trample marks, which
+    /// the backdrop worst case above already folds in — stacked at its own
+    /// capacity in the same frame as the per-pawn and backdrop worst cases.
+    /// The five new pools' capacities are read from
+    /// <see cref="PawnAppearanceCache.Capacity"/>, the default every one of
+    /// them actually constructs at in production
+    /// (<c>PresentationCoordinator</c>'s constructor, unless a caller
+    /// overrides it, which the shipped <c>ArenaGame</c> does not for any of
+    /// these five), rather than repeated as a second literal.
+    /// </summary>
+    [Fact]
+    public void WholeScreenEffectPoolWorstCaseArithmetic_FitsWithinTheWholeScreenEstimateAt200And500Units()
+    {
+        var appearance = PawnAppearanceFactory.Create(0, WeaponId.Busog, ShieldId.None);
+        var layout = PawnGeometry.Create(Vector2.Zero, 3f, appearance);
+        Assert.Equal(PawnDetailTier.High, layout.DetailTier);
+
+        var perPawnQuads = PawnQuadCount.Count(layout, appearance, PawnVisualState.Normal);
+
+        var backdropWorstCaseQuads =
+            BackdropQuadCount.GroundGrid(
+                PlainsBackdropGeometry.MaximumGridDimension,
+                PlainsBackdropGeometry.MaximumGridDimension) +
+            BackdropQuadCount.Decals(PlainsBackdropGeometry.MaximumDecalCount) +
+            BackdropQuadCount.GrassClusters(WorstCaseGrassClusters(), GrassZoomBand.Near) +
+            BackdropQuadCount.TrampleMarks(TrampleMarkSystem.Capacity) +
+            BackdropQuadCount.DustPuffs(WorstCaseDustPuffs(), cameraZoom: 3f);
+
+        var maximumProjectilesInFlight = new Scenario(
+            Seed: 1,
+            MapWidth: 1,
+            MapHeight: 1,
+            AgentsPerFaction: 1,
+            TickRate: 1,
+            TickLimit: 1).MaximumProjectilesInFlight;
+        var projectileQuads =
+            maximumProjectilesInFlight * RenderBudgetEstimate.ProjectileQuadsPerProjectile;
+
+        var embeddedProjectileQuads =
+            EmbeddedProjectileSystem.Capacity *
+            RenderBudgetEstimate.EmbeddedProjectileQuadsPerProjectile;
+
+        var hitEffectQuads =
+            PawnAppearanceCache.Capacity * RenderBudgetEstimate.HitEffectQuadsPerHitEffect;
+        var bloodBurstQuads =
+            PawnAppearanceCache.Capacity * RenderBudgetEstimate.BloodBurstQuadsPerBurst;
+        var bloodGroundMarkQuads =
+            PawnAppearanceCache.Capacity * RenderBudgetEstimate.BloodGroundMarkQuadsPerMark;
+        var bloodSpurtQuads =
+            PawnAppearanceCache.Capacity * RenderBudgetEstimate.BloodSpurtQuadsPerSpurt;
+        var clashEffectQuads =
+            PawnAppearanceCache.Capacity * RenderBudgetEstimate.ClashEffectQuadsPerEffect;
+
+        var totalAt200Units =
+            (perPawnQuads * 200) + backdropWorstCaseQuads + projectileQuads +
+                embeddedProjectileQuads + hitEffectQuads + bloodBurstQuads +
+                bloodGroundMarkQuads + bloodSpurtQuads + clashEffectQuads;
+        var totalAt500Units =
+            (perPawnQuads * 500) + backdropWorstCaseQuads + projectileQuads +
+                embeddedProjectileQuads + hitEffectQuads + bloodBurstQuads +
+                bloodGroundMarkQuads + bloodSpurtQuads + clashEffectQuads;
+
+        Assert.True(
+            totalAt200Units <=
+                RenderBudgetEstimate.WholeScreenEffectPoolQuadsAt200UnitsEstimate,
+            $"200-unit whole-screen worst case ({totalAt200Units} quads: " +
+                $"{perPawnQuads} per pawn x 200 + {backdropWorstCaseQuads} backdrop " +
+                $"(ground grid + decals + grass clusters + trample marks + dust puffs) + " +
+                $"{projectileQuads} in-flight projectiles + {embeddedProjectileQuads} " +
+                $"embedded projectiles + {hitEffectQuads} hit effects + " +
+                $"{bloodBurstQuads} blood bursts + {bloodGroundMarkQuads} blood ground " +
+                $"marks + {bloodSpurtQuads} lethal spurts + {clashEffectQuads} clash " +
+                $"effects) exceeds the whole-screen ESTIMATE budget " +
+                $"({RenderBudgetEstimate.WholeScreenEffectPoolQuadsAt200UnitsEstimate}).");
+        Assert.True(
+            totalAt500Units <=
+                RenderBudgetEstimate.WholeScreenEffectPoolQuadsAt500UnitsEstimate,
+            $"500-unit whole-screen worst case ({totalAt500Units} quads: " +
+                $"{perPawnQuads} per pawn x 500 + {backdropWorstCaseQuads} backdrop " +
+                $"(ground grid + decals + grass clusters + trample marks + dust puffs) + " +
+                $"{projectileQuads} in-flight projectiles + {embeddedProjectileQuads} " +
+                $"embedded projectiles + {hitEffectQuads} hit effects + " +
+                $"{bloodBurstQuads} blood bursts + {bloodGroundMarkQuads} blood ground " +
+                $"marks + {bloodSpurtQuads} lethal spurts + {clashEffectQuads} clash " +
+                $"effects) exceeds the whole-screen ESTIMATE budget " +
+                $"({RenderBudgetEstimate.WholeScreenEffectPoolQuadsAt500UnitsEstimate}).");
+    }
+
     private static ImmutableArray<GrassCluster> WorstCaseGrassClusters()
     {
         var worstCaseCluster = new GrassCluster(
