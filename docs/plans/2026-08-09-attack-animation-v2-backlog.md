@@ -54,9 +54,9 @@ What that run does to this document, section by section:
 - **Section 2, "The conservative cull is not wired, so AA-24 has no
   implementation", disagrees with the checklist and must not be resolved by
   assumption.** `ConservativePawnCull` still has no production caller — the only
-  two references to it under `src/` are doc comments in
-  `src/Hukbo.Client/Rendering/PawnGeometry.cs`, at lines 2136 and 2241 — so
-  nothing this section describes has been built. A person nevertheless passed
+  references to it under `src/` are its own doc comments plus three comments in
+  `src/Hukbo.Client/Rendering/PawnGeometry.cs`, at lines 925, 2243, and 2348 —
+  so nothing this section describes has been built. A person nevertheless passed
   `AA-24` at the desktop on the same day. Both records are true as written: the
   row asks whether a weapon pops in or out at the panel edge, and the live
   pose-blind path may simply be wide enough in practice for what the tester
@@ -131,6 +131,20 @@ Closing AA-24 means widening the **live** pose-blind path. That is a genuine
 decision, not a mechanical change: `PawnGeometry`'s own remarks argue against a
 pose-aware cull, because it would make the drawn set a function of presentation
 animation phase. Decide the approach before writing code.
+
+**Wiring `ConservativePawnCull` in cannot close AA-24, and this is not a gap
+in the wiring — it is what the type's own header now says explicitly.** The
+bound is a genuine superset of the live pose-blind test, never a replacement:
+a caller that keeps today's exact test afterward, which any correct caller
+must, draws exactly the same set of pawns the game draws now. So wiring it in
+is a performance change at best and changes nothing about which weapon pops in
+or out at the panel edge, which is what AA-24 asks about. Do not read "wire
+it" as the outstanding task here. The type is being kept as a mirrored-
+constants guard — `ConservativePawnCullTests` is what keeps its duplicated
+`PawnGeometry` constants from drifting silently — and the decision of whether
+to wire it into the live pawn loop at all has been handed to the thousand-unit
+performance workstream, which weighs it as one candidate among several rather
+than as a standalone fix for this row.
 
 ## 3. A collapsed contact silently loses its whole bundle
 

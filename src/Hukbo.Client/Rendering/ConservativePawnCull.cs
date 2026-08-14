@@ -37,6 +37,22 @@ namespace Hukbo.Client.Rendering;
 /// used as the only cull.
 /// </para>
 /// <para>
+/// <b>As of 2026-08-14, this type is a mirrored-constants guard, not a
+/// pending optimization.</b> Wiring it in cannot change which pawns are
+/// drawn, because of the superset clause immediately above: any caller that
+/// keeps the existing exact test afterward draws exactly the same set it
+/// draws today, so adopting this bound is a performance change at best, never
+/// a correctness or visibility one. It therefore cannot close a smoke row
+/// that asks whether a weapon pops in or out at the panel edge. Deleting it
+/// instead would remove the only test that keeps its mirrored
+/// <see cref="PawnGeometry"/> constants honest against drift. The decision of
+/// whether to wire this bound into the live pawn loop belongs to the
+/// thousand-unit performance workstream — see
+/// <c>docs/plans/2026-08-14-thousand-unit-performance-design.md</c>, section
+/// 7 — which weighs it as one candidate among several rather than in
+/// isolation. Do not wire it and do not delete it outside that decision.
+/// </para>
+/// <para>
 /// The coefficients below are derived from <see cref="PawnGeometry"/>'s own
 /// layout arithmetic rather than chosen by hand, and
 /// <c>ConservativePawnCullTests</c> proves the containment claim by brute
