@@ -765,13 +765,13 @@ internal sealed class SandataGame : Game
     /// events to draw a muzzle flash.
     /// <para>
     /// Range is real — the distance to the nearest living hostile, which is
-    /// the engagement the shot belongs to. Indoors and suppressor are not:
-    /// nothing in <c>Sandata.Core</c> knows which side of a wall an operator
-    /// is on, and no weapon carries a suppressor, so both are false. That
-    /// puts a shot inside 200 world units on the <c>close</c> files and
-    /// everything further out on <c>outdoor</c> or <c>distant</c> files that
-    /// are not on disk, which plays as silence rather than as an error. The
-    /// gap is recorded in <c>Content/Audio/README.md</c>.
+    /// the engagement the shot belongs to. Indoors is real too, since
+    /// 2026-08-14: <see cref="IndoorPresence.IsIndoors"/> derives it on the
+    /// client from the same baked <see cref="_navGrid"/> and
+    /// <see cref="_wallBuckets"/> this class already holds, because nothing in
+    /// <c>Sandata.Core</c> knows or should know which side of a wall an
+    /// operator is on — that is a sound choice, not a gameplay one. Suppressor
+    /// is still always false, because no weapon in the catalog carries one.
     /// </para>
     /// </summary>
     private void SoundShotsFiredOn(long executedTick)
@@ -806,7 +806,7 @@ internal sealed class SandataGame : Game
                 FirearmCatalog.Rows[(int)shooter.Firearm].Caliber,
                 mode,
                 RangeToNearestHostileWu(shooter),
-                shooterIsIndoors: false,
+                shooterIsIndoors: IsShooterIndoors(shooter),
                 suppressorFitted: false,
                 executedTick,
                 shooterEntityId);
@@ -849,7 +849,7 @@ internal sealed class SandataGame : Game
             var burstEnded = _soundPlayer.HandleAutomaticFireStopped(
                 FirearmCatalog.Rows[(int)shooter.Firearm].Caliber,
                 RangeToNearestHostileWu(shooter),
-                shooterIsIndoors: false,
+                shooterIsIndoors: IsShooterIndoors(shooter),
                 suppressorFitted: false,
                 executedTick,
                 shooterEntityId);
@@ -937,6 +937,20 @@ internal sealed class SandataGame : Game
             ? 0
             : (int)Math.Sqrt(nearestSquared);
     }
+
+    /// <summary>
+    /// Whether <paramref name="shooter"/>'s committed position reads as
+    /// enclosed by wall geometry under <see cref="IndoorPresence.IsIndoors"/>,
+    /// against the same baked <see cref="_navGrid"/> and
+    /// <see cref="_wallBuckets"/> every other geometry query in this class
+    /// already reads.
+    /// </summary>
+    private bool IsShooterIndoors(OperatorState shooter) =>
+        IndoorPresence.IsIndoors(
+            WorldUnits.FromFixedPoint(shooter.PositionX),
+            WorldUnits.FromFixedPoint(shooter.PositionY),
+            _navGrid,
+            _wallBuckets);
 
     /// <summary>
     /// Writes one <see cref="LogEvents.SimSandataWeaponState"/> line for every
