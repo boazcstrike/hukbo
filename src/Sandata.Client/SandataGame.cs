@@ -145,6 +145,30 @@ internal sealed class SandataGame : Game
     private static readonly Vector2 PistolSpriteGripAnchor = new(4f, 6f);
 
     /// <summary>
+    /// The health every operator in the placeholder roster starts with.
+    /// <b>Provisional, and a gameplay tuning value rather than a measurement</b>
+    /// — no <c>SpawnRecord</c> carries a health figure and no design document
+    /// fixes one, so this is a scenario placeholder in the client, not a
+    /// simulation constant. It is deliberately not in
+    /// <c>SandataRuleset</c>: nothing here folds into
+    /// <c>SandataRuleset.ContentHash</c> and changing it costs no preset
+    /// version.
+    /// </summary>
+    /// <remarks>
+    /// Raised from <c>100</c> to <c>300</c> on 2026-08-14 so that automatic
+    /// fire can be heard at all. At <c>100</c>, and with 7.62x39 doing 25
+    /// damage a round, the fourth round killed — so the longest burst the game
+    /// could physically produce was four rounds over 0.30 seconds, and smoke
+    /// row <c>SD-5</c> asks a person to judge <em>sustained</em> automatic
+    /// fire by ear. At <c>300</c> a burst runs twelve rounds, about 1.2
+    /// seconds at the AK's 600 rounds per minute, which is long enough to
+    /// hear as a burst rather than as a stutter. The cost is that every
+    /// engagement on the placeholder map takes proportionally longer to
+    /// resolve.
+    /// </remarks>
+    private const int PlaceholderOperatorHealth = 300;
+
+    /// <summary>
     /// How far from a click, in screen pixels, an operator can be and still be
     /// the one the click selected. An operator's ground ring is 12 world units
     /// across, which at the zoom a spectator actually plays at is a mark of
@@ -2589,7 +2613,7 @@ internal sealed class SandataGame : Game
                 PositionY: FixedPoint.FromWhole(spawn.Y),
                 Facing: rawFacing.ToFacing16(),
                 AimAngle: rawFacing,
-                Health: 100,
+                Health: PlaceholderOperatorHealth,
                 Faction: spawn.Faction,
                 Intent: 0,
                 IsCrouched: false,

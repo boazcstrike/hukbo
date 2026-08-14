@@ -623,25 +623,37 @@ public sealed class SandataSimulation
     /// nothing" finding wave 9 left on that field.
     /// </para>
     /// <para>
-    /// <b>Target bearing.</b> <c>raiseRequested</c> is this operator's stage-8
-    /// <see cref="OperatorIntent.Engage"/> selection. When raising, this
-    /// method reads the operator's own committed
-    /// <see cref="OperatorState.ContactMemory"/> for its highest-tier entry
-    /// (ties break on the lower <see cref="ContactMemoryEntry.EnemyEntityId"/>),
-    /// resolves that contact's live committed position from
-    /// <see cref="State"/> — not the remembered cell, which is all
-    /// <see cref="ContactMemoryEntry"/> itself carries — and turns the aim
-    /// point toward it by at most <see cref="FirearmDefinition.TurnBamPerTick"/>
-    /// of raw <see cref="Bam16"/> magnitude. <see cref="WeaponChain.Advance"/>
-    /// only counts phases; its own remarks are explicit that nothing inside
-    /// it rotates anything, so this call site is the one place that has to
+    /// <b>Target bearing runs before the lowered rule.</b> <c>raiseRequested</c>
+    /// is this operator's stage-8 <see cref="OperatorIntent.Engage"/>
+    /// selection. When raising, this method reads the operator's own
+    /// committed <see cref="OperatorState.ContactMemory"/> for its
+    /// highest-tier entry (ties break on the lower
+    /// <see cref="ContactMemoryEntry.EnemyEntityId"/>), resolves that
+    /// contact's live committed position from <see cref="State"/> — not the
+    /// remembered cell, which is all <see cref="ContactMemoryEntry"/> itself
+    /// carries — and turns the aim point toward it by at most
+    /// <see cref="FirearmDefinition.TurnBamPerTick"/> of raw
+    /// <see cref="Bam16"/> magnitude. <see cref="WeaponChain.Advance"/> only
+    /// counts phases; its own remarks are explicit that nothing inside it
+    /// rotates anything, so this call site is the one place that has to
     /// perform that per-tick turn during <see cref="WeaponChainPhase.Turning"/>.
+    /// This target-acquisition step runs before
+    /// <see cref="WeaponLoweredRules.IsForcedLowered"/> is called, because
+    /// that call's own <c>engagingIdentifiedHostile</c> argument is
+    /// <see langword="true"/> exactly when this step resolved a live
+    /// <c>targetEntityId</c> for this operator this tick — an operator
+    /// engaging an identified hostile is never forced lowered, so the caller
+    /// has to know whether a target was acquired before it can compute
+    /// <c>forceLowered</c>.
     /// </para>
     /// <para>
     /// If the operator is raising but its best remembered contact has since
     /// died or left the roster, <c>arcWithinTolerance</c> stays
     /// <see langword="false"/> for the whole tick — the chain holds at
-    /// <see cref="WeaponChainPhase.Turning"/> rather than firing at nothing.
+    /// <see cref="WeaponChainPhase.Turning"/> rather than firing at nothing —
+    /// and, because no <c>targetEntityId</c> was resolved, the operator is
+    /// still subject to the lowered rule exactly as an operator with no
+    /// intent to engage at all.
     /// </para>
     /// <para>
     /// <b>Per-operator loadout.</b> Task 79c
@@ -685,10 +697,6 @@ public sealed class SandataSimulation
             var positionXWu = WorldUnits.FromFixedPoint(op.PositionX);
             var positionYWu = WorldUnits.FromFixedPoint(op.PositionY);
 
-            var forceLowered = WeaponLoweredRules.IsForcedLowered(
-                positionXWu, positionYWu, _navGrid, _wallBuckets,
-                _ruleset.LoweredWallDistanceWu, definition.ExemptFromLoweredRule);
-
             var raiseRequested = i < intents.Length && intents[i].Intent == OperatorIntent.Engage;
 
             var aimAngle = op.AimAngle;
@@ -727,6 +735,18 @@ public sealed class SandataSimulation
                     aimAngle, bearing, _ruleset.AimToleranceBam);
                 targetEntityId = contactId;
             }
+
+            // Runs after target acquisition, not before: an operator engaging
+            // a hostile it identified this tick is never forced lowered (see
+            // WeaponLoweredRules' "engaging-a-target exemption"), so whether
+            // targetEntityId was resolved above has to be known before this
+            // call can be made. raiseRequested alone is not enough — an
+            // operator that wants to engage but has no identified contact
+            // still lowers, exactly as an operator with no intent to engage.
+            var forceLowered = WeaponLoweredRules.IsForcedLowered(
+                positionXWu, positionYWu, _navGrid, _wallBuckets,
+                _ruleset.LoweredWallDistanceWu, definition.ExemptFromLoweredRule,
+                targetEntityId is not null);
 
             var aimMs = definition.AimBaseMs + checked((definition.AimPerBamMs * offCentreBam) / 1024);
             var aimTicks = TickConversion.ToTicks(Math.Max(aimMs, 0), _ruleset.TickRate);
