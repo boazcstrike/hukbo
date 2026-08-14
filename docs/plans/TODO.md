@@ -40,13 +40,18 @@ is not authorized work; it is a reminder that the question was decided
 
 ## From the follower-trailing deadlock diagnosis (2026-07-28, re-checked 2026-08-15)
 
-The design that carried these was archived on 2026-08-15 under the title
-"Follower-trailing mutual block in the collision resolver — design". It was
-never built, and none of its five resolver options may be built from it: the
-stall it existed to fix was closed in the intent layer by `b9003a9`, and a
-2026-08-13 re-measurement over 200 seeds found zero stalls at the shipping
-configuration. What survives is not the fix; it is two questions the fix did not
-answer.
+**Both entries below stopped being parked work on 2026-08-15.** The design that
+carried them,
+[`2026-07-28-follower-trailing-deadlock-design.md`](2026-07-28-follower-trailing-deadlock-design.md),
+was archived that morning on the grounds that none of its five options had ever
+been built, and the user then directed that the work be finished. It is live
+again and its plan document owns these two questions. They are kept here so the
+reasoning stays findable, and they will leave this file when that plan closes.
+
+The context they were parked with: the stall was closed in the intent layer by
+`b9003a9`, and a 2026-08-13 re-measurement over 200 seeds found zero stalls at
+the shipping configuration. The resolver-level mutual lock is still real and is
+what the live work removes.
 
 - **`CollisionRules.DefaultBodyRadiusRaw` is 4.25 because 4.5 hung the
   simulation, not because anybody chose 4.25.** The constant's own remark records

@@ -1,41 +1,33 @@
 # Follower-trailing mutual block in the collision resolver — design
 
-**Archived: reference only.** This design was never built, and it must not be
-built from. The stall it exists to fix was closed in the intent layer by
-`b9003a9` rather than in the resolver, and a re-measurement on 2026-08-13 over
-200 seeds found zero stalls at the shipping configuration; the only thresholds
-still affected, 7 and 8, are unreachable from `Scenario.CreateDefault` and from
-the client. Every option except "do nothing" would move both hashes on every
-seed to fix something no spectator can reach.
+**Revived from the archive on 2026-08-15, and now being executed.** This
+document was archived earlier the same day on the grounds that its stall was
+closed elsewhere and none of its five options had been chosen. The user then
+directed that the work be finished, so the design is live again and a plan
+document carries the tasks. Read that plan for what is actually being built;
+this document remains the reasoning behind it and is authoritative where the two
+disagree on mechanism.
 
-**None of the five options is in the code, re-checked against `main` on
-2026-08-15 rather than taken from this document's own status line.** `Resolve`
-still runs `Reset`, `CommitStationaryBodies`, `CommitMovers` and stops, so there
-is no second pass over blocked movers (6.2); mover order is still the
-`CollisionPriority` key with no dependency edges (6.3); there is no cycle
-detection and no atomic multi-body commit (6.4); the candidate ladder is still
-the preferred step, the two single-axis slides, and `MaximumTruncationRungs` =
-11 truncation rungs before holding position, with no tangent projection (6.5);
-and `CollisionRules.DefaultBodyRadiusRaw` is still `(17 * FixedPoint.Scale) / 4`
-= 4.25. What did land is the intent-layer escape: `StallEscapeStreakTicks` = 192
-in `FormationRules`, consumed by `CollisionScratch` and `BattleSimulation`.
+Three facts checked against `main` on 2026-08-15, before the decision to build,
+and none of them from a status line:
 
-One correction to the wording this document used elsewhere: `CollisionResolver`
-is not byte-unchanged since 2026-07-28. Its pending-at-start test is now a
-spatial-index query rather than the linear walk section 3 quotes. That is the
-collision resolution scaling work, which is a separate document and is
-hash-neutral by construction; the test's meaning, and therefore every committed
-position, is the same. Never execute it, never treat it
-as a live task list, and never cite it as the reason to make a change. The live
-contract remains `CLAUDE.md`, `SIMULATION-GAME-STANDARDS.md`,
-`docs/development/testing.md`, and `docs/development/smoke-checklist.md`.
+- None of the five options is in the code. `Resolve` still runs `Reset`,
+  `CommitStationaryBodies`, `CommitMovers` and stops; mover order is still the
+  `CollisionPriority` key; there is no cycle detection and no atomic multi-body
+  commit; the ladder still ends in a hold after `MaximumTruncationRungs` = 11
+  rungs, with no tangent projection; and `CollisionRules.DefaultBodyRadiusRaw`
+  is still 4.25.
+- `CollisionResolver` is not byte-unchanged since 2026-07-28. Its
+  pending-at-start test is now a spatial-index query rather than the linear walk
+  section 3 quotes. That is the separate collision resolution scaling work, it
+  is hash-neutral, and the test's meaning is the same. Section 3's reasoning
+  therefore still holds; its code excerpt is stale.
+- The stall this document describes no longer reaches the shipping
+  configuration. `FormationRules.StallEscapeStreakTicks` = 192 landed in the
+  intent layer and a 2026-08-13 re-measurement found zero stalls in 200 seeds at
+  the shipping default. **The resolver-level mutual lock is still real**, it
+  still binds thresholds 7 and 8, and it is what this work removes.
 
-Two things survive this document and are carried in `docs/plans/TODO.md` rather
-than only here: `CollisionRules.DefaultBodyRadiusRaw` is still 4.25 because 4.5
-hung the simulation in 2026-07-28's measurement rather than because anybody
-chose 4.25, and the 2,000-agent point is still the traffic jam section 2
-describes. Both would need fresh measurement before anyone acts on them, because
-the numbers below predate the intent-layer fix.
 
 Status: design only. This document does not authorize implementation. It states
 a problem, explains its cause, and lays out the options.
