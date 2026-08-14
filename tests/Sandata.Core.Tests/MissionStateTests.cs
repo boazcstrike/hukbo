@@ -542,6 +542,20 @@ public sealed class MissionStateTests
     /// <c>tests/Sandata.Core.Tests/Fixtures/seed-1-baseline.json</c>, read by
     /// <c>GoldenReplayTests</c>, not declared as a C# constant.
     /// </remarks>
+    /// <remarks>
+    /// <b>Re-examined on 2026-08-14 and deliberately left where it is.</b> The
+    /// lowered-weapon and automatic-fire design's section 6 predicted that
+    /// seeding the path-blocked span from the baked map (its decision D1)
+    /// would move every Sandata digest, this one included. It does not move
+    /// this one, and the reason is worth stating rather than discovering
+    /// again: this literal is the digest of a <i>constructed fixture</i> —
+    /// <see cref="BuildSampleMission"/> and <see cref="BuildSampleState"/> —
+    /// which no simulation ever ticks. D1 changes which cells a path search
+    /// may cross. A hash taken over authoritative state that was never
+    /// advanced cannot see that, so the value stands unchanged, and it stands
+    /// as the same canary it has been since task 85 rather than as a value
+    /// carried forward for convenience.
+    /// </remarks>
     private const ulong PreTask79cBaselineHash = 3_159_438_799_659_597_482UL;
 
     [Fact]

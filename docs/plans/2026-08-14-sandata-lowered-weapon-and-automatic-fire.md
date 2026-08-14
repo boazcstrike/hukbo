@@ -55,6 +55,69 @@ parallel agents would be a merge conflict created on purpose.
 | 8 | Run both gates once each and record the real output. The seed-1 baseline is unchanged, so nothing moves to measurement history | `docs/development/testing.md` | Real gate output pasted, not summarised | 1, 2, 3, 4, 5 | `./scripts/verify.ps1 -Game Sandata` and `./scripts/verify.ps1`, both run once, both pasted |
 | 9 | Record the fixture gap the design's section 6 found: every Sandata determinism fixture and the gate's own headless workload run on a wall-free grid, so no pinned digest has ever executed against a real map | `docs/plans/TODO.md` | The gap is written down as parked work with the decision that parked it | 1 | The entry names the design document that found it |
 
+## What was run, 2026-08-14
+
+Every task above is done and integrated on branch `sandata-sd4-sd5`, which is
+`main` at `8f2207f` plus the three merges below. It is **not on `main` yet**:
+another session held uncommitted work across the main checkout for the whole of
+this session, including `CLAUDE.md` and `AGENTS.md`, which are two of the files
+this package edits. Merging into a tree somebody else is editing is how a merge
+conflict gets created on purpose, so the integration was done here instead and
+the merge to `main` is the one step still outstanding.
+
+| Wave | Task | Merge | Result |
+| --- | --- | --- | --- |
+| 1 | 1 — seed the path-blocked span | `78e512e` | `PathBlockedCellsTests` added; the whole Sandata core suite green at 1,135 |
+| 1 | 2 — burst-end grace window, automatic rows for every caliber | `1a8062e` | Sandata client suite green at 305 after four failures were resolved, below |
+| 2 | 3, 4, 5 — inspector rows, log line, client burst tracking | worked directly on this branch | Sandata client suite green at 320 |
+| 3 | 6, 7, 8 — re-measurement | worked directly on this branch | Both gates green; no digest moved |
+
+**Task 2 arrived red and the four failures were each a decision rather than a
+typo.** They are recorded because three of them are the kind of failure that
+looks like a test being in the way:
+
+| Failure | What it actually was |
+| --- | --- |
+| `SandataAudioCatalogSourceDeclaresNoDictionary` | The new per-shooter last-round map was a `Dictionary`, which the audio folder's own hygiene test forbids. Rewritten as a flat immutable array scanned linearly, which is what the loop-fallback state next to it already does |
+| `ShotSlotResolverTests.AutoModeForAPistolCaliberHasNoDeclaredRowAndThrows` | A test that pinned the latent crash D5 exists to close. Rewritten to assert the pistol caliber resolves its own row, with the supersession written into its doc comment rather than the test deleted |
+| `SandataSoundBudgetTests.StoppingAutomaticFirePlaysExactlyOneTailInstance` | Reported the stop one tick after the last round, which under D4 is a quiet tick inside the burst and is now correctly a no-op. The stop moved clear of the grace window and the reason is in the test's remarks |
+| `SoundManifestTests.TotalVariantFileCountIsFiveHundredForty` | D5's extra rows take the catalog from 106 rows and 540 hypothetical variant files to 114 and 572. Re-pinned, and the two documents quoting the old totals corrected. Declaring a row generates no file and authorizes no spend |
+
+**Task 5 turned out to be load-bearing for task 2, not merely paired with it.**
+The design describes the client as reporting a stop on every quiet tick, and it
+did not: it reported once, on the first quiet tick, and then dropped the shooter
+from its tracking set. A grace window on its own would therefore have swallowed
+that single report and never played a tail at all — strictly worse than the
+defect. `HandleAutomaticFireStopped` now answers whether it ended a real burst,
+and `AutomaticBurstTracking` keeps a shooter in the mid-burst set until it says
+yes. The window stays in one place and the client's job is to keep asking.
+
+**Tasks 6 and 7 found the opposite of what they were written to expect.** The
+design's section 6 said D1 moves every Sandata digest and that both golden
+fixtures must be re-measured. Neither moved, and neither needed re-measuring:
+the seed-1 workload and both golden fixtures are built by
+`HeadlessRunner.BuildOpenGrid`, which synthesises a grid with no walls, no
+doors, and no map file, so the array D1 seeds is still every-cell-false there.
+The finding is recorded in three places rather than as a passing test nobody
+reads — at the fixture, at `MissionStateTests.PreTask79cBaselineHash`, and in
+`docs/development/testing.md` — because it is a standing limit on the gate:
+**the seed-1 workload cannot detect a pathfinding change that only manifests
+around geometry.**
+
+The gates, both run on this branch, both pasted in full in
+`docs/development/testing.md`:
+
+- `./scripts/verify.ps1 -Game Sandata -SkipBootstrap`, exit 0. 1,135 core and
+  320 client tests. `stateHash A644B7F8A394885D`, `eventHash AEDE4D16B5E6FAAF`,
+  `deterministic true`, 70 and 64 survivors, `allocatedBytes` 6,120,455,624 —
+  the same two hashes the 2026-08-12 baseline records.
+- `./scripts/verify.ps1 -SkipBootstrap`, all five stages `PASS`. 2,568
+  `Hukbo.Core.Tests` and 3,785 `Hukbo.Client.Tests`, four headless workloads.
+
+**No smoke row was touched.** `SD-4` and `SD-5` remain `FAIL` with their failing
+observations intact, which is where they stay until a person at a desktop
+re-runs them.
+
 ## What is handed back rather than built
 
 Section 4 of the design leaves one question open on purpose: whether a burst
