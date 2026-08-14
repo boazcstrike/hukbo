@@ -2285,15 +2285,17 @@ place.
 `Hukbo.Shared.Core` and `Hukbo.Diagnostics` are used by both games and keep their
 names.
 
-The user's stated reason is that Sandata is treated as downloadable content for
-Hukbo rather than as a wholly separate product. **That framing contradicts
-`CLAUDE.md` section 1**, which states that Sandata "is a separate product with a
-separate simulation, a separate ruleset, a separate preset stream, and separate
-hashes. It is not a mode of Hukbo, it is not a fork." The naming decision itself
-is unaffected either way. What needs settling is whether the product statement in
-`CLAUDE.md` should change, because it currently governs release shape, store
-presentation, and whether the two games ever ship in one package. Recorded as
-open rather than silently resolved in favour of either reading.
+The reason first offered was that Sandata is downloadable content for Hukbo.
+That was withdrawn by the user on the same day: **Sandata is a different product,
+and what the two share is the engine core rather than a release.** `CLAUDE.md`
+section 1 therefore stands unchanged and is still the governing statement —
+Sandata "is a separate product with a separate simulation, a separate ruleset, a
+separate preset stream, and separate hashes. It is not a mode of Hukbo, it is not
+a fork."
+
+The assemblies keep the `Hukbo.` prefix anyway, for the reason section 3 already
+gives: they are an engine spine shared by two games, and renaming them buys
+nothing that the reference graph does not already enforce.
 
 Nothing in this decision relaxes the separation rules themselves. No `Sandata.*`
 project may reference a `Hukbo.Core` or `Hukbo.Client` type and no `Hukbo.*`
@@ -2341,9 +2343,17 @@ and that the wider catalog is a later concern that does not belong in
 `docs/plans/`. It moves to `docs/weapons/guns/`, where it is reference material
 rather than pending work. No further generation is authorised.
 
-**Still open after this pass.** Question 3, the product name, was marked for
-settling but no name was given, so `Sandata` stands unconfirmed rather than
-confirmed. Questions 6 and 7 were not reached.
+**Question 3 — the product name is `Sandata`. Confirmed.** It was carried as an
+open question from the first day of the project, on the grounds that changing it
+was trivial before the first commit and expensive after. It is now settled and
+the question is closed. Every project name, namespace, and path that already
+reads `Sandata` is correct and stays.
+
+**Still open after this pass.** Question 6, the tick rate and world-unit scale,
+which is now effectively closed by having been pinned into the content hash since
+wave 1. Question 7, whether `verify.ps1` runs both games by default, which is
+newly answerable because Sandata's seed-1 baseline held unchanged across four
+gate runs on 2026-08-14 through four different changes.
 
 ## 16. The order layer
 

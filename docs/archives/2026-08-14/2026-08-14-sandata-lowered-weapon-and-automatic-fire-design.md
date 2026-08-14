@@ -1,5 +1,11 @@
 # Sandata: why the lowered weapon and automatic fire are still invisible — design
 
+**Archived: reference only.** This is finished work, kept only so a past
+decision can be traced to its reasoning. Never execute it, never treat it as a
+live task list, and never cite it as the reason to make a change. The live
+contract for this project remains `CLAUDE.md` and Sandata's own scaffold design
+document.
+
 Opened 2026-08-14, after the third interactive session ran `SD-4` and `SD-5` and
 both failed again. This is the second design document to address these two rows.
 The first, dated 2026-08-12, correctly identified that neither feature had a

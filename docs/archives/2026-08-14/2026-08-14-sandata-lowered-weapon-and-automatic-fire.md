@@ -1,7 +1,13 @@
 # Sandata: making the lowered weapon and automatic fire observable — plan
 
+**Archived: reference only.** This is finished work, kept only so a past
+decision can be traced to its reasoning. Never execute it, never treat it as a
+live task list, and never cite it as the reason to make a change. The live
+contract for this project remains `CLAUDE.md` and Sandata's own scaffold design
+document.
+
 The ordered task list for
-[`2026-08-14-sandata-lowered-weapon-and-automatic-fire-design.md`](2026-08-14-sandata-lowered-weapon-and-automatic-fire-design.md),
+the archived 2026-08-14 Sandata lowered-weapon and automatic-fire design document,
 whose decisions D1 through D5 bind every task below. Opened 2026-08-14 after the
 third interactive session failed `SD-4` and `SD-5`.
 
