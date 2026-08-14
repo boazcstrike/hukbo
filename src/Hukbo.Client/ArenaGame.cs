@@ -220,6 +220,7 @@ public sealed partial class ArenaGame : Game
     private SpriteBatch? _spriteBatch;
     private RasterizerState? _arenaRasterizerState;
     private Texture2D? _pixel;
+    private Texture2D? _chromeAtlas;
     private UiFontSet? _fonts;
     private MonoGameSoundPlayer? _soundPlayer;
     private Settings.ArmyComposition _activeComposition;
@@ -657,6 +658,11 @@ public sealed partial class ArenaGame : Game
             _log.Flush();
             throw;
         }
+
+        // Loaded once here, never per frame: the nine-slice chrome atlas
+        // described on UiNineSlice, holding the surface and border regions
+        // every panel-style call site tints at draw time.
+        _chromeAtlas = Content.Load<Texture2D>("Textures/UiChrome");
 
         _soundPlayer = MonoGameSoundPlayer.Load(
             SoundLibrary.GetDefaultDirectoryPath());

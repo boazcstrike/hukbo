@@ -129,7 +129,25 @@ public sealed class SourceHygieneTests
     /// Content pipeline entries in <c>Content.mgcb</c>: pinned exactly as
     /// <c>#begin &lt;path&gt;</c> lines. R-W6.18 forbids adding to this list
     /// without a separately reviewed dependency change, and the visual
-    /// improvement package (fully procedural per OD-4) needs none.
+    /// improvement package (fully procedural per OD-4) needed none.
+    ///
+    /// <para>
+    /// The twenty-fifth entry, <c>Textures/UiChrome.png</c>, is the first
+    /// non-font asset the repository has ever built, and it is the reviewed
+    /// change R-W6.18 asks for rather than an exception to it. OD-4's fully
+    /// procedural direction scoped the visual improvement package, and the
+    /// backlog entry that carries its ground-texture follow-up says that
+    /// boundary holds "unless a future design revisits that boundary". The UI
+    /// chrome nine-slice design is that revisit, and it is where the reasoning
+    /// lives; find it by its title, "UI chrome nine-slice sprite skin —
+    /// design".
+    /// </para>
+    ///
+    /// <para>
+    /// This list stays an exact match on purpose. Adding the chrome atlas does
+    /// not open the pipeline to assets generally: a twenty-sixth entry still
+    /// fails this test, and still needs its own decision.
+    /// </para>
     /// </summary>
     private static readonly string[] PinnedContentPipelineEntries =
     [
@@ -157,6 +175,17 @@ public sealed class SourceHygieneTests
         "Fonts/UiSubtitle200.spritefont",
         "Fonts/UiTitle200.spritefont",
         "Fonts/UiDisplay200.spritefont",
+        "Textures/UiChrome.png",
+    ];
+
+    /// <summary>
+    /// The only non-font content pipeline entries the client is allowed to
+    /// build. One entry, the placeholder nine-slice chrome atlas. Anything
+    /// else fails <see cref="ContentPipelineEntriesAreUnchangedFromThePinnedSpritefonts"/>.
+    /// </summary>
+    private static readonly string[] PinnedNonFontContentPipelineEntries =
+    [
+        "Textures/UiChrome.png",
     ];
 
     /// <summary>
@@ -266,9 +295,18 @@ public sealed class SourceHygieneTests
     }
 
     /// <summary>
-    /// <c>Content.mgcb</c> stays exactly 24 spritefonts and nothing else
-    /// (R-W6.18): the package ships zero textures, atlases, or shaders, per
-    /// OD-4's fully procedural direction.
+    /// <c>Content.mgcb</c> stays exactly the 24 pinned spritefonts plus the
+    /// one pinned texture, and nothing else (R-W6.18).
+    ///
+    /// <para>
+    /// This test previously asserted that every entry ended in
+    /// <c>.spritefont</c>, because the visual improvement package shipped zero
+    /// textures under OD-4's fully procedural direction. That is no longer the
+    /// whole truth: the UI chrome nine-slice design deliberately revisits that
+    /// boundary and adds one texture. The blanket suffix assertion is
+    /// therefore replaced by an explicit allow-list rather than deleted, so
+    /// the pipeline stays closed to everything that has not been decided on.
+    /// </para>
     /// </summary>
     [Fact]
     public void ContentPipelineEntriesAreUnchangedFromThePinnedSpritefonts()
@@ -286,8 +324,14 @@ public sealed class SourceHygieneTests
         Assert.Equal(PinnedContentPipelineEntries, entries);
         Assert.All(
             entries,
-            entry => Assert.EndsWith(
-                ".spritefont", entry, StringComparison.Ordinal));
+            entry => Assert.True(
+                entry.EndsWith(".spritefont", StringComparison.Ordinal) ||
+                    PinnedNonFontContentPipelineEntries.Contains(
+                        entry, StringComparer.Ordinal),
+                $"'{entry}' is neither a spritefont nor one of the " +
+                    "explicitly allowed non-font content entries. Adding an " +
+                    "asset to the content pipeline is a reviewed decision " +
+                    "under R-W6.18, not a build detail."));
     }
 
     /// <summary>
