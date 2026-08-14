@@ -1361,6 +1361,62 @@ below where stage 5 used to sit and roughly a seventh of what the whole tick
 now costs.
 
 
+## Pawn gait leg-motion pixel measurement, 2026-08-14 (PV-6)
+
+No published source gives an on-screen pixel height below which drawn leg
+motion stops being worth animating, and two research passes looking for one
+both failed. `tests/Hukbo.Client.Tests/GaitPixelHeightTests.cs` measures the
+game's own numbers instead of guessing, and pins them so the table below
+cannot drift silently. Measured at commit `8ee5a51`. This is a measurement,
+not a tuning pass — no gait constant was changed to produce it.
+
+Five points on the zoom axis are covered: the two detail-tier boundaries
+(`PawnGeometry`'s `MediumDetailScale` = 0.95 and `HighDetailScale` = 1.80,
+PawnGeometry.cs:235-236) and the three camera stations
+`ConservativePawnCullTests` already names in its own review protocol — the
+camera's minimum and maximum zoom clamps, and the default-fit zoom the panel
+resolves for the tracked Phase 1 render baseline's 1920x1080 arena bounds
+(obtained in the test by calling `SpectatorCamera.Fit`, not by a copied
+literal). For each point, drawn leg height is
+`PawnGeometry.ToSize(LegLengthUnits * apparentScale)` (`LegLengthUnits` =
+7.5, PawnGeometry.cs:482), where `apparentScale` is read from
+`PawnGeometry.Create`'s own output rather than recomputed by hand. Peak foot
+travel is `strideRatio * legHeightPx` and peak foot lift is
+`liftRatio * legHeightPx`, both rounded with the same `MathF.Round` and no
+floor that `PawnGeometry.BuildLeg` itself uses (PawnGeometry.cs:1745) —
+unlike leg height, a foot travel or lift figure is allowed to round to zero
+pixels. Stride and lift ratios are `GaitGeometry`'s own constants:
+`WalkStrideRatio` = 0.32, `RunStrideRatio` = 0.60, `WalkFootLiftRatio` =
+0.15, `RunFootLiftRatio` = 0.38 (GaitGeometry.cs:63,70,73,80).
+
+| Tier boundary | Station | Gait | Apparent scale (unitless) | Leg height (px) | Foot travel (px) | Foot lift (px) |
+| --- | --- | --- | --- | --- | --- | --- |
+| — | Minimum-zoom station (camera zoom 0.05) | Walk | 0.72 (clamp floor — Low tier, legs do not draw) | 5 | 2 | 1 |
+| — | Minimum-zoom station (camera zoom 0.05) | Run | 0.72 (clamp floor — Low tier, legs do not draw) | 5 | 3 | 2 |
+| Low/Medium boundary | — | Walk | 0.95 | 7 | 2 | 1 |
+| Low/Medium boundary | — | Run | 0.95 | 7 | 4 | 3 |
+| — | Default-fit station (camera zoom ≈1.00787, 1920x1080 arena bounds) | Walk | ≈1.3606 | 10 | 3 | 2 |
+| — | Default-fit station (camera zoom ≈1.00787, 1920x1080 arena bounds) | Run | ≈1.3606 | 10 | 6 | 4 |
+| Medium/High boundary | — | Walk | 1.80 | 14 | 4 | 2 |
+| Medium/High boundary | — | Run | 1.80 | 14 | 8 | 5 |
+| — | Maximum-zoom station (camera zoom 12) | Walk | 2.40 (clamp ceiling) | 18 | 6 | 3 |
+| — | Maximum-zoom station (camera zoom 12) | Run | 2.40 (clamp ceiling) | 18 | 11 | 7 |
+
+**Reading this as a measurement, not a recommendation.** At every one of the
+five points, neither gait's foot travel nor its foot lift rounds below 1 px —
+the smallest nonzero figure recorded is 1 px, at the minimum-zoom station's
+Walk foot lift and at the Low/Medium boundary's Walk foot lift. Leg motion
+does not fade toward invisibility as apparent scale drops; it instead hits a
+step function. `PawnGeometry.CreateLegsAndFeet` returns an empty layout at
+`PawnDetailTier.Low` regardless of the leg-height figure this table computes
+for that tier (design section 9's Low-tier non-occlusion guarantee), so the
+minimum-zoom station's row above describes what the formula would produce,
+not what is drawn — at that station the legs do not draw at all, at any
+travel or lift. Confirmed directly:
+`GaitPixelHeightTests.MinimumZoomStation_LandsInLowTier_WhereLegsNeverDraw`,
+`DefaultFitStation_LandsInMediumTier`, and
+`MaximumZoomStation_LandsInHighTier`.
+
 ## The interactive smoke checklist
 
 Moved to [smoke-checklist.md](smoke-checklist.md) on 2026-08-11.
