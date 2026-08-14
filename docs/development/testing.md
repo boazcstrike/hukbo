@@ -1086,6 +1086,49 @@ on the shared `LogEvents` catalog.
 Neither gate is evidence about anything interactive. `SD-4` and `SD-5` stay
 `FAIL` until a person at a desktop re-runs them.
 
+### Canonical gate result — Sandata, 2026-08-14 (the intent field is written)
+
+`./scripts/verify.ps1 -Game Sandata -SkipBootstrap`, exit code 0, run on branch
+`sandata-sd4-sd5` after decision D1 of the "the shipped mission freezes at first
+contact" design:
+
+```
+[PASS] Formatting verification completed.
+[PASS] Release solution build completed.
+Sandata.Core.Tests     Total tests: 1143   Passed: 1143
+Sandata.Client.Tests   Total tests:  320   Passed:  320
+[PASS] Release repository tests completed.
+outcome Ongoing
+stateHash 13EF0685BB46CA5E   eventHash AEDE4D16B5E6FAAF
+allocatedBytes 6,187,695,224 (~6.19 GB)
+[PASS] Headless workload completed: agents=200 ticks=10000 seed=1.
+[PASS] Canonical repository verification completed.
+```
+
+**The state hash moved and the event hash did not, and that is the signature
+this change is supposed to have.** Stage 8's selected intent is now written into
+`OperatorState.Intent`, which nothing had ever done: `IntentSelection.SelectAll`
+ran every tick, its results were correct, and they lived only in
+`SandataSimulation.PendingIntents`, so a field that is folded into the state hash
+and carried in the snapshot read `0` — `OperatorIntent.Hold` — for every operator
+on every tick of every run ever simulated. Intent is state and not an event, so a
+change that writes it must move exactly one of the two hashes. This is what
+having two independent hashes is for.
+
+The superseded figure is `stateHash A644B7F8A394885D` with the same
+`eventHash AEDE4D16B5E6FAAF`, recorded on 2026-08-12 and re-confirmed earlier the
+same day; it moves to `docs/development/measurement-history.md`. Both golden
+replay fixtures were re-measured by a capture run in the same change, and their
+event hashes likewise did not move.
+
+No new `SandataPresetId`. `SandataRuleset.ContentHash` is unchanged at
+`8_955_292_433_887_190_872`.
+
+**This gate still cannot see the behaviour the change was made for.** The seed-1
+workload has no walls, no objectives, and no squads walking to them, so it
+reaches none of the mission freeze this package exists to fix. The wall-bearing
+golden fixture that would is task 7 of that plan and is not built yet.
+
 ### Golden replay and determinism equivalence
 
 Sandata's pinned digests live in

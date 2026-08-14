@@ -3804,3 +3804,16 @@ spectator input. None of them prove that the resulting camera motion reads as
 helpful rather than as the view drifting on its own, which is the only thing
 those rows are for.
 
+
+## Sandata seed-1 headless baseline, superseded 2026-08-14
+
+`stateHash A644B7F8A394885D`, `eventHash AEDE4D16B5E6FAAF`, from the 200-agent,
+10,000-tick, seed-1 workload. Recorded on 2026-08-12 with the order layer, the
+lowered weapon, and automatic fire, and re-confirmed unchanged on 2026-08-14 by
+the lowered-weapon and automatic-fire package.
+
+Superseded the same day by `stateHash 13EF0685BB46CA5E`, with the event hash
+unchanged, when stage 8's selected intent began being written into
+`OperatorState.Intent`. Nothing had ever written that field, so the state hash
+had been folding a constant since the day it was declared. The event hash could
+not move, because an intent is state and not an event.
