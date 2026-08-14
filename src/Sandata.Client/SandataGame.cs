@@ -2606,8 +2606,20 @@ internal sealed class SandataGame : Game
             SandataRuleset.ModernTacticalV1.GroupCohesionRadiusWu,
             AssaultingFaction);
 
+        // The room layout is what makes the squad sweep rather than stop after
+        // its first objective. It is derived from the baked map, so it is a
+        // derived structure: never hashed, never snapshotted, and rebuilt here
+        // on every restart alongside the simulation it belongs to.
+        //
+        // Passing it is not optional in practice even though the parameter is.
+        // Without it SandataSimulation seeds no RoomClearStates, TrySelectNextRoom
+        // finds nothing, and the whole sweep is silently inert while every one of
+        // its tests still passes.
+        var roomLayout = RoomLayout.Bake(_navGrid, _wallRecords, _doorRecords);
+
         return new SandataSimulation(
-            _mission, SandataRuleset.ModernTacticalV1, _navGrid, _wallBuckets, initialState, _coverRecords);
+            _mission, SandataRuleset.ModernTacticalV1, _navGrid, _wallBuckets, initialState, _coverRecords,
+            roomLayout);
     }
 
     private static MissionState BuildInitialState(

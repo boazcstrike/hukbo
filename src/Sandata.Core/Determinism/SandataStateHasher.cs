@@ -105,6 +105,23 @@ namespace Sandata.Core.Determinism;
 /// each entry's <c>X</c> and <c>Y</c> — folded only when the array is
 /// non-empty.
 /// </description></item>
+/// <item><description>
+/// <b>Stage 0 addition (design decision 6 of
+/// <c>docs/plans/2026-08-14-sandata-clear-the-map-design.md</c>), appended
+/// here rather than interleaved among the items above.</b>
+/// <see cref="MissionState.RoomClearStates"/>' count then, for each entry in
+/// the array's stored order, <c>RoomId</c> then <c>Cleared</c> — folded only
+/// when the array is non-empty.
+/// </description></item>
+/// <item><description>
+/// <b>Stage 0 addition, appended last, after
+/// <see cref="MissionState.RoomClearStates"/>.</b> <see cref="MissionState.Groups"/>'
+/// count then, for each entry in the array's stored order,
+/// <see cref="GroupPathState.TargetRoomId"/> alone — folded only when at
+/// least one group's <c>TargetRoomId</c> differs from its <c>-1</c> default,
+/// which is what keeps <c>MissionStateTests.PreTask79cBaselineHash</c>'s
+/// pinned literal unmoved.
+/// </description></item>
 /// </list>
 /// <para>
 /// <b>Why "folded only when non-empty/non-default" for both new items.</b>
@@ -229,7 +246,82 @@ internal static class SandataStateHasher
         FoldOrderQueue(ref hash, state.OrderQueue);
         FoldOrderAssignments(ref hash, state.OrderAssignments);
 
+        // Stage 0 (design decision 6 of
+        // docs/plans/2026-08-14-sandata-clear-the-map-design.md), appended
+        // after every field above, in the same "gated on anything real to
+        // report" style Task 61 established: an empty RoomClearStates array
+        // and a Groups array whose TargetRoomId is every entry's default -1
+        // are both this method's own pre-Stage-0 output byte for byte,
+        // including MissionStateTests.PreTask79cBaselineHash's pinned
+        // literal, which carries one GroupPathState built before
+        // TargetRoomId existed.
+        FoldRoomClearStates(ref hash, state.RoomClearStates);
+        FoldGroupTargetRoomIds(ref hash, state.Groups);
+
         return hash;
+    }
+
+    /// <summary>
+    /// Folds <paramref name="roomClearStates"/> into <paramref name="hash"/>,
+    /// but only when it is non-empty — see <see cref="Compute"/>'s own
+    /// remarks on this fold's placement for why.
+    /// </summary>
+    private static void FoldRoomClearStates(ref ulong hash, ImmutableArray<RoomClearState> roomClearStates)
+    {
+        if (roomClearStates.IsDefaultOrEmpty)
+        {
+            return;
+        }
+
+        SandataHash.Fold(ref hash, roomClearStates.Length);
+        foreach (var roomClearState in roomClearStates)
+        {
+            SandataHash.Fold(ref hash, roomClearState.RoomId);
+            SandataHash.Fold(ref hash, roomClearState.Cleared);
+        }
+    }
+
+    /// <summary>
+    /// Folds every group's <see cref="GroupPathState.TargetRoomId"/> as its
+    /// own separate, gated tail block, rather than interleaving it into each
+    /// group's existing six-field fold above. Every <see cref="GroupPathState"/>
+    /// built before Stage 0 leaves <see cref="GroupPathState.TargetRoomId"/>
+    /// at its default <c>-1</c>, so interleaving an unconditional seventh
+    /// fold into that per-group block would move this method's output for
+    /// every caller with a non-empty <see cref="MissionState.Groups"/> —
+    /// including <c>MissionStateTests.PreTask79cBaselineHash</c>'s pinned
+    /// literal — even one that never touches room sweeping. The gate is "any
+    /// group's <see cref="GroupPathState.TargetRoomId"/> differs from
+    /// <c>-1</c>", so a mission with a real room sweep in progress folds this
+    /// block in full and every other caller's hash is unaffected.
+    /// </summary>
+    private static void FoldGroupTargetRoomIds(ref ulong hash, ImmutableArray<GroupPathState> groups)
+    {
+        if (groups.IsDefaultOrEmpty)
+        {
+            return;
+        }
+
+        var anyTargeted = false;
+        foreach (var group in groups)
+        {
+            if (group.TargetRoomId != -1)
+            {
+                anyTargeted = true;
+                break;
+            }
+        }
+
+        if (!anyTargeted)
+        {
+            return;
+        }
+
+        SandataHash.Fold(ref hash, groups.Length);
+        foreach (var group in groups)
+        {
+            SandataHash.Fold(ref hash, group.TargetRoomId);
+        }
     }
 
     /// <summary>

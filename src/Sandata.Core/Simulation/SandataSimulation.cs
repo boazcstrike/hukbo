@@ -157,9 +157,26 @@ public sealed class SandataSimulation
     private ImmutableArray<FiredShot> _pendingFiredShots = ImmutableArray<FiredShot>.Empty;
 
     /// <summary>
+    /// Stage 0's derived room decomposition (design decision 1 of
+    /// <c>docs/plans/2026-08-14-sandata-clear-the-map-design.md</c>), or
+    /// <see langword="null"/> when this simulation was constructed without
+    /// one. <see cref="AdvancePathService"/> gates every line of its room-
+    /// sweep logic on this field being non-null, so a caller that never
+    /// supplies one — every existing call site, including
+    /// <c>Sandata.Headless.HeadlessRunner</c> — runs stage 7 exactly as it
+    /// did before this field existed. Never rebuilt after construction: it is
+    /// a pure function of static map geometry, per its own remarks.
+    /// </summary>
+    private readonly RoomLayout? _roomLayout;
+
+    /// <summary>
     /// Creates a simulation caller bound to one mission, its resolved
     /// ruleset, the baked navigation artifacts stages 5 and 7 need, and the
-    /// authoritative state to begin ticking from.
+    /// authoritative state to begin ticking from. <paramref name="roomLayout"/>
+    /// is Stage 0's optional, trailing, defaulted addition: passing one turns
+    /// on the room-sweep logic in <see cref="AdvancePathService"/>; omitting
+    /// it (the default) leaves every existing call site's behaviour
+    /// unchanged, byte for byte.
     /// </summary>
     public SandataSimulation(
         Mission mission,
@@ -167,7 +184,8 @@ public sealed class SandataSimulation
         NavGrid navGrid,
         WallBuckets wallBuckets,
         MissionState initialState,
-        ImmutableArray<CoverRecord> coverRecords)
+        ImmutableArray<CoverRecord> coverRecords,
+        RoomLayout? roomLayout = null)
     {
         ArgumentNullException.ThrowIfNull(mission);
         ArgumentNullException.ThrowIfNull(ruleset);
@@ -180,6 +198,7 @@ public sealed class SandataSimulation
         _navGrid = navGrid;
         _wallBuckets = wallBuckets;
         _coverRecords = coverRecords.IsDefault ? ImmutableArray<CoverRecord>.Empty : coverRecords;
+        _roomLayout = roomLayout;
 
         // Call-site obligation for stage 7: PathService takes its latency as
         // a constructor parameter and deliberately does not read the
@@ -210,6 +229,24 @@ public sealed class SandataSimulation
         // A NavGrid's dimensions are fixed for its lifetime, so stage 5's
         // cell chain can be sized once here rather than grown.
         _sightCellBuffer = new int[LineOfSight.RequiredCellBufferLength(navGrid)];
+
+        // Stage 0: an initial state that has not already been given real
+        // clear states (a fresh mission start, as opposed to a save/resume
+        // round trip, whose MissionSnapshot already carries whatever
+        // AdvancePathService last wrote) gets every room seeded Cleared =
+        // false, in RoomLayout.RoomIds's own ascending order — the same
+        // order RoomClearStatesSpan is folded and compared in, so this seed
+        // is itself deterministic and requires no separate sort.
+        if (roomLayout is not null && initialState.RoomClearStates.IsDefaultOrEmpty)
+        {
+            var seededRoomClearStates = ImmutableArray.CreateBuilder<RoomClearState>(roomLayout.RoomIds.Length);
+            foreach (var roomId in roomLayout.RoomIds)
+            {
+                seededRoomClearStates.Add(new RoomClearState(roomId, false));
+            }
+
+            initialState = initialState with { RoomClearStates = seededRoomClearStates.MoveToImmutable() };
+        }
 
         State = initialState;
 
@@ -500,8 +537,12 @@ public sealed class SandataSimulation
         var slots = new SquadSlot[view.Count];
         ComputeSquadGrouping(view, slots);
 
-        // Stage 7.
-        AdvancePathService(currentTick);
+        // Stage 7. Widened (Stage 0) to take the frozen view, stage 6's
+        // slots, and stage 5's evaluated-but-not-yet-committed sensing —
+        // AdvanceRoomSweep needs live position, faction, and contact-tier
+        // facts, and all three are already in scope here, strictly before
+        // view.Release() below, so nothing here reorders any stage.
+        AdvancePathService(currentTick, view, slots, sensing);
 
         // Stage 8.
         PendingIntents = SelectIntents(view, slots, sensing);
@@ -2101,10 +2142,24 @@ public sealed class SandataSimulation
     /// blocker source exists in this worktree yet (stage 4 is the same honest
     /// pass-through) — a future one composes with the static seed by writing
     /// into the same array, so this stage does not need to change to gain one.
+    /// <b>Stage 0 addition</b> (design decision 6 of
+    /// <c>docs/plans/2026-08-14-sandata-clear-the-map-design.md</c>): before
+    /// any of the above, <see cref="AdvanceRoomSweep"/> evaluates this tick's
+    /// room-clear transitions and retargets every group whose sweep needs a
+    /// new destination, entirely gated on <see cref="_roomLayout"/> being
+    /// non-null — see that method's own remarks for why a caller that never
+    /// supplies one (every existing call site) sees this stage run byte-
+    /// identically to before Stage 0 existed.
     /// </summary>
-    private void AdvancePathService(long currentTick)
+    private void AdvancePathService(
+        long currentTick, TickStartView view, ReadOnlySpan<SquadSlot> slots, SensingOutcome sensing)
     {
         var groups = State.Groups;
+
+        if (_roomLayout is not null)
+        {
+            groups = AdvanceRoomSweep(currentTick, view, slots, sensing, groups);
+        }
 
         foreach (var group in groups)
         {
@@ -2119,6 +2174,7 @@ public sealed class SandataSimulation
 
         if (groups.IsDefaultOrEmpty)
         {
+            State = State with { Groups = groups };
             return;
         }
 
@@ -2130,6 +2186,311 @@ public sealed class SandataSimulation
         }
 
         State = State with { Groups = updatedGroups.MoveToImmutable() };
+    }
+
+    /// <summary>
+    /// Stage 0's room-sweep logic, run from inside <see cref="AdvancePathService"/>
+    /// before that method's own request/advance/reconcile sequence, so a
+    /// group this tick retargets is picked up by that same sequence's
+    /// existing <see cref="PathService.RequestPath"/> loop rather than
+    /// needing a second one. Two independent things happen here, both gated
+    /// on <see cref="_roomLayout"/> already being non-null (the caller's
+    /// obligation):
+    /// <list type="number">
+    /// <item>
+    /// <b>Clear-state evaluation</b> (design section 12's Stage-0 predicate,
+    /// deliberately simpler than decision 3's full corner-checklist form): a
+    /// not-yet-<see cref="RoomClearState.Cleared"/> room becomes
+    /// <see langword="true"/> the first tick a living Faction-0 operator
+    /// occupies one of its cells and no living non-zero-faction operator
+    /// occupies any cell of that same room, evaluated from
+    /// <paramref name="view"/>'s frozen tick-start positions. Every
+    /// transition this tick emits one <see cref="MissionEventKind.RoomCleared"/>
+    /// event, in ascending <see cref="RoomClearState.RoomId"/> order, which
+    /// falls out for free because <see cref="MissionState.RoomClearStates"/>
+    /// is itself always stored in that order (seeded from
+    /// <see cref="Navigation.RoomLayout.RoomIds"/>, which is ascending by
+    /// construction) and this method scans it front to back.
+    /// </item>
+    /// <item>
+    /// <b>Retargeting</b> (design decision 4's Phase A only — Phase B, the
+    /// map-residual fallback, is not implemented in Stage 0; staging section
+    /// 12 permits omitting it, and a squad that exhausts Phase A simply stops
+    /// requesting new destinations, the same "nothing left to sweep" outcome
+    /// Phase A alone already produces honestly). A Faction-0 group whose
+    /// <see cref="GroupPathState.TargetRoomId"/> is <c>-1</c> (never
+    /// assigned) or now names a room this same evaluation just found
+    /// <see cref="RoomClearState.Cleared"/> selects its next target as the
+    /// not-yet-cleared room with the lowest (octile heuristic distance from
+    /// the group leader's current cell to that room's own <see cref="RoomClearState.RoomId"/>
+    /// cell, <see cref="RoomClearState.RoomId"/>) pair — decision 4's argmin,
+    /// with a Stage-0 simplification: a room's representative point is its
+    /// <c>RoomId</c> cell itself (always open floor, by <see cref="Navigation.RoomLayout"/>'s
+    /// own construction) rather than decision 4's "nearest doorway cell",
+    /// because doorway identification is corner-adjacent geometry Stage 0
+    /// does not build. Design decision 5's freeze applies first: a group with
+    /// any living member whose best <see cref="ContactTier"/> this tick is
+    /// <see cref="ContactTier.Identified"/> is skipped entirely, using the
+    /// same per-operator scan <see cref="SelectIntents"/> already performs
+    /// against <paramref name="sensing"/> — no new query.
+    /// </item>
+    /// </list>
+    /// </summary>
+    private ImmutableArray<GroupPathState> AdvanceRoomSweep(
+        long currentTick,
+        TickStartView view,
+        ReadOnlySpan<SquadSlot> slots,
+        SensingOutcome sensing,
+        ImmutableArray<GroupPathState> groups)
+    {
+        var roomLayout = _roomLayout!;
+        var roomClearStates = State.RoomClearStates;
+
+        if (!roomClearStates.IsDefaultOrEmpty)
+        {
+            var roomCount = roomClearStates.Length;
+            var hasAssault = new bool[roomCount];
+            var hasHostile = new bool[roomCount];
+            var count = view.Count;
+
+            for (var i = 0; i < count; i++)
+            {
+                if (!view.IsAlive(i))
+                {
+                    continue;
+                }
+
+                var cellX = NavGrid.WorldToCellCoordinate(view.PositionXWu(i));
+                var cellY = NavGrid.WorldToCellCoordinate(view.PositionYWu(i));
+
+                if (!_navGrid.TryGetCellIndex(cellX, cellY, out var cellIndex))
+                {
+                    continue;
+                }
+
+                var roomId = roomLayout.RoomIdAt(cellIndex);
+                if (roomId < 0)
+                {
+                    continue;
+                }
+
+                var roomIndex = roomLayout.IndexOfRoom(roomId);
+                if (roomIndex < 0)
+                {
+                    continue;
+                }
+
+                if (view.Faction(i) == 0)
+                {
+                    hasAssault[roomIndex] = true;
+                }
+                else
+                {
+                    hasHostile[roomIndex] = true;
+                }
+            }
+
+            var updatedRoomClearStates = ImmutableArray.CreateBuilder<RoomClearState>(roomCount);
+            var newlyClearedRoomIds = ImmutableArray.CreateBuilder<int>();
+
+            for (var roomIndex = 0; roomIndex < roomCount; roomIndex++)
+            {
+                var roomClearState = roomClearStates[roomIndex];
+                if (!roomClearState.Cleared && hasAssault[roomIndex] && !hasHostile[roomIndex])
+                {
+                    roomClearState = roomClearState with { Cleared = true };
+                    newlyClearedRoomIds.Add(roomClearState.RoomId);
+                }
+
+                updatedRoomClearStates.Add(roomClearState);
+            }
+
+            if (newlyClearedRoomIds.Count > 0)
+            {
+                var state = State with { RoomClearStates = updatedRoomClearStates.MoveToImmutable() };
+                foreach (var clearedRoomId in newlyClearedRoomIds)
+                {
+                    state = EmitRoomClearedEvent(state, clearedRoomId);
+                }
+
+                State = state;
+                roomClearStates = State.RoomClearStates;
+            }
+        }
+
+        if (groups.IsDefaultOrEmpty || roomClearStates.IsDefaultOrEmpty)
+        {
+            return groups;
+        }
+
+        var updatedGroups = ImmutableArray.CreateBuilder<GroupPathState>(groups.Length);
+        foreach (var group in groups)
+        {
+            var updatedGroup = group;
+            var isEngageFrozen = false;
+            var leaderIndex = -1;
+            var leaderFaction = -1;
+
+            for (var i = 0; i < view.Count; i++)
+            {
+                if (slots[i].GroupId != group.GroupId || !view.IsAlive(i))
+                {
+                    continue;
+                }
+
+                if (slots[i].LeaderEntityId == view.EntityIds[i])
+                {
+                    leaderIndex = i;
+                    leaderFaction = view.Faction(i);
+                }
+
+                var bestTier = ContactTier.Unknown;
+                var memory = sensing.ContactMemoryByIndex[i];
+                if (!memory.IsDefaultOrEmpty)
+                {
+                    foreach (var entry in memory.AsSpan())
+                    {
+                        var tier = (ContactTier)entry.ContactTier;
+                        if (tier > bestTier)
+                        {
+                            bestTier = tier;
+                        }
+                    }
+                }
+
+                if (bestTier == ContactTier.Identified)
+                {
+                    isEngageFrozen = true;
+                }
+            }
+
+            var currentTargetStillLive = updatedGroup.TargetRoomId != -1
+                && !IsRoomCleared(roomClearStates, updatedGroup.TargetRoomId);
+
+            if (!isEngageFrozen && leaderIndex >= 0 && leaderFaction == 0 && !currentTargetStillLive)
+            {
+                var leaderCellX = NavGrid.WorldToCellCoordinate(view.PositionXWu(leaderIndex));
+                var leaderCellY = NavGrid.WorldToCellCoordinate(view.PositionYWu(leaderIndex));
+
+                if (_navGrid.TryGetCellIndex(leaderCellX, leaderCellY, out var leaderCellIndex)
+                    && TrySelectNextRoom(roomClearStates, leaderCellIndex, out var nextRoomId, out var nextRoomCellIndex))
+                {
+                    updatedGroup = updatedGroup with
+                    {
+                        TargetRoomId = nextRoomId,
+                        StartCellIndex = leaderCellIndex,
+                        GoalCellIndex = nextRoomCellIndex,
+                        RequestTick = currentTick,
+                        HasOutstandingRequest = true,
+                    };
+                }
+            }
+
+            updatedGroups.Add(updatedGroup);
+        }
+
+        return updatedGroups.MoveToImmutable();
+    }
+
+    /// <summary>
+    /// <see langword="true"/> when <paramref name="roomClearStates"/> names
+    /// <paramref name="roomId"/> and that entry's <see cref="RoomClearState.Cleared"/>
+    /// is <see langword="true"/>. A room id absent from the array (should not
+    /// happen once <see cref="_roomLayout"/> is set, since every seeded and
+    /// resumed <see cref="MissionState.RoomClearStates"/> entry mirrors
+    /// <see cref="Navigation.RoomLayout.RoomIds"/> exactly) is treated as not
+    /// cleared, which is the safe direction — it prevents
+    /// <see cref="AdvanceRoomSweep"/> from silently retargeting a group away
+    /// from a room this simulation has no clear-state record for at all.
+    /// </summary>
+    private static bool IsRoomCleared(ImmutableArray<RoomClearState> roomClearStates, int roomId)
+    {
+        foreach (var roomClearState in roomClearStates)
+        {
+            if (roomClearState.RoomId == roomId)
+            {
+                return roomClearState.Cleared;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Design decision 4's Phase A argmin, Stage-0 shaped: scans
+    /// <paramref name="roomClearStates"/> in its own stored order — always
+    /// ascending <see cref="RoomClearState.RoomId"/>, per that array's own
+    /// construction — and keeps the first not-yet-<see cref="RoomClearState.Cleared"/>
+    /// room whose integer octile heuristic distance
+    /// (<c>10 * (max - min) + 14 * min</c>, design section 7's pinned form,
+    /// no epsilon) from <paramref name="fromCellIndex"/> to that room's own
+    /// <c>RoomId</c> cell is strictly lower than every room already seen.
+    /// Because the scan itself is already ascending by <c>RoomId</c>, keeping
+    /// strictly-lower (never less-than-or-equal) matches decision 4's stated
+    /// tie-break, <c>RoomId</c>, with no separate comparison needed. Returns
+    /// <see langword="false"/> when every room is already
+    /// <see cref="RoomClearState.Cleared"/> — Phase A exhausted, and Phase B
+    /// is not implemented in Stage 0 (this method's own caller's remarks).
+    /// </summary>
+    private bool TrySelectNextRoom(
+        ImmutableArray<RoomClearState> roomClearStates,
+        int fromCellIndex,
+        out int roomId,
+        out int roomCellIndex)
+    {
+        var fromX = _navGrid.CellX(fromCellIndex);
+        var fromY = _navGrid.CellY(fromCellIndex);
+
+        var bestCost = int.MaxValue;
+        roomId = -1;
+        roomCellIndex = -1;
+
+        foreach (var roomClearState in roomClearStates)
+        {
+            if (roomClearState.Cleared)
+            {
+                continue;
+            }
+
+            var candidateCellIndex = roomClearState.RoomId;
+            var candidateX = _navGrid.CellX(candidateCellIndex);
+            var candidateY = _navGrid.CellY(candidateCellIndex);
+
+            var dx = Math.Abs(candidateX - fromX);
+            var dy = Math.Abs(candidateY - fromY);
+            var min = Math.Min(dx, dy);
+            var max = Math.Max(dx, dy);
+            var cost = (10 * (max - min)) + (14 * min);
+
+            if (cost < bestCost)
+            {
+                bestCost = cost;
+                roomId = roomClearState.RoomId;
+                roomCellIndex = candidateCellIndex;
+            }
+        }
+
+        return roomId != -1;
+    }
+
+    /// <summary>
+    /// Stage 0's event-emission call site for a room's <see cref="RoomClearState.Cleared"/>
+    /// flag flipping to <see langword="true"/> — the same "assign then
+    /// advance <see cref="MissionState.NextEventSequence"/>" shape
+    /// <see cref="EmitShotFiredEvent"/> already uses. Called from
+    /// <see cref="AdvanceRoomSweep"/> once per transition, in ascending
+    /// <see cref="RoomClearState.RoomId"/> order among every room that
+    /// transitions on the same tick.
+    /// </summary>
+    private static MissionState EmitRoomClearedEvent(MissionState state, int roomId)
+    {
+        var missionEvent = MissionEvent.RoomCleared(state.NextEventSequence, state.Tick, roomId);
+
+        return state with
+        {
+            NextEventSequence = state.NextEventSequence + 1,
+            EventFeed = state.EventFeed.Append(missionEvent),
+        };
     }
 
     /// <summary>

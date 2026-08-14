@@ -195,7 +195,15 @@ public static class NavBake
     /// not exist yet in the tree this bakes against.
     /// </para>
     /// </summary>
-    private static IEnumerable<(int X, int Y)> SupercoverCells(int x1, int y1, int x2, int y2)
+    /// <summary>
+    /// Internal rather than private so <see cref="RoomLayout.Bake"/> can reuse
+    /// this exact pinned integer supercover walk for its own room-boundary
+    /// rasterization, which — unlike <see cref="Bake"/> above — must treat
+    /// every <c>DOOR</c> record as boundary geometry regardless of its
+    /// <c>State</c>. Widening this one method's accessibility is the only
+    /// change made to it; its algorithm and behavior are untouched.
+    /// </summary>
+    internal static IEnumerable<(int X, int Y)> SupercoverCells(int x1, int y1, int x2, int y2)
     {
         var cx = NavGrid.WorldToCellCoordinate(x1);
         var cy = NavGrid.WorldToCellCoordinate(y1);

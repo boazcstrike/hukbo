@@ -77,4 +77,16 @@ public enum MissionEventKind
     /// history of that state at all.
     /// </summary>
     WeaponRaised = 5,
+
+    /// <summary>
+    /// Stage 0 of design decision 6 in
+    /// <c>docs/plans/2026-08-14-sandata-clear-the-map-design.md</c>: a room's
+    /// <see cref="Simulation.RoomClearState.Cleared"/> flag flipped from
+    /// <see langword="false"/> to <see langword="true"/> this tick. Emitted by
+    /// <see cref="Simulation.SandataSimulation"/>'s room-sweep logic, in
+    /// ascending <see cref="Simulation.RoomClearState.RoomId"/> order among
+    /// every room that transitions on the same tick, once per transition —
+    /// this flag is sticky, so a room emits this at most once per mission.
+    /// </summary>
+    RoomCleared = 6,
 }

@@ -83,6 +83,16 @@ public sealed record MissionSnapshot(
     public MissionEventFeed EventFeed { get; init; } = MissionEventFeed.Empty;
 
     /// <summary>
+    /// Stage 0's per-room clear state, stored verbatim — see
+    /// <see cref="MissionState.RoomClearStates"/>'s own remarks. Authoritative
+    /// and hashed, unlike the <see cref="Navigation.RoomLayout"/> it is
+    /// evaluated against, which is derived and rebuilt after resume rather
+    /// than carried here.
+    /// </summary>
+    public ImmutableArray<RoomClearState> RoomClearStates { get; init; } =
+        ImmutableArray<RoomClearState>.Empty;
+
+    /// <summary>
     /// Restores a <see cref="MissionState"/> from this snapshot. Every
     /// collection is copied by value (an <see cref="ImmutableArray{T}"/>
     /// assignment shares the same backing array, which is safe because both
@@ -104,6 +114,7 @@ public sealed record MissionSnapshot(
         OrderQueue = Orders.OrderQueue.RestoreForResume(OrderQueue.NextOrderId, OrderQueue.NextOrderSequence, OrderQueue.Orders),
         OrderAssignments = OrderAssignments,
         EventFeed = EventFeed,
+        RoomClearStates = RoomClearStates,
     };
 }
 
@@ -130,5 +141,6 @@ public static class MissionStateSnapshotExtensions
             OrderQueue = state.OrderQueue,
             OrderAssignments = state.OrderAssignments,
             EventFeed = state.EventFeed,
+            RoomClearStates = state.RoomClearStates,
         };
 }

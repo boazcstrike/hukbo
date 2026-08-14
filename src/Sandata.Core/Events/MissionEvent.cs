@@ -220,4 +220,34 @@ public readonly record struct MissionEvent
 
         return new MissionEvent(sequence, tick, MissionEventKind.ShotMissed, unchecked((long)shooterEntityId), 0);
     }
+
+    /// <summary>
+    /// Creates a validated <see cref="MissionEventKind.RoomCleared"/> event —
+    /// Stage 0 of design decision 6 in
+    /// <c>docs/plans/2026-08-14-sandata-clear-the-map-design.md</c>:
+    /// <paramref name="roomId"/>'s clear flag flipped to
+    /// <see langword="true"/> this tick. <see cref="ReasonCode"/> carries no
+    /// meaning for this kind and is always <c>0</c>.
+    /// </summary>
+    /// <param name="sequence">
+    /// The value <see cref="Simulation.MissionState.NextEventSequence"/> held
+    /// at the moment of emission.
+    /// </param>
+    /// <param name="tick">The mission tick the room's clear flag flipped on.</param>
+    /// <param name="roomId">
+    /// The cleared room's <see cref="Navigation.RoomLayout"/> id, folded into
+    /// <see cref="SubjectId"/> as a plain <see langword="long"/> widening — a
+    /// room id is already <see langword="int"/>, unlike an entity id, so no
+    /// <c>unchecked</c> reinterpretation is needed.
+    /// </param>
+    public static MissionEvent RoomCleared(long sequence, long tick, int roomId)
+    {
+        if (sequence < 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(sequence), sequence, "An event sequence must not be negative.");
+        }
+
+        return new MissionEvent(sequence, tick, MissionEventKind.RoomCleared, roomId, 0);
+    }
 }

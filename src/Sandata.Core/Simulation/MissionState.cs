@@ -3,6 +3,7 @@ using Hukbo.Core.Mathematics;
 using Hukbo.Core.Movement;
 using Sandata.Core.Events;
 using Sandata.Core.Mathematics;
+using Sandata.Core.Navigation;
 using Sandata.Core.Orders;
 using Sandata.Core.Weapons;
 
@@ -77,7 +78,13 @@ public readonly record struct DoorState(int DoorId, bool IsOpen, long LastChange
 /// group identifiers, and <c>NavGrid</c>'s own <c>nodeIndex</c> is
 /// <see langword="int"/>. <see cref="DestinationCellIndex"/> stands in for
 /// the richer destination record task 27 (path service) and task 28 (squad
-/// grouping) will own.
+/// grouping) will own. <see cref="TargetRoomId"/> is Stage 0's addition
+/// (design decision 6 of <c>docs/plans/2026-08-14-sandata-clear-the-map-design.md</c>):
+/// the <see cref="Navigation.RoomLayout"/> room id this group is currently
+/// sweeping toward, or <c>-1</c> when it has none yet. Defaulted so every
+/// existing positional construction of this type — including
+/// <c>Sandata.Client.Simulation.InitialSquadGroups</c> — compiles and behaves
+/// unchanged.
 /// </summary>
 public readonly record struct GroupPathState(
     ulong GroupId,
@@ -85,7 +92,20 @@ public readonly record struct GroupPathState(
     bool HasOutstandingRequest,
     int StartCellIndex,
     int GoalCellIndex,
-    long RequestTick);
+    long RequestTick,
+    int TargetRoomId = -1);
+
+/// <summary>
+/// One room's authoritative clear state — Stage 0 of design decision 6 in
+/// <c>docs/plans/2026-08-14-sandata-clear-the-map-design.md</c>, deliberately
+/// simplified from the full design's <c>CornersSightedMask</c> shape: Stage 0
+/// excludes corner and blind-pocket detection entirely (staging section 12),
+/// so this record carries no corner mask. <see cref="RoomId"/> matches a
+/// <see cref="Navigation.RoomLayout.RoomIds"/> value. <see cref="Cleared"/> is
+/// sticky — once set, a room's own clear-state transition logic never resets
+/// it back to <see langword="false"/>.
+/// </summary>
+public readonly record struct RoomClearState(int RoomId, bool Cleared);
 
 /// <summary>
 /// One RNG stream's state — design section 4's "per RNG stream: algorithm
@@ -365,6 +385,22 @@ public sealed record MissionState(
     /// </summary>
     public MissionEventFeed EventFeed { get; init; } = MissionEventFeed.Empty;
 
+    /// <summary>
+    /// Stage 0's per-room clear state — design decision 6 of
+    /// <c>docs/plans/2026-08-14-sandata-clear-the-map-design.md</c>. Ordered
+    /// ascending by <see cref="RoomClearState.RoomId"/>, matching
+    /// <see cref="RoomLayout.RoomIds"/>'s own order for a given bake. Unlike
+    /// <see cref="RoomLayout"/> itself, this collection is authoritative: it
+    /// is hashed by <see cref="Determinism.SandataStateHasher"/>, gated on
+    /// non-empty exactly like <see cref="OrderAssignments"/>, and carried
+    /// through <see cref="Simulation.MissionSnapshot"/>. Empty for any mission
+    /// that has no <see cref="Navigation.RoomLayout"/> baked for it — every
+    /// existing caller, including every headless workload, so this field
+    /// changes no pinned hash.
+    /// </summary>
+    public ImmutableArray<RoomClearState> RoomClearStates { get; init; } =
+        ImmutableArray<RoomClearState>.Empty;
+
     public bool Equals(MissionState? other)
     {
         if (other is null)
@@ -389,7 +425,8 @@ public sealed record MissionState(
             RngStreamsSpan.SequenceEqual(other.RngStreamsSpan) &&
             OrderQueue.Equals(other.OrderQueue) &&
             OrderAssignmentsSpan.SequenceEqual(other.OrderAssignmentsSpan) &&
-            EventFeed.Equals(other.EventFeed);
+            EventFeed.Equals(other.EventFeed) &&
+            RoomClearStatesSpan.SequenceEqual(other.RoomClearStatesSpan);
     }
 
     public override int GetHashCode()
@@ -432,6 +469,10 @@ public sealed record MissionState(
         }
 
         hash.Add(EventFeed);
+        foreach (var roomClearState in RoomClearStatesSpan)
+        {
+            hash.Add(roomClearState);
+        }
 
         return hash.ToHashCode();
     }
@@ -453,4 +494,7 @@ public sealed record MissionState(
 
     private ReadOnlySpan<OrderAssignment> OrderAssignmentsSpan =>
         OrderAssignments.IsDefault ? ReadOnlySpan<OrderAssignment>.Empty : OrderAssignments.AsSpan();
+
+    private ReadOnlySpan<RoomClearState> RoomClearStatesSpan =>
+        RoomClearStates.IsDefault ? ReadOnlySpan<RoomClearState>.Empty : RoomClearStates.AsSpan();
 }
