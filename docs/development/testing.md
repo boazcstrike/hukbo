@@ -1106,6 +1106,57 @@ person still listened to it before the row moved.
 The Hukbo gate was run separately on the same tree and is also green, all five
 stages `PASS`, with `combatPreset 5` and `movementPreset 13`.
 
+### Canonical gate result — Sandata, 2026-08-14 (lowered weapon and automatic fire)
+
+`./scripts/verify.ps1 -Game Sandata -SkipBootstrap`, exit code 0, run on branch
+`sandata-sd4-sd5` with all three of that package's waves integrated:
+
+```
+[PASS] Formatting verification completed.
+[PASS] Release solution build completed.
+Sandata.Core.Tests     Total tests: 1135   Passed: 1135
+Sandata.Client.Tests   Total tests:  320   Passed:  320
+[PASS] Release repository tests completed.
+measuredTicks 10000   outcome Ongoing   survivors 70 / 64
+stateHash A644B7F8A394885D   eventHash AEDE4D16B5E6FAAF   deterministic true
+p50 2.3588 ms   p95 2.5587 ms   p99 3.2322 ms   max 59.9452 ms
+durationMilliseconds 24147.97   allocatedBytes 6,120,455,624 (~6.12 GB)
+[PASS] Headless workload completed: agents=200 ticks=10000 seed=1.
+[PASS] Canonical repository verification completed.
+```
+
+**Both hashes are unchanged from the 2026-08-12 baseline above, and that is the
+result worth reading rather than the green.** This package's decision D1 seeds
+the path-blocked span the A\* search reads from the baked map, so that a search
+stops crossing walls — the design predicted it would move every Sandata digest.
+It moves none of them here, because `HeadlessRunner.BuildOpenGrid` synthesises a
+grid with no walls, no doors, and no map file, so the seeded array is still
+every-cell-false in this workload and every search still runs on open ground.
+
+The consequence is a limit on what this gate can ever say: **the seed-1 workload
+cannot detect a pathfinding change that only manifests around geometry.** What
+proves D1 is `tests/Sandata.Core.Tests/PathBlockedCellsTests.cs`, which searches
+across a wall and asserts the returned path avoids it, and smoke row `SD-4`,
+which asks a person to watch an operator funnel through the `angle-house`
+doorway. The same reasoning is recorded at the fixture itself and at
+`MissionStateTests.PreTask79cBaselineHash`, whose value was re-examined on the
+same day and deliberately left where it is.
+
+`Sandata.Core.Tests` is 1,135 rather than 1,132: three tests cover the seeded
+blocked span. `Sandata.Client.Tests` is 320 rather than 295, which is the
+inspector's two new rows, the burst-tracking set, and the weapon-state log line.
+
+The Hukbo gate was run on the same tree, separately, and is also green:
+`./scripts/verify.ps1 -SkipBootstrap`, all five stages `PASS`, 2,568
+`Hukbo.Core.Tests` and 3,785 `Hukbo.Client.Tests`, and all four of its headless
+workloads passing. Two games, two gates, two results, never reported as one. The
+Hukbo figures come from `main` at `8f2207f` and nothing in this package touches
+Hukbo's simulation; the only file it changes outside Sandata is an added `const`
+on the shared `LogEvents` catalog.
+
+Neither gate is evidence about anything interactive. `SD-4` and `SD-5` stay
+`FAIL` until a person at a desktop re-runs them.
+
 ### Golden replay and determinism equivalence
 
 Sandata's pinned digests live in

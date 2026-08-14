@@ -83,6 +83,13 @@ public static class LogEvents
     // afterwards, and it fires a handful of times in a whole mission.
     public const string SimSandataRoster = "sim.sandata.roster";
 
+    // Sandata's weapon-lowered transition, written on the tick the flag
+    // changes rather than per tick. The simulation emits WeaponLowered and
+    // WeaponRaised events and nothing read them, so a run left no record of a
+    // transition that lasts about half a second on screen; this is the line
+    // that lets one be placed in time after the fact.
+    public const string SimSandataWeaponState = "sim.sandata.weaponState";
+
     public const string SimTick = "sim.tick";
 
     // Audio channel.

@@ -48,6 +48,23 @@ namespace Sandata.Core.Combat;
 /// comparison of two squared magnitudes — see
 /// <see cref="IsWithinDistanceOfSegment"/>.
 /// </para>
+/// <para>
+/// <b>The engaging-a-target exemption.</b> An operator who is engaging a
+/// hostile it has identified this tick is never forced lowered, regardless of
+/// its distance to a wall or whether it stands in a door cell — the same
+/// early-out already given to an exempt weapon. The lowered muzzle this rule
+/// otherwise imposes is a movement discipline: a carried weapon points at the
+/// ground while its operator moves through a tight space, so a stray round
+/// during transit cannot go anywhere dangerous. That discipline was found to
+/// force a rifleman lowered for the entire time it stood inside a corridor
+/// narrower than twice <c>loweredWallDistanceWu</c> — which, against angle-house's
+/// roughly 32 world-unit corridors and this rule's own 24 world-unit
+/// threshold, is every corridor in that map — even while the operator had
+/// already identified a hostile and was actively engaging it, making an
+/// indoor rifle permanently unable to fire. Once an operator has a target, it
+/// is no longer merely transiting; it is doing the thing the weapon is for,
+/// and the movement-discipline rationale no longer applies.
+/// </para>
 /// </remarks>
 public static class WeaponLoweredRules
 {
@@ -85,6 +102,16 @@ public static class WeaponLoweredRules
     /// never forced lowered by this rule, regardless of position, and the
     /// wall and door geometry are not even evaluated in that case.
     /// </param>
+    /// <param name="engagingIdentifiedHostile">
+    /// <see langword="true"/> when this operator is engaging a hostile it has
+    /// identified this tick — in practice, the caller's own target-acquisition
+    /// step found a live contact for a raising operator this tick. When
+    /// <see langword="true"/>, the weapon is never forced lowered by this
+    /// rule, regardless of position, and the wall and door geometry are not
+    /// even evaluated in that case — the same early out already given to an
+    /// exempt weapon. See the type remarks' "engaging-a-target exemption" for
+    /// why.
+    /// </param>
     /// <returns>
     /// <see langword="true"/> when the weapon must be forced to
     /// <c>WeaponChainPhase.Lowered</c> this tick.
@@ -97,13 +124,14 @@ public static class WeaponLoweredRules
         NavGrid grid,
         WallBuckets wallBuckets,
         int loweredWallDistanceWu,
-        bool exemptFromLoweredRule)
+        bool exemptFromLoweredRule,
+        bool engagingIdentifiedHostile)
     {
         ArgumentNullException.ThrowIfNull(grid);
         ArgumentNullException.ThrowIfNull(wallBuckets);
         ArgumentOutOfRangeException.ThrowIfNegative(loweredWallDistanceWu);
 
-        if (exemptFromLoweredRule)
+        if (exemptFromLoweredRule || engagingIdentifiedHostile)
         {
             return false;
         }

@@ -91,6 +91,111 @@ public sealed class AutomaticFireAudioTests
     }
 
     /// <summary>
+    /// Defect A, reproduced directly. The real caller,
+    /// <c>SandataGame.SoundShotsFiredOn</c>, reports
+    /// <see cref="SandataSoundPlayer.HandleAutomaticFireStopped"/> on every
+    /// tick a shooter did not fire on, not only the tick a burst actually
+    /// ended on. A ten-round burst at five ticks per round — the slowest
+    /// catalog cyclic rate, 600 rounds per minute at a tick rate of 50 —
+    /// therefore drives four spurious stop calls between every pair of
+    /// rounds. Before the burst-end grace window, the first such call cleared
+    /// the loop-fallback flag mid-burst and every round after the first went
+    /// silent; this test is the one the whole task exists for.
+    /// </summary>
+    [Fact]
+    public void AutomaticFire_TenRoundBurstAtFiveTicksPerRound_ProducesTenReports()
+    {
+        var output = new SelectiveSoundOutput(SoundFamily.GunLoop);
+        var player = NewPlayer(output);
+
+        for (var tick = 0L; tick < 50; tick++)
+        {
+            if (tick % 5 == 0)
+            {
+                player.HandleShotFired(
+                    Rifle, FireMode.Auto, CloseRangeWu,
+                    shooterIsIndoors: false, suppressorFitted: false, tick, shooterEntityId: 1UL);
+            }
+            else
+            {
+                player.HandleAutomaticFireStopped(
+                    Rifle, CloseRangeWu, shooterIsIndoors: false, suppressorFitted: false,
+                    tick, shooterEntityId: 1UL);
+            }
+        }
+
+        Assert.Equal(10, output.PlayCount(SoundFamily.GunReport));
+    }
+
+    /// <summary>
+    /// A gap longer than the grace window is a real burst end: it clears the
+    /// loop-fallback flag and plays the tail exactly once, even though the
+    /// caller keeps reporting the same stop on every later tick.
+    /// </summary>
+    [Fact]
+    public void AutomaticFire_AGapLongerThanTheGraceWindow_EndsTheBurstAndPlaysTheTailOnce()
+    {
+        var output = new SelectiveSoundOutput(SoundFamily.GunLoop);
+        var player = NewPlayer(output);
+
+        player.HandleShotFired(
+            Rifle, FireMode.Auto, CloseRangeWu,
+            shooterIsIndoors: false, suppressorFitted: false, tick: 0, shooterEntityId: 1UL);
+
+        // Six ticks is inside the grace window and must not end the burst.
+        player.HandleAutomaticFireStopped(
+            Rifle, CloseRangeWu, shooterIsIndoors: false, suppressorFitted: false,
+            tick: 6, shooterEntityId: 1UL);
+        Assert.Equal(0, output.PlayCount(SoundFamily.GunTail));
+
+        // Seven ticks is outside it: this is the real end.
+        player.HandleAutomaticFireStopped(
+            Rifle, CloseRangeWu, shooterIsIndoors: false, suppressorFitted: false,
+            tick: 7, shooterEntityId: 1UL);
+        Assert.Equal(1, output.PlayCount(SoundFamily.GunTail));
+
+        // The caller keeps reporting the same stop on every later tick; the
+        // already-handled burst must not play a second tail for it.
+        player.HandleAutomaticFireStopped(
+            Rifle, CloseRangeWu, shooterIsIndoors: false, suppressorFitted: false,
+            tick: 8, shooterEntityId: 1UL);
+        Assert.Equal(1, output.PlayCount(SoundFamily.GunTail));
+    }
+
+    /// <summary>
+    /// Defect B, reproduced directly for every caliber family the catalog
+    /// knows, not only the six rifle calibers <c>AddAutomaticLoopAndTail</c>
+    /// declared before this package: an automatic-capable pistol caliber
+    /// (<see cref="CaliberFamily.Cal9X19"/> or <see cref="CaliberFamily.Cal58X21"/>)
+    /// must resolve a GunLoop row and a GunTail row exactly as a rifle
+    /// caliber does, rather than reaching <c>SandataSoundCatalog.Find</c>'s
+    /// throwing last resort.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(AllCaliberFamilies))]
+    public void AutomaticFire_EveryCaliberFamily_ResolvesBothAutomaticSlotsWithoutThrowing(
+        CaliberFamily caliber)
+    {
+        var output = new SelectiveSoundOutput(SoundFamily.GunLoop);
+        var player = NewPlayer(output);
+
+        var exception = Record.Exception(() =>
+        {
+            player.HandleShotFired(
+                caliber, FireMode.Auto, CloseRangeWu,
+                shooterIsIndoors: false, suppressorFitted: false, tick: 0, shooterEntityId: 1UL);
+            player.HandleAutomaticFireStopped(
+                caliber, CloseRangeWu, shooterIsIndoors: false, suppressorFitted: false,
+                tick: 10, shooterEntityId: 1UL);
+        });
+
+        Assert.Null(exception);
+    }
+
+    public static IEnumerable<object[]> AllCaliberFamilies() =>
+        Enum.GetValues<CaliberFamily>().Select(caliber => new object[] { caliber });
+
+    /// <summary>
     /// The fallback is scoped to one burst: once fire stops, the next burst
     /// attempts the loop again rather than assuming it will fail forever. A
     /// loop file added between two bursts is heard on the second.

@@ -8,8 +8,9 @@ Run `./scripts/run.ps1` on an interactive Windows desktop. This repository uses
 local-only verification: there is no hosted-CI substitute for this direct
 interaction pass.
 
-Every section below except the first is Hukbo's. The Sandata section
-immediately below is run with `./scripts/run.ps1 -Game Sandata`.
+Every section below is Hukbo's. Sandata had a section here until 2026-08-14,
+when its last three rows closed and the family was deleted whole; its record is
+the archive titled "Sandata smoke — `SD-5`, and the family closing in full".
 
 **Only a person at an interactive desktop may flip a row.** No agent may, for
 any reason, including a passing automated test. Compilation, unit tests, a
@@ -23,14 +24,22 @@ The gate, the current gate results, and the recorded baselines live in
 
 ## Where the checklist stands, 2026-08-14
 
-19 rows across 4 subsections: **1 `FAIL` and 18 `PENDING`, and no `PASS`,
-`BLOCKED`, or `DECLINED` row** — recounted from the status column of this file
+18 rows across 3 subsections: **5 `PASS`, 1 `BLOCKED`, and 12 `PENDING`, with
+no `FAIL` or `DECLINED` row** — recounted from the status column of this file
 on 2026-08-14, after ten families closed in full that day and their subsections
 were deleted whole, after the death-collapse family added ten new `PENDING`
 rows in a subsection of its own later the same day, and after the UI chrome
-nine-slice family added six more at the end of it. That last family is the only
-one here written before its code exists: its `CH-4` asks a tester to settle a
-sampler question the design deliberately refused to assert. The contingent shape selector family both joined this file
+nine-slice family added six more at the end of it and a person ran all six the
+same evening.
+
+Five of those six passed. The sixth, `CH-4`, is the only `BLOCKED` row in this
+file, and it is blocked on hardware rather than on code: it asks a tester to
+step through four interface-scale tiers, and `UiScalePolicy.Resolve` caps the
+reachable tier by viewport, so a 1080p display can only reach two of them. The
+sampler question that row exists to settle — whether a bleed halo appears at
+the joins between corner and edge cells — is therefore still unanswered, and
+the design's decision to leave it to a tester rather than assert it still
+stands open. The contingent shape selector family both joined this file
 and left it on that day: `CS-1` and `CS-2` were written as two new `PENDING`
 rows in a subsection of their own, then run and passed before the day was out.
 
@@ -44,16 +53,12 @@ smoke"**, **"Contingent shape selector smoke"**, and **"GPU render smoke —
 `GR-4`"**, named here in prose rather than linked because that folder is pruned
 periodically. No row's status was changed to arrive at this count.
 
-**One row in this file carries a failing observation, and it is Sandata's.**
-`SD-4` and `SD-5` were re-run on 2026-08-14 against the fixes they had been
-waiting on since 2026-08-12 and failed for the third time each, so both moved
-from `PENDING` to `FAIL` that day. `SD-4` was then run a fourth time, against a
-further round of fixes, and passed — it left this file for the record titled
-**"Sandata smoke — `SD-4`"**, which records that it passed against branch
-`sandata-sd4-sd5` rather than against `main`. `SD-5` failed again in the same
-session and is the row that remains. Three other rows that once carried a
-failing observation — `BR-1`, `BR-2` and `BR-10` — were re-run on 2026-08-14,
-passed, and left with their family. The two render rows below sit at `PENDING` because
+**No row left in this file carries a failing observation.** Five rows did
+during 2026-08-14. `BR-1`, `BR-2` and `BR-10` were re-run against the fixes they
+had been waiting on and passed. Sandata's `SD-4` and `SD-5` each failed a third
+time that day and were moved from `PENDING` to `FAIL`, then passed on a fourth
+and a fifth attempt respectively; both left with their family, which closed in
+full. The two render rows below sit at `PENDING` because
 nobody has watched them, not because somebody watched them fail.
 
 The families that closed on 2026-08-14 went in roughly this order.
@@ -73,13 +78,14 @@ Two families were run on 2026-08-14 and did not close. GPU render has passed
 three of its five rows — `GR-1` and `GR-2` early in the day, `GR-4` later — and
 all three were lifted out; its other two stay below with the reason they were
 not run recorded against them, and the section preamble records why that reason
-does not hold. Sandata passed `SD-7b`, which was lifted out, and failed `SD-4`
-and `SD-5`, which stay below as this file's only two `FAIL` rows.
+does not hold. Sandata was the other, and it did close: `SD-7b`, then `SD-4`,
+then `SD-5` all passed that day, so the family and its section left this file
+whole. Its record is the archive titled "Sandata smoke — `SD-5`, and the family
+closing in full".
 
 The two render rows left here are something a person can do today: neither is
 blocked by the build, and neither is waiting on a feature that does not exist.
-The two Sandata rows are different — both have now failed three times, and a
-re-run of either is worth nothing until the fix it is waiting on lands. 243 rows
+245 rows
 have been lifted out of this file since it was split out of
 `docs/development/testing.md`. A closed row is not described here once it
 leaves; its record is the dated archive that carries its family's name, and this
@@ -138,7 +144,8 @@ The families below are grouped by what a single launch can actually
 show, because the subsections are ordered by the change that created them
 rather than by what is on screen at once, and a person working down the file in
 order relaunches the game far more often than they need to. The batch rows below
-sum to this file's own total of 4. They summed to 67 before 2026-08-14, because
+sum to this file's own total of 18. The Sandata batch left the table on
+2026-08-14 when its last three rows closed. They summed to 67 before 2026-08-14, because
 two sections had never been given a row here at all; nine more batches left the
 table later that day when their families closed in full — the battlefield
 realism batch last, and the contingent shape selector batch, which had joined
@@ -148,16 +155,14 @@ shrank rather than leaving.
 | Batch | Families | Rows | What one launch has to show |
 | --- | --- | --- | --- |
 | Render | `GR` 2 of 5 | 2 `PENDING` | Launch-time render behaviour at the largest battle the panel allows. `GR-1`, `GR-2` and `GR-4` passed on 2026-08-14 and were lifted out. Both rows left were attempted that day and not run; the section preamble records why, and why the stated reason does not hold |
-| Sandata | `SD` 1 of 9 | 1 `FAIL` | `./scripts/run.ps1 -Game Sandata`, **from the `sandata-sd4-sd5` worktree until that branch reaches `main`**. The other 8 passed and were lifted out, `SD-7b` and then `SD-4` on 2026-08-14. `SD-5` has been attempted four times and failed every time. Read its `Actual` column before starting |
 
 **No row in this file is blocked by the build, and this paragraph used to say
 the opposite.** Every `SD` row that was once blocked has stopped being so — four
 on 2026-08-11 and `SD-7b` on 2026-08-12, each when what it was waiting for was
 built. The last rows blocked for any other reason were the eleven movement-preset
 rows, which the Army Composition panel's preset selector unblocked on 2026-08-13
-and which were run and closed on 2026-08-14. Nothing here is `BLOCKED`. The two
-render rows are open because nobody has watched them; the two Sandata rows are
-open because a person watched them and the game did not do what the row asks.
+and which were run and closed on 2026-08-14. Nothing here is `BLOCKED`, and
+every row left is open because nobody has watched it yet.
 
 **One thing a tester still has to set deliberately.** The client's shipped
 movement preset is `ClientSettingsStore.DefaultMovementPreset`, which is
@@ -177,149 +182,6 @@ toggles the sound log.
 A row moves to `PASS` only when a person at an interactive desktop has seen the
 expected result. No agent may flip one, and a passing automated test is not a
 substitute for any row here.
-
-## Sandata smoke (design section 13)
-
-Run with `./scripts/run.ps1 -Game Sandata -Configuration Debug`. No agent may
-flip a row here.
-
-**Run it from the `sandata-sd4-sd5` worktree until that branch reaches `main`.**
-`SD-4` passed on 2026-08-14 against that branch at `1cb7c4d`, not against `main`,
-which was still held by a concurrent session. `main` is the build that failed
-`SD-4` three times.
-
-One row is open, and it is `FAIL`. Eight others have closed and are no
-longer described in this file at all — six on 2026-08-12, whose evidence is the
-archive record titled **"Sandata smoke — the closed rows and the first two
-runs"**, `SD-7b` on 2026-08-14, whose evidence is the record titled **"Sandata
-smoke — `SD-7b`"**, and `SD-4` later the same day, recorded in **"Sandata smoke
-— `SD-4`"**. All three are named rather than linked because that folder is
-pruned periodically. Find any of them the same way any archived record is
-found:
-
-```powershell
-git log --diff-filter=A --name-only --format='%h %s' -- 'docs/archives/**' |
-  Select-String 'sandata-smoke-closed-rows'
-```
-
-**Close the window to end a run. Never kill the process.** `JsonlLogSink` sets
-`AutoFlush = false` and the log is flushed when `Program` exits normally, so a
-terminated process leaves a zero-byte log file and the whole run's record is
-gone.
-
-### Controls
-
-| Input | Effect |
-| --- | --- |
-| Space, or the first control-bar button | Play / pause |
-| Period (`.`), or the second control-bar button | Advance exactly one tick, pausing first |
-| Tab, or the third control-bar button | Cycle speed: half, normal, double, quadruple |
-| F5, or the fourth control-bar button | Restart the mission from tick zero |
-| F6 | Cycle the theme. Not saved: the next launch starts on `night-ops` again |
-| Escape | Exit |
-| Mouse wheel | Zoom |
-| Left-click on an operator | Select it, and open the operator inspector |
-| Left-drag on the map | Marquee-select friendly operators |
-| Right-click on the map | Add a node to a hand-drawn path |
-| Enter | Submit the drawn path to the selected operators |
-| Any letter key, released | Submit a go-code release order for the selection |
-
-### What the shipped map does on its own
-
-`angle-house` spawns two blue operators at the bottom wall and two red ones on
-the two yellow objective squares. The blue pair is one squad, and on tick zero
-it requests a path to the objective at the top right. Expect them to leave the
-bottom wall within a second or two, cross the house through the lower door, and
-reach the objective at roughly nine seconds of real time at normal speed. The
-second defender, at the bottom-left objective, is out of range of the whole
-route and never does anything.
-
-### Drawing a path, and why one gets refused
-
-Right-click three or four points, then press Enter with operators selected. The
-squad abandons its objective route, walks your polyline node by node, and
-returns to its own route when it reaches the last node.
-
-**A polyline that crosses a wall is refused, by design.** Design section 16
-validates an authored path at submission against four rules — node count, map
-bounds, blocked cells, and wall crossings — and never silently re-routes one.
-`angle-house` is a house, so points dropped "across the map" without regard to
-its walls will usually break the fourth rule. A refusal now says so: the order
-queue panel in the bottom-right names the reason, and the run's own
-`artifacts/logs/sandata-<utc>-<pid>.jsonl` carries a `warn` line reading
-`input.sandata.order` with `accepted: false` and the reason by name. If a
-submission produces neither a queue row nor a log line, nothing was submitted at
-all — the most likely cause is an empty selection.
-
-### What is knowingly not working. Do not spend your session rediscovering it
-
-- **There is no menu, and there never has been.** The client opens straight into
-  the mission. There is no title screen, no settings screen, and no pause menu.
-- **Almost no text.** The operator inspector draws its rows for a selected
-  operator, and the order queue draws its rows. The contact list, mission clock,
-  roster strip, and go-code panel are still blank rectangles, and there is no
-  on-screen tick counter, no score, and no victory banner.
-- **The mission never ends.** Nothing in the client checks an outcome; the run
-  stops at the 36,000-tick limit, about twelve minutes at normal speed.
-- **A blocked operator stalls permanently.** If a mover's route runs into a body
-  that is standing still, it refuses the step, tries exactly one 22.5-degree
-  sidestep, refuses that too, and repeats both refusals for the rest of the run.
-  It never re-plans. This is task 89's recorded finding and it is expected
-  behaviour today — see `src/Sandata.Core/Movement/LocalAvoidance.cs`.
-- **Sound covers gunfire and nothing else.** Forty generated files ship,
-  covering an AK-pattern rifle and a Glock-pattern pistol at close and indoor
-  ranges. Every other sound in the 106-slot catalog, and three of the five
-  acoustic environments for those two weapons, are absent and play as silence.
-  See the note under the table.
-- **Accuracy is effectively range-only**, so a defender inside sensing range is
-  hit reliably. This is a deferred design question, not a defect to report.
-- **Nothing consumes a magazine.** `MagazineRounds` is stored and hashed and no
-  stage decrements it, so automatic fire never runs a weapon dry.
-- The mission clock in the log stops updating after the last casualty: the
-  `boot.sandata.stopped` line reports whatever tick the last
-  `sim.sandata.roster` line set, not the tick the run really ended on. The
-  roster line's own `t` field is correct.
-
-| # | Step | Expected | Actual | Status |
-| --- | --- | --- | --- | --- |
-| SD-5 | Hold sustained automatic fire from the maximum operator count | Automatic fire sounds continuous rather than machine-gun-stuttered, and no audio drops out | Attempted twice and not closed. **2026-08-11:** Sandata shipped no sound files and no playback path; both landed that day under the narrow authorisation recorded below. **2026-08-12, first attempt:** the sounds were audible but "the sound doesnt sound like AK47s specifically", so sixteen further takes were generated from prompts naming the weapon rather than only its cartridge. **2026-08-12, second attempt:** "no auto heard; it sounds just single shots". That was accurate and the cause was in the simulation: `FireModeSelection` and the cyclic-fire accumulator both had no production caller, and the client hardcoded `FireMode.Single` for every shot, so no weapon in the roster had ever fired automatically. A rifle inside its auto band now fires at 600 rounds per minute and the mode travels to the audio layer on the shot event. **Read the note below before running this row.** No automatic *loop* sample exists on disk, so a burst is currently carried by one report per round — audible and continuous, but not the loop sample design section 10 specifies. **2026-08-14, third attempt: "no automatic fire, i hear only single shots."** The 2026-08-12 fix therefore did not produce an audible burst either, and the row is now a `FAIL` rather than an unattempted `PENDING`. The same session asked how long a burst is meant to last, which no document currently answers: four rounds over 0.30 s, because 100 health over 25 damage kills on the fourth. **2026-08-14, fourth attempt, against the branch that passed `SD-4`: "no short rapid bursts."** A driven `Debug` run with the audio channel at `trc` then measured why, and the cause is upstream of every audio fix so far: the whole run produced seven shot cues and **all seven were the defending Glock firing `Single`**. Neither attacker fired once. `LoweredWallDistanceWu` is 24 wu and `angle-house`'s corridors are about 32 wu wide, so the rifleman is inside the threshold for the entire approach and is forced lowered at the moment of contact — no automatic round has ever been produced on this map | FAIL |
-
-**SD-5's audio blocker, and what is left of it.** Sandata's sound catalog is 106
-slots expanding to 540 variant files, and generating the whole of it is not
-authorised. A narrow slice was authorised on 2026-08-11 and extended on
-2026-08-12: an AK-pattern rifle in 7.62x39mm and a Glock-pattern pistol in
-9x19mm, firing **single** shots, in the `close` and `indoor` acoustic
-environments. Forty files ship, ten variants across each of those four rows.
-
-The variant count is not a preference — it is what `SandataSoundCatalog`
-declares, and `ShotSlotResolver` picks uniformly across the declared number, so
-a file past the declared count is never selected and a missing file inside it
-plays silence.
-
-**No `GunLoop` or `GunTail` file exists at all**, which is why sustained fire is
-currently carried by one report per round. That fallback lives in
-`SandataSoundPlayer` and is marked in the code as the degradation it is: design
-section 10's model is one loop instance plus one tail per shooter, and the day
-real loop and tail files exist, the fallback stops firing on its own. Generating
-them is an ElevenLabs spend that nobody has authorised — four rows, a `GunLoop`
-and a `GunTail` for 7.62x39mm in `close` and `indoor`.
-
-**Three of the five environments are still empty, and that is expected.**
-`outdoor`, `distant`, and `suppressed` have no files, so a shot that resolves
-one of them plays silence. The client passes a real range — the distance to the
-nearest living hostile — and hardcodes "not indoors" and "no suppressor",
-because nothing in `Sandata.Core` knows which side of a wall an operator is on
-and no weapon carries a suppressor. In practice that puts a shot inside 200
-world units on the `close` files and everything further out on nothing at all.
-The full provenance, including the prompt wording that decides whether a
-generated take is audible, is in `src/Sandata.Client/Content/Audio/README.md`.
-
-**The rule the whole Sandata screen is built on**, learned from the two rows
-that failed on it and carried forward for whoever adds the next thing: **if the
-only thing separating two meanings is a colour, it is not separated.** A hostile
-is a diamond without a pip, a friendly is a square with one, an unknown contact
-carries no weapon at all, a rifle's silhouette is longer than a pistol's, and
-the simulation's own planned route is dashed where a hand-drawn one is solid.
 
 ## GPU render smoke (gpu-render Phases 1 and 2)
 
@@ -446,9 +308,9 @@ not make a row pass. Leave untouched rows `PENDING`; report `BLOCKED` honestly.
 
 | # | Step | Expected | Actual | Status |
 | --- | --- | --- | --- | --- |
-| CH-1 | Launch and open the settings menu | A `PANEL STYLE` selector is present, reads `Procedural`, and every panel looks exactly as it did before this package | | PENDING |
-| CH-2 | With the menu open, cycle `PANEL STYLE` to `NineSlice` | The menu panel and the confirmation prompt switch to the sprite skin immediately — no restart, no flicker, no crash — and the chamfered corners are visibly different from the flat border | | PENDING |
-| CH-3 | Cycle `PANEL STYLE` back to `Procedural` | Both panels revert to the flat-rectangle look, identical to what `CH-1` recorded | | PENDING |
-| CH-4 | With `NineSlice` active, cycle interface scale through all four tiers and look closely at the joins between corner and edge cells | Corners and margins grow with the interface. Record in the Actual column whether a bleed halo appears at any tier, and at which — this row decides whether a nested `PointClamp` batch is needed | | PENDING |
-| CH-5 | With `NineSlice` active, cycle through every theme | Chrome recolours with each theme, and no theme leaves the border invisible or illegible against its own panel surface | | PENDING |
-| CH-6 | Set `NineSlice`, quit, and relaunch | The setting persisted and the sprite skin is active on launch | | PENDING |
+| CH-1 | Launch and open the settings menu | A `PANEL STYLE` selector is present, reads `Procedural`, and every panel looks exactly as it did before this package | Selector present and reading `Procedural`; panels unchanged | PASS |
+| CH-2 | With the menu open, cycle `PANEL STYLE` to `NineSlice` | The menu panel and the confirmation prompt switch to the sprite skin immediately — no restart, no flicker, no crash — and the chamfered corners are visibly different from the flat border | Both panels switched live and the chamfered corners read as clearly different | PASS |
+| CH-3 | Cycle `PANEL STYLE` back to `Procedural` | Both panels revert to the flat-rectangle look, identical to what `CH-1` recorded | Reverted to the flat look | PASS |
+| CH-4 | With `NineSlice` active, cycle interface scale through all four tiers and look closely at the joins between corner and edge cells | Corners and margins grow with the interface. Record in the Actual column whether a bleed halo appears at any tier, and at which — this row decides whether a nested `PointClamp` batch is needed | Only two of the four tiers are reachable on the tester's display. `UiScalePolicy.Resolve` caps the configured scale at a ceiling set by the viewport — 125 per cent needs 1920x1080, 150 per cent needs 2560x1440, and 200 per cent needs 3840x2160 — so on a 1080p display 150 and 200 both resolve back to 125. That is pre-existing behaviour and not a chrome defect. Of the reachable tiers the tester reported 125 per cent as ideal and 100 per cent as slightly small, which is a sizing preference rather than the seam observation this row asks for. **The halo question is still unanswered at every tier.** | BLOCKED |
+| CH-5 | With `NineSlice` active, cycle through every theme | Chrome recolours with each theme, and no theme leaves the border invisible or illegible against its own panel surface | Recoloured correctly across every theme | PASS |
+| CH-6 | Set `NineSlice`, quit, and relaunch | The setting persisted and the sprite skin is active on launch | Persisted across a restart | PASS |

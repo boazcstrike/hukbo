@@ -56,7 +56,19 @@ internal static class OperatorInspector
     internal const int LineHeight = 18;
 
     /// <summary>The number of lines <see cref="BuildLines"/> always returns.</summary>
-    internal const int LineCount = 11;
+    internal const int LineCount = 13;
+
+    /// <summary>
+    /// The name table the firearm row reads.
+    /// </summary>
+    /// <remarks>
+    /// Design section 15 records "real weapon names versus generic aliases" as
+    /// an open question, and nothing in <c>src/</c> selected a table before
+    /// this row existed. Choosing <see cref="WeaponNameSetId.Generic"/> here
+    /// does not settle that question: it is the conservative side of it, and
+    /// it is one constant to change if the answer comes back the other way.
+    /// </remarks>
+    internal const WeaponNameSetId NameSet = WeaponNameSetId.Generic;
 
     /// <summary>
     /// The panel's bounding rectangle, anchored to the top-left corner of
@@ -128,6 +140,20 @@ internal static class OperatorInspector
     /// order layer's clear-reason enum has not landed, so this stays a raw
     /// nullable <see langword="int"/>.
     /// </param>
+    /// <param name="Firearm">
+    /// The weapon the operator carries. Two operators walking the same route
+    /// carrying a rifle and a pistol are indistinguishable on screen without
+    /// this — nothing in <c>src/Sandata.Client/UI</c> named a weapon before
+    /// the 2026-08-14 lowered-weapon design's decision D2, which is half of
+    /// why smoke row <c>SD-4</c> failed three times: a tester watching the
+    /// pistol operator sees the exemption working correctly and reads it as
+    /// the feature not working at all.
+    /// </param>
+    /// <param name="WeaponLowered">
+    /// <c>OperatorState.WeaponLowered</c>, read straight through. The flag is
+    /// authoritative simulation state and the row updates with it, so a
+    /// paused, single-stepped run can be read rather than watched.
+    /// </param>
     internal readonly record struct InspectorContent(
         int Intent,
         PathReasonCode ReasonCode,
@@ -142,7 +168,9 @@ internal static class OperatorInspector
         FixedPoint ResolutionPositionY,
         ulong? ActiveOrderId,
         int? OrderNodeIndex,
-        int? OrderClearReasonCode);
+        int? OrderClearReasonCode,
+        FirearmId Firearm,
+        bool WeaponLowered);
 
     /// <summary>Formats the intent row.</summary>
     internal static string FormatIntentLine(InspectorContent content) =>
@@ -155,6 +183,24 @@ internal static class OperatorInspector
     /// <summary>Formats the combined weapon-chain phase and remaining-ticks row.</summary>
     internal static string FormatChainPhaseLine(InspectorContent content) =>
         $"Chain: {content.ChainPhase} ({content.ChainRemainingTicks}t)";
+
+    /// <summary>
+    /// Formats the firearm row: the weapon's name from <see cref="NameSet"/>,
+    /// then its <see cref="WeaponClass"/>, which is what tells a rifle from a
+    /// pistol without the reader knowing the roster by heart.
+    /// </summary>
+    internal static string FormatFirearmLine(InspectorContent content) =>
+        $"Weapon: {WeaponNameSets.GetName(content.Firearm, NameSet)} " +
+        $"({FirearmCatalog.Rows[(int)content.Firearm].Class})";
+
+    /// <summary>
+    /// Formats the weapon-state row. A pistol carrier reads "raised" for the
+    /// whole of every run, which is the designed behaviour rather than a
+    /// missing feature — <c>WeaponLoweredRules.IsForcedLowered</c> returns
+    /// false for an exempt weapon before it evaluates any geometry.
+    /// </summary>
+    internal static string FormatWeaponStateLine(InspectorContent content) =>
+        content.WeaponLowered ? "Weapon state: lowered" : "Weapon state: raised";
 
     /// <summary>Formats the combined cover-state and arc row.</summary>
     internal static string FormatCoverLine(InspectorContent content) =>
@@ -198,6 +244,8 @@ internal static class OperatorInspector
     [
         FormatIntentLine(content),
         FormatReasonCodeLine(content),
+        FormatFirearmLine(content),
+        FormatWeaponStateLine(content),
         FormatChainPhaseLine(content),
         FormatCoverLine(content),
         FormatGroupLine(content),
