@@ -55,20 +55,24 @@ internal sealed class ClientSettingsStore
     /// against a 9-to-10 bump while the composition reset was being built on
     /// another branch; the reset landed first, so the setting took the next
     /// version rather than sharing one.
+    /// Raised again from 11 to 12 by the <see cref="WeaponVisualStyle"/>
+    /// setting. This is backward compatible on the same terms as the 10-to-11
+    /// bump: a version 11 file loads through <see cref="AcceptedSchemaVersions"/>
+    /// with only that absent field defaulting.
     /// </summary>
-    public const int SupportedSchemaVersion = 11;
+    public const int SupportedSchemaVersion = 12;
 
     /// <summary>
     /// Schema versions <see cref="Load"/> accepts without discarding the
-    /// whole file. Version 10 and the current version qualify because the
-    /// 10-to-11 change only adds an independently defaulted field. Version 9
+    /// whole file. Version 11 and the current version qualify because the
+    /// 11-to-12 change only adds an independently defaulted field. Version 9
     /// and everything before it stay incompatible: the 9-to-10 change is a
     /// deliberate composition reset, so those files must be discarded whole,
     /// on the same grounds as the 2-to-3, 5-to-6, and 6-to-7 resets recorded
     /// on <see cref="ArmyComposition"/>.
     /// </summary>
     private static readonly int[] AcceptedSchemaVersions =
-        [10, SupportedSchemaVersion];
+        [11, SupportedSchemaVersion];
 
     // Moved from Stylized to Full on 2026-08-13 by the lethal blow
     // legibility design, on the explicit request of the person the
@@ -113,6 +117,13 @@ internal sealed class ClientSettingsStore
     /// who never touches the selector sees no change of any kind.
     /// </summary>
     private const UiChromeStyle DefaultUiChromeStyle = UiChromeStyle.Procedural;
+
+    /// <summary>
+    /// The look every weapon and shield had before this setting existed, so a
+    /// spectator who never presses the toggle sees no change of any kind.
+    /// </summary>
+    private const WeaponVisualStyle DefaultWeaponVisualStyle =
+        WeaponVisualStyle.Procedural;
 
     private static readonly JsonSerializerOptions SerializerOptions = new()
     {
@@ -202,7 +213,8 @@ internal sealed class ClientSettingsStore
                 ResolveUiScale(raw.UiScale),
                 ResolveStartupDisplayMode(raw.StartupDisplayMode),
                 ResolveMovementPreset(raw.MovementPreset),
-                ResolveUiChromeStyle(raw.UiChromeStyle));
+                ResolveUiChromeStyle(raw.UiChromeStyle),
+                ResolveWeaponVisualStyle(raw.WeaponVisualStyle));
             _log.Write(
                 LogLevel.Debug,
                 LogChannel.Settings,
@@ -251,7 +263,8 @@ internal sealed class ClientSettingsStore
         UiScale uiScale,
         StartupDisplayMode startupDisplayMode,
         MovementPresetId movementPreset,
-        UiChromeStyle uiChromeStyle)
+        UiChromeStyle uiChromeStyle,
+        WeaponVisualStyle weaponVisualStyle)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(selectedThemeId);
         ArgumentNullException.ThrowIfNull(composition);
@@ -278,7 +291,8 @@ internal sealed class ClientSettingsStore
                 ResolveUiScale(uiScale),
                 ResolveStartupDisplayMode(startupDisplayMode),
                 ResolveMovementPreset(movementPreset),
-                ResolveUiChromeStyle(uiChromeStyle));
+                ResolveUiChromeStyle(uiChromeStyle),
+                ResolveWeaponVisualStyle(weaponVisualStyle));
             using (var stream = new FileStream(
                 temporaryPath,
                 FileMode.CreateNew,
@@ -362,7 +376,8 @@ internal sealed class ClientSettingsStore
             next.UiScale,
             next.StartupDisplayMode,
             next.MovementPreset,
-            next.UiChromeStyle);
+            next.UiChromeStyle,
+            next.WeaponVisualStyle);
     }
 
     private void LogDefaulted(string defaultThemeId, string reason) =>
@@ -390,7 +405,8 @@ internal sealed class ClientSettingsStore
             DefaultUiScale,
             DefaultStartupDisplayMode,
             DefaultMovementPreset,
-            DefaultUiChromeStyle);
+            DefaultUiChromeStyle,
+            DefaultWeaponVisualStyle);
 
     /// <summary>
     /// A missing or out-of-range gore level resolves to the default without
@@ -474,6 +490,18 @@ internal sealed class ClientSettingsStore
             ? value
             : DefaultUiChromeStyle;
 
+    /// <summary>
+    /// A missing or out-of-range weapon visual style resolves to the
+    /// procedural default without invalidating any sibling field. Missing is
+    /// what a version 11 file - written before this field existed - looks
+    /// like.
+    /// </summary>
+    private static WeaponVisualStyle ResolveWeaponVisualStyle(
+        WeaponVisualStyle? persisted) =>
+        persisted is { } value && Enum.IsDefined(value)
+            ? value
+            : DefaultWeaponVisualStyle;
+
     private static void TryDelete(string path)
     {
         try
@@ -504,5 +532,6 @@ internal sealed class ClientSettingsStore
         UiScale? UiScale,
         StartupDisplayMode? StartupDisplayMode,
         MovementPresetId? MovementPreset,
-        UiChromeStyle? UiChromeStyle);
+        UiChromeStyle? UiChromeStyle,
+        WeaponVisualStyle? WeaponVisualStyle);
 }

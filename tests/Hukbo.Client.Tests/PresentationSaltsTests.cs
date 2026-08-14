@@ -6,7 +6,9 @@ namespace Hukbo.Client.Tests;
 /// "Never reuse a salt" (R-W6.2) is only a real rule if a reused value fails
 /// the build. These assertions are that failure, plus a pin on the four
 /// pre-existing salts so a registry edit can never silently reshuffle
-/// shipped pawn appearance or plains backdrop decals.
+/// shipped pawn appearance or plains backdrop decals, and a pin on
+/// <see cref="PresentationSalts.WeaponSpriteVariantSalt"/> for the same
+/// reason.
 /// </summary>
 public sealed class PresentationSaltsTests
 {
@@ -67,9 +69,9 @@ public sealed class PresentationSaltsTests
     }
 
     [Fact]
-    public void RegistryListsAllFourteenSalts()
+    public void RegistryListsAllFifteenSalts()
     {
-        Assert.Equal(14, PresentationSalts.All.Count);
+        Assert.Equal(15, PresentationSalts.All.Count);
     }
 
     /// <summary>
@@ -83,5 +85,13 @@ public sealed class PresentationSaltsTests
     public void DeathFallJitterSaltMatchesTheCollapsePoseValue()
     {
         Assert.Equal(0x7F2B95E0C4A16D38UL, PresentationSalts.DeathFallJitterSalt);
+    }
+
+    [Fact]
+    public void WeaponSpriteVariantSaltIsPinned()
+    {
+        Assert.Equal(
+            0x9B4F1E7A3C6D2058UL,
+            PresentationSalts.WeaponSpriteVariantSalt);
     }
 }

@@ -155,6 +155,25 @@ internal static class PresentationSalts
     public const ulong DeathFallJitterSalt = 0x7F2B95E0C4A16D38UL;
 
     /// <summary>
+    /// Weapon and shield sprite variant selection stream (the 2026-08-15
+    /// weapon sprite design, section 5), scoped by <c>EntityId</c>. Chooses
+    /// the variant column within the atlas row bound to a warrior's
+    /// <c>PawnAppearance.WeaponRole</c> or <c>ShieldRole</c>; it never chooses
+    /// the row itself, which comes only from <c>CombatLoadout</c>. Its own
+    /// stream rather than a reuse of <see cref="WeaponSilhouetteSalt"/>: that
+    /// salt seeds the pre-existing procedural silhouette-variant selection
+    /// (weapon-visuals-design.md), a distinct trait stream this package does
+    /// not touch, and the one-salt-per-trait-stream rule (R-W6.2) forbids
+    /// letting a second, unrelated consumer draw from it — an authored-cell
+    /// pick correlating with a procedural silhouette pick is exactly the kind
+    /// of accidental pattern that rule exists to prevent. Reusing
+    /// <see cref="WeaponTintSalt"/> or <see cref="ShieldSkinSalt"/> would fail
+    /// for the same reason: each already seeds its own colour or skin stream,
+    /// unrelated to which authored cell a sprite draws.
+    /// </summary>
+    public const ulong WeaponSpriteVariantSalt = 0x9B4F1E7A3C6D2058UL;
+
+    /// <summary>
     /// Every registered salt, existing and new, in declaration order. The
     /// pairwise-distinctness test walks this list; nothing else should need to.
     /// </summary>
@@ -188,5 +207,7 @@ internal static class PresentationSalts
             "Warrior personal-name selection within the assigned region."),
         new(nameof(DeathFallJitterSalt), DeathFallJitterSalt,
             "Death-collapse resting-angle jitter."),
+        new(nameof(WeaponSpriteVariantSalt), WeaponSpriteVariantSalt,
+            "Weapon and shield sprite variant selection."),
     ];
 }
