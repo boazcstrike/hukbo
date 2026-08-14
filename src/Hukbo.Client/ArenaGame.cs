@@ -152,6 +152,7 @@ public sealed partial class ArenaGame : Game
     private UiScale _configuredUiScale;
     private StartupDisplayMode _startupDisplayMode;
     private UiChromeStyle _configuredUiChromeStyle;
+    private PawnVisualStyle _configuredPawnVisualStyle;
 
     /// <summary>
     /// Reused each frame so the draw path allocates nothing. Contacts are
@@ -222,11 +223,13 @@ public sealed partial class ArenaGame : Game
     private RasterizerState? _arenaRasterizerState;
     private Texture2D? _pixel;
     private Texture2D? _chromeAtlas;
+    private Texture2D? _pawnBodyAtlas;
     private UiFontSet? _fonts;
     private MonoGameSoundPlayer? _soundPlayer;
     private Settings.ArmyComposition _activeComposition;
     private MovementPresetId _activeMovementPreset;
     private bool _isSoundLogVisible;
+    private bool _isEventLogVisible;
     private bool _isBattleReportVisible;
     private bool _isArmyCompositionPanelVisible;
     private bool _isCompositionStaged;
@@ -337,6 +340,7 @@ public sealed partial class ArenaGame : Game
         _configuredUiScale = initialSettings.UiScale;
         _startupDisplayMode = initialSettings.StartupDisplayMode;
         _configuredUiChromeStyle = initialSettings.UiChromeStyle;
+        _configuredPawnVisualStyle = initialSettings.PawnVisualStyle;
 
         // Resolved here, ahead of the coordinator below, because the
         // coordinator's appearance cache reports through it. _renderProbeEnabled
@@ -619,6 +623,44 @@ public sealed partial class ArenaGame : Game
                 UiChromeStyle = value,
             });
 
+    /// <summary>
+    /// Flips the warrior body between the procedural quads and the authored
+    /// sprite cells, and persists the result so the choice survives a restart.
+    /// </summary>
+    /// <remarks>
+    /// Takes effect on the very next frame, because
+    /// <c>ArenaGame.Rendering</c> reads the field on every pawn it submits.
+    /// That is the point of a live toggle rather than a startup switch: the
+    /// two styles can be compared against the same battle, at the same tick,
+    /// without relaunching.
+    /// </remarks>
+    private void ToggleWarriorBodyStyle()
+    {
+        var previous = _configuredPawnVisualStyle;
+        _configuredPawnVisualStyle =
+            previous == PawnVisualStyle.SpriteBody
+                ? PawnVisualStyle.Procedural
+                : PawnVisualStyle.SpriteBody;
+        TryPersistPawnVisualStyle(
+            _defaultThemeId,
+            _configuredPawnVisualStyle);
+        LogSettingChanged(
+            "pawnVisualStyle",
+            previous.ToString(),
+            _configuredPawnVisualStyle.ToString());
+    }
+
+    private bool TryPersistPawnVisualStyle(
+        string defaultThemeId,
+        PawnVisualStyle value) =>
+        _settingsStore.TryUpdate(
+            defaultThemeId,
+            current => current with
+            {
+                SelectedThemeId = _themeManager.ActiveTheme.Id,
+                PawnVisualStyle = value,
+            });
+
     protected override void Initialize()
     {
         base.Initialize();
@@ -676,6 +718,11 @@ public sealed partial class ArenaGame : Game
         // described on UiNineSlice, holding the surface and border regions
         // every panel-style call site tints at draw time.
         _chromeAtlas = Content.Load<Texture2D>("Textures/UiChrome");
+
+        // Loaded once here on the same terms as the chrome atlas above: the
+        // 50 authored head-and-torso cells PawnSpriteAtlas indexes, drawn only
+        // under PawnVisualStyle.SpriteBody and tinted per warrior at draw time.
+        _pawnBodyAtlas = Content.Load<Texture2D>("Textures/PawnBodies");
 
         _soundPlayer = MonoGameSoundPlayer.Load(
             SoundLibrary.GetDefaultDirectoryPath());
@@ -755,10 +802,17 @@ public sealed partial class ArenaGame : Game
             screenBounds.Width,
             screenBounds.Height);
         var layout = GetLayout(screenBounds);
-        _eventLogPanel.ReleaseKeyboardFocusIfPointerLeaves(
-            _input,
-            layout.EventBounds);
+        if (_isEventLogVisible)
+        {
+            _eventLogPanel.ReleaseKeyboardFocusIfPointerLeaves(
+                _input,
+                layout.EventBounds);
+        }
+
+        // A hidden panel never held keyboard focus in the first place, so it
+        // must never claim to have consumed Escape either.
         var eventEscapeConsumed =
+            _isEventLogVisible &&
             !_menu.IsVisible &&
             _eventLogPanel.HandleEscape(
                 _input,
@@ -964,13 +1018,14 @@ public sealed partial class ArenaGame : Game
                     screenBounds,
                     _presentation.Playback.IsPlaying,
                     _isSoundLogVisible,
+                    _isEventLogVisible,
                     gameTime.ElapsedGameTime,
                     _motionManager.Value);
                 pointerConsumed = interaction.PointerConsumed;
                 consumedBy = pointerConsumed ? "controlBar" : consumedBy;
             }
 
-            if (!pointerConsumed)
+            if (!pointerConsumed && _isEventLogVisible)
             {
                 interaction = _eventLogPanel.Update(
                     _input,
@@ -1232,6 +1287,16 @@ public sealed partial class ArenaGame : Game
             return LogKeyCommand("F9", ClientCommand.ToggleSoundLog);
         }
 
+        if (_input.WasPressed(Keys.F8))
+        {
+            return LogKeyCommand("F8", ClientCommand.ToggleEventLog);
+        }
+
+        if (_input.WasPressed(Keys.B))
+        {
+            return LogKeyCommand("B", ClientCommand.ToggleWarriorBody);
+        }
+
         return ClientCommand.None;
     }
 
@@ -1347,8 +1412,14 @@ public sealed partial class ArenaGame : Game
             case ClientCommand.ToggleSoundLog:
                 _isSoundLogVisible = !_isSoundLogVisible;
                 return;
+            case ClientCommand.ToggleEventLog:
+                _isEventLogVisible = !_isEventLogVisible;
+                return;
             case ClientCommand.ToggleBattleReport:
                 _isBattleReportVisible = !_isBattleReportVisible;
+                return;
+            case ClientCommand.ToggleWarriorBody:
+                ToggleWarriorBodyStyle();
                 return;
             case ClientCommand.Minimize:
                 SDL_MinimizeWindow(Window.Handle);
@@ -2281,7 +2352,7 @@ public sealed partial class ArenaGame : Game
     }
 
     private ClientLayout GetLayout(Rectangle screenBounds) =>
-        ComputeLayout(screenBounds, _isSoundLogVisible);
+        ComputeLayout(screenBounds, _isEventLogVisible, _isSoundLogVisible);
 
     /// <summary>
     /// Screen partitioning. The right column's split between the battle event
@@ -2290,6 +2361,7 @@ public sealed partial class ArenaGame : Game
     /// </summary>
     private static ClientLayout ComputeLayout(
         Rectangle screenBounds,
+        bool isEventLogVisible,
         bool isSoundLogVisible)
     {
         var statusBarHeight = UiScaleContext.Pixels(StatusBarHeight);
@@ -2308,14 +2380,19 @@ public sealed partial class ArenaGame : Game
         var eventWidth = Math.Min(
             eventPanelWidth,
             Math.Max(0, screenBounds.Width / 3));
+        var columnWidth = isEventLogVisible || isSoundLogVisible
+            ? eventWidth
+            : 0;
+        var columnRect = new Rectangle(
+            Math.Max(
+                screenBounds.Left,
+                screenBounds.Right - columnWidth - layoutMargin),
+            contentTop,
+            columnWidth,
+            contentHeight);
         var column = RightColumnSplit.Split(
-            new Rectangle(
-                Math.Max(
-                    screenBounds.Left,
-                    screenBounds.Right - eventWidth - layoutMargin),
-                contentTop,
-                eventWidth,
-                contentHeight),
+            columnRect,
+            isEventLogVisible,
             isSoundLogVisible,
             soundLogMinimumHeight,
             SoundLogHeightPercent,
@@ -2324,7 +2401,9 @@ public sealed partial class ArenaGame : Game
         var soundLogBounds = column.SoundLogBounds;
         var arenaRight = Math.Max(
             screenBounds.Left + layoutMargin,
-            eventBounds.Left - layoutGap);
+            columnWidth == 0
+                ? screenBounds.Right - layoutMargin
+                : columnRect.Left - layoutGap);
         var arenaBounds = new Rectangle(
             screenBounds.Left + layoutMargin,
             contentTop,

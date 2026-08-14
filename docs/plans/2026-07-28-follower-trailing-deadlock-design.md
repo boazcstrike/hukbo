@@ -1,5 +1,34 @@
 # Follower-trailing mutual block in the collision resolver — design
 
+**Revived from the archive on 2026-08-15, and now being executed.** This
+document was archived earlier the same day on the grounds that its stall was
+closed elsewhere and none of its five options had been chosen. The user then
+directed that the work be finished, so the design is live again and a plan
+document carries the tasks. Read that plan for what is actually being built;
+this document remains the reasoning behind it and is authoritative where the two
+disagree on mechanism.
+
+Three facts checked against `main` on 2026-08-15, before the decision to build,
+and none of them from a status line:
+
+- None of the five options is in the code. `Resolve` still runs `Reset`,
+  `CommitStationaryBodies`, `CommitMovers` and stops; mover order is still the
+  `CollisionPriority` key; there is no cycle detection and no atomic multi-body
+  commit; the ladder still ends in a hold after `MaximumTruncationRungs` = 11
+  rungs, with no tangent projection; and `CollisionRules.DefaultBodyRadiusRaw`
+  is still 4.25.
+- `CollisionResolver` is not byte-unchanged since 2026-07-28. Its
+  pending-at-start test is now a spatial-index query rather than the linear walk
+  section 3 quotes. That is the separate collision resolution scaling work, it
+  is hash-neutral, and the test's meaning is the same. Section 3's reasoning
+  therefore still holds; its code excerpt is stale.
+- The stall this document describes no longer reaches the shipping
+  configuration. `FormationRules.StallEscapeStreakTicks` = 192 landed in the
+  intent layer and a 2026-08-13 re-measurement found zero stalls in 200 seeds at
+  the shipping default. **The resolver-level mutual lock is still real**, it
+  still binds thresholds 7 and 8, and it is what this work removes.
+
+
 Status: design only. This document does not authorize implementation. It states
 a problem, explains its cause, and lays out the options.
 

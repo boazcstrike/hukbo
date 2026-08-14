@@ -172,6 +172,17 @@ internal static class PresentationSalts
     /// unrelated to which authored cell a sprite draws.
     /// </summary>
     public const ulong WeaponSpriteVariantSalt = 0x9B4F1E7A3C6D2058UL;
+    /// Pawn body atlas cell selection stream (the 2026-08-15 pawn sprite body
+    /// design, section 4), scoped by <c>EntityId</c>. Chooses which of the
+    /// authored body cells one warrior draws under
+    /// <c>Settings.PawnVisualStyle.SpriteBody</c>. Declared and consumed in
+    /// <see cref="Hukbo.Client.Rendering.PawnSpriteAtlas"/>. Its own stream
+    /// rather than a reuse of <see cref="PawnBodySalt"/>: that stream already
+    /// chooses stature and build, and a warrior's drawn body correlating with
+    /// how tall the procedural path made him is exactly the accidental pattern
+    /// the one-salt-per-stream rule exists to prevent.
+    /// </summary>
+    public const ulong PawnSpriteVariantSalt = 0x3C8E71A4D9B25F60UL;
 
     /// <summary>
     /// Every registered salt, existing and new, in declaration order. The
@@ -209,5 +220,7 @@ internal static class PresentationSalts
             "Death-collapse resting-angle jitter."),
         new(nameof(WeaponSpriteVariantSalt), WeaponSpriteVariantSalt,
             "Weapon and shield sprite variant selection."),
+        new(nameof(PawnSpriteVariantSalt), PawnSpriteVariantSalt,
+            "Pawn body atlas cell selection."),
     ];
 }

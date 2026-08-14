@@ -445,10 +445,10 @@ public sealed class VisualCatalogContractTests
 
     // Eleven from the visual improvement package, plus the two warrior
     // personal-name streams (region assignment and name selection), plus the
-    // death-collapse resting-angle jitter.
+    // death-collapse resting-angle jitter, plus the pawn sprite variant salt.
     [Fact]
-    public void PresentationSalts_RegistryHasFourteenEntries() =>
-        Assert.Equal(14, PresentationSalts.All.Count);
+    public void PresentationSalts_RegistryHasSixteenEntries() =>
+        Assert.Equal(16, PresentationSalts.All.Count);
 
     [Fact]
     public void PresentationSalts_RegistryIncludesEveryNewVisualImprovementPackageSalt()

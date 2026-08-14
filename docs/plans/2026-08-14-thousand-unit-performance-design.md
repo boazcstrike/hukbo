@@ -10,10 +10,12 @@ until the user gives one.
 ## 1. The question this document answers
 
 `ArmyCompositionStepper.MaximumUnitsPerTeam` is 500, so a spectator can already
-ask for a 1,000-unit battle today. Nobody has watched one. The two render smoke
-rows that exist to check exactly that — `GR-3` (set both teams to 500, watch one
+ask for a 1,000-unit battle today. The two render smoke
+rows that exist to check exactly that are `GR-3` (set both teams to 500, watch one
 full engagement at all three camera stations) and `GR-5` (watch hit pulses in a
-dense 1,000-unit melee) — are both `PENDING`, and the preamble in
+dense 1,000-unit melee). `GR-3` closed `PASS` on 2026-08-15, run by a person at
+the desktop, so a 1,000-unit battle has now been watched; `GR-5` remains
+`PENDING`, and the preamble in
 `docs/development/smoke-checklist.md` records that the reason given for not
 running them does not hold: the ceiling is per team, so 500 on each side is the
 battle those rows ask for.
@@ -341,7 +343,7 @@ The acceptance evidence is therefore:
   `EmbeddedProjectileSystem.Capacity` is 256 and `TrampleMarkSystem.Capacity` is
   128. Against 1,000 pawns those are small, and a spectator may see effects
   starve rather than saturate. This is a legibility question, not a performance
-  one, and it needs a person watching `GR-3` to answer.
+  one, and `GR-3` closed `PASS` on 2026-08-15 with a person watching to answer it.
 - **Should the map scale with the unit count?** It does not today, so 1,000 units
   fight on the same field 200 units do. That is a look-and-feel decision with a
   large performance consequence in both directions.
@@ -358,9 +360,10 @@ this workstream's answer is unusual, so it is stated plainly.
 
 **Can a spectator discover this effect without reading source code?** Yes, and
 only in one form: a 1,000-unit battle that does not stutter, where today's does
-or does not — nobody has looked. There is no new visual, no new event, no new
+or does not. There is no new visual, no new event, no new
 inspector row, and no new sound. The spectator-visible deliverable is `GR-3` and
-`GR-5` being runnable and passing, and the honest statement of that is that if
+`GR-5` being runnable and passing; `GR-3` closed `PASS` on 2026-08-15 and
+`GR-5` remains open, and the honest statement of that is that if
 the re-measurement in Phase 0 shows the frame already holds, **the correct
 outcome of this workstream is to run those two rows and build nothing**. That
 outcome is a success, not a wasted plan, and the plan document is ordered so

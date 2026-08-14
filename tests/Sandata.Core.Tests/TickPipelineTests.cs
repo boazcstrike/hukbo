@@ -1179,6 +1179,183 @@ public sealed class TickPipelineTests
         Assert.Equal(OperatorIntent.Advance, laterIntent.Intent);
     }
 
+    /// <summary>
+    /// The 2026-08-15 stale-path-hold fix, item (a). Until this fix,
+    /// <see cref="Navigation.PathService.RequestPath"/> never touched
+    /// <see cref="Navigation.PathService.GetCurrentPath"/>, so for the whole
+    /// <see cref="SandataRuleset.PathLatencyTicks"/> window after a group's
+    /// path request an unassigned operator kept walking whatever polyline had
+    /// published previously - on the shipped angle-house map that stale walk
+    /// carried a squad about 13 world units past the head of its new route
+    /// and it never recovered. This fixture's simulation has no prior
+    /// published path to walk (a fresh <c>PathService</c> starts empty), so
+    /// it proves the gate fires on
+    /// <see cref="Navigation.PathService.HasOutstandingRequest"/> alone -
+    /// reproducing the full stale-polyline scenario needs a live mid-run
+    /// retarget, which this file's public surface (no setter on
+    /// <see cref="SandataSimulation.State"/>) cannot construct.
+    /// </summary>
+    [Fact]
+    public void RunTick_UnassignedOperatorInGroupWithOutstandingPathRequest_DoesNotMoveWhileTheRequestIsOutstanding()
+    {
+        var grid = BuildGrid();
+        var wallBuckets = NoWalls(grid);
+        var mission = BuildMission();
+
+        var startCell = grid.CellIndex(0, 0);
+        var goalCell = grid.CellIndex(25, 0);
+
+        const int pathLatencyTicks = 4;
+        var ruleset = new SandataRuleset(
+            tickRate: 50,
+            msToTickConversionRuleId: MsToTickConversionRule.HalfAwayFromZero,
+            pathLatencyTicks: pathLatencyTicks,
+            groupCohesionRadiusWu: 96,
+            loweredWallDistanceWu: 24,
+            aimToleranceBam: 1024);
+
+        var op = BuildOperator(entityId: 1, faction: 0, positionXWu: 2, positionYWu: 2);
+        var groupState = new GroupPathState(
+            GroupId: 1UL,
+            DestinationCellIndex: goalCell,
+            HasOutstandingRequest: true,
+            StartCellIndex: startCell,
+            GoalCellIndex: goalCell,
+            RequestTick: 0);
+        var state = BuildState(ImmutableArray.Create(op)) with { Groups = ImmutableArray.Create(groupState) };
+
+        var sim = new SandataSimulation(mission, ruleset, grid, wallBuckets, state, ImmutableArray<CoverRecord>.Empty);
+
+        for (var tick = 0; tick < pathLatencyTicks; tick++)
+        {
+            sim.RunTick(tick);
+
+            var group = Assert.Single(sim.State.Groups);
+            Assert.True(group.HasOutstandingRequest, $"tick {tick}: fixture assumption broke - request published early");
+
+            var current = Assert.Single(sim.State.Operators);
+            Assert.Equal(2 * FixedPoint.Scale, current.PositionX.RawValue);
+            Assert.Equal(2 * FixedPoint.Scale, current.PositionY.RawValue);
+        }
+    }
+
+    /// <summary>
+    /// The 2026-08-15 stale-path-hold fix, item (b): the hold proven by
+    /// <see cref="RunTick_UnassignedOperatorInGroupWithOutstandingPathRequest_DoesNotMoveWhileTheRequestIsOutstanding"/>
+    /// is not a permanent stall. The operator resumes moving on exactly the
+    /// tick <see cref="Navigation.PathService"/> publishes, because stage 7
+    /// (<see cref="SandataSimulation.AdvancePathService"/>) commits the
+    /// publish before stage 9 (<see cref="SandataSimulation.ComputeMovementProposals"/>)
+    /// reads <see cref="Navigation.PathService.HasOutstandingRequest"/>.
+    /// </summary>
+    [Fact]
+    public void RunTick_UnassignedOperatorInGroupWithOutstandingPathRequest_ResumesMovingOnExactlyThePublishTick()
+    {
+        var grid = BuildGrid();
+        var wallBuckets = NoWalls(grid);
+        var mission = BuildMission();
+
+        var startCell = grid.CellIndex(0, 0);
+        var goalCell = grid.CellIndex(25, 0);
+
+        const int pathLatencyTicks = 2;
+        var ruleset = new SandataRuleset(
+            tickRate: 50,
+            msToTickConversionRuleId: MsToTickConversionRule.HalfAwayFromZero,
+            pathLatencyTicks: pathLatencyTicks,
+            groupCohesionRadiusWu: 96,
+            loweredWallDistanceWu: 24,
+            aimToleranceBam: 1024);
+
+        var op = BuildOperator(entityId: 1, faction: 0, positionXWu: 2, positionYWu: 2);
+        var groupState = new GroupPathState(
+            GroupId: 1UL,
+            DestinationCellIndex: goalCell,
+            HasOutstandingRequest: true,
+            StartCellIndex: startCell,
+            GoalCellIndex: goalCell,
+            RequestTick: 0);
+        var state = BuildState(ImmutableArray.Create(op)) with { Groups = ImmutableArray.Create(groupState) };
+
+        var sim = new SandataSimulation(mission, ruleset, grid, wallBuckets, state, ImmutableArray<CoverRecord>.Empty);
+
+        for (var tick = 0; tick < pathLatencyTicks; tick++)
+        {
+            sim.RunTick(tick);
+        }
+
+        var stillHeld = Assert.Single(sim.State.Operators);
+        Assert.Equal(2 * FixedPoint.Scale, stillHeld.PositionX.RawValue);
+
+        sim.RunTick(pathLatencyTicks);
+
+        var publishedGroup = Assert.Single(sim.State.Groups);
+        Assert.False(publishedGroup.HasOutstandingRequest, "fixture assumption broke - request must publish this tick");
+
+        var moved = Assert.Single(sim.State.Operators);
+        Assert.True(
+            moved.PositionX.RawValue > 2 * FixedPoint.Scale,
+            "operator must have moved on the exact tick its path published");
+    }
+
+    /// <summary>
+    /// The 2026-08-15 stale-path-hold fix, item (c) - the exemption proven
+    /// rather than assumed. An operator carrying an
+    /// <see cref="Orders.OrderAssignment"/> follows its own authored polyline
+    /// and must keep moving even while its group's autonomous
+    /// <see cref="Navigation.PathService"/> request is outstanding, because
+    /// design section 16 allows no blend of the two order types - freezing an
+    /// ordered operator for an autonomous request it never made would be
+    /// exactly that blend. <see cref="GroupPathState.RequestTick"/> is set far
+    /// in the future so the request never publishes during this test's
+    /// window, proving the exemption holds across the operator's whole
+    /// ordered walk rather than surviving only until the request happens to
+    /// clear.
+    /// </summary>
+    [Fact]
+    public void RunTick_OrderedOperatorInGroupWithOutstandingPathRequest_StillMovesAlongItsAuthoredPath()
+    {
+        var grid = BuildGrid();
+        var wallBuckets = NoWalls(grid);
+        var mission = BuildMission();
+
+        var op = BuildOperator(entityId: 1, faction: 0, positionXWu: 0, positionYWu: 0);
+        var homeCell = grid.CellIndex(0, 0);
+        var groupState = new GroupPathState(
+            GroupId: 1UL,
+            DestinationCellIndex: homeCell,
+            HasOutstandingRequest: true,
+            StartCellIndex: homeCell,
+            GoalCellIndex: homeCell,
+            RequestTick: 1_000_000);
+        var state = BuildState(ImmutableArray.Create(op)) with { Groups = ImmutableArray.Create(groupState) };
+
+        var sim = new SandataSimulation(mission, SandataRuleset.ModernTacticalV1, grid, wallBuckets, state, ImmutableArray<CoverRecord>.Empty);
+
+        // Same two-node authored polyline as
+        // RunTick_OrderedOperatorFarFromWaypoint_ClampsPerTickDisplacementToDesignedSprintSpeed:
+        // OrderValidation.ValidateMoveAlongPath needs at least two nodes, and
+        // neither sits at the spawn point.
+        var pathNodes = ImmutableArray.Create(new OrderPathNode(40, 0), new OrderPathNode(60, 0));
+        var (_, _, rejection) = sim.SubmitOrder(
+            targetTick: 0,
+            factionId: 0,
+            addressees: ImmutableArray.Create(1UL),
+            kind: OrderKind.MoveAlongPath,
+            pathNodes: pathNodes);
+        Assert.Null(rejection);
+
+        sim.RunTick(0);
+
+        var stillOutstanding = Assert.Single(sim.State.Groups);
+        Assert.True(stillOutstanding.HasOutstandingRequest, "fixture assumption broke - request must still be outstanding");
+
+        var afterFirstTick = Assert.Single(sim.State.Operators);
+        Assert.True(
+            afterFirstTick.PositionX.RawValue > 0,
+            "an ordered operator must move on its own tick even while its group's autonomous path request is outstanding");
+    }
+
     // ---- 8. STAGE 9, AUTONOMOUS BRANCH -------------------------------------
 
     /// <summary>

@@ -55,24 +55,36 @@ internal sealed class ClientSettingsStore
     /// against a 9-to-10 bump while the composition reset was being built on
     /// another branch; the reset landed first, so the setting took the next
     /// version rather than sharing one.
-    /// Raised again from 11 to 12 by the <see cref="WeaponVisualStyle"/>
-    /// setting. This is backward compatible on the same terms as the 10-to-11
-    /// bump: a version 11 file loads through <see cref="AcceptedSchemaVersions"/>
-    /// with only that absent field defaulting.
+    /// Raised again from 11 to 12 by the <see cref="PawnVisualStyle"/> setting
+    /// (the 2026-08-15 pawn sprite body design, section 8). Backward
+    /// compatible on the same terms as the 10-to-11 bump: a version 11 file
+    /// loads through <see cref="AcceptedSchemaVersions"/> with only that
+    /// absent field defaulting.
+    /// Raised again from 12 to 13 by the <see cref="WeaponVisualStyle"/>
+    /// setting (the 2026-08-15 weapon sprite design). Backward compatible on
+    /// the same terms as the 11-to-12 bump: a version 12 file loads through
+    /// <see cref="AcceptedSchemaVersions"/> with only that absent field
+    /// defaulting.
     /// </summary>
-    public const int SupportedSchemaVersion = 12;
+    public const int SupportedSchemaVersion = 13;
 
     /// <summary>
     /// Schema versions <see cref="Load"/> accepts without discarding the
-    /// whole file. Version 11 and the current version qualify because the
-    /// 11-to-12 change only adds an independently defaulted field. Version 9
-    /// and everything before it stay incompatible: the 9-to-10 change is a
-    /// deliberate composition reset, so those files must be discarded whole,
-    /// on the same grounds as the 2-to-3, 5-to-6, and 6-to-7 resets recorded
-    /// on <see cref="ArmyComposition"/>.
+    /// whole file. Versions 11 and 12 and the current version qualify
+    /// because the 10-to-11, 11-to-12, and 12-to-13 changes each only add an
+    /// independently defaulted field, and a file missing such a field loads
+    /// with that field at its default rather than being thrown away. The
+    /// window widens with each of these bumps rather than sliding forward:
+    /// the 11-to-12 bump that shipped the pawn body sprite kept version 10
+    /// accepted, and nothing about adding a second defaulted field makes an
+    /// older file less readable than it already was. Version 9 and everything
+    /// before it stay incompatible for a different reason: the 9-to-10 change
+    /// is a deliberate composition reset, so those files must be discarded
+    /// whole, on the same grounds as the 2-to-3, 5-to-6, and 6-to-7 resets
+    /// recorded on <see cref="ArmyComposition"/>.
     /// </summary>
     private static readonly int[] AcceptedSchemaVersions =
-        [11, SupportedSchemaVersion];
+        [10, 11, 12, SupportedSchemaVersion];
 
     // Moved from Stylized to Full on 2026-08-13 by the lethal blow
     // legibility design, on the explicit request of the person the
@@ -117,6 +129,13 @@ internal sealed class ClientSettingsStore
     /// who never touches the selector sees no change of any kind.
     /// </summary>
     private const UiChromeStyle DefaultUiChromeStyle = UiChromeStyle.Procedural;
+
+    /// <summary>
+    /// The body every warrior had before this setting existed, so a spectator
+    /// who never touches the selector sees no change of any kind.
+    /// </summary>
+    private const PawnVisualStyle DefaultPawnVisualStyle =
+        PawnVisualStyle.Procedural;
 
     /// <summary>
     /// The look every weapon and shield had before this setting existed, so a
@@ -214,6 +233,7 @@ internal sealed class ClientSettingsStore
                 ResolveStartupDisplayMode(raw.StartupDisplayMode),
                 ResolveMovementPreset(raw.MovementPreset),
                 ResolveUiChromeStyle(raw.UiChromeStyle),
+                ResolvePawnVisualStyle(raw.PawnVisualStyle),
                 ResolveWeaponVisualStyle(raw.WeaponVisualStyle));
             _log.Write(
                 LogLevel.Debug,
@@ -264,7 +284,8 @@ internal sealed class ClientSettingsStore
         StartupDisplayMode startupDisplayMode,
         MovementPresetId movementPreset,
         UiChromeStyle uiChromeStyle,
-        WeaponVisualStyle weaponVisualStyle)
+        PawnVisualStyle pawnVisualStyle = DefaultPawnVisualStyle,
+        WeaponVisualStyle weaponVisualStyle = DefaultWeaponVisualStyle)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(selectedThemeId);
         ArgumentNullException.ThrowIfNull(composition);
@@ -292,6 +313,7 @@ internal sealed class ClientSettingsStore
                 ResolveStartupDisplayMode(startupDisplayMode),
                 ResolveMovementPreset(movementPreset),
                 ResolveUiChromeStyle(uiChromeStyle),
+                ResolvePawnVisualStyle(pawnVisualStyle),
                 ResolveWeaponVisualStyle(weaponVisualStyle));
             using (var stream = new FileStream(
                 temporaryPath,
@@ -377,6 +399,7 @@ internal sealed class ClientSettingsStore
             next.StartupDisplayMode,
             next.MovementPreset,
             next.UiChromeStyle,
+            next.PawnVisualStyle,
             next.WeaponVisualStyle);
     }
 
@@ -406,6 +429,7 @@ internal sealed class ClientSettingsStore
             DefaultStartupDisplayMode,
             DefaultMovementPreset,
             DefaultUiChromeStyle,
+            DefaultPawnVisualStyle,
             DefaultWeaponVisualStyle);
 
     /// <summary>
@@ -491,9 +515,20 @@ internal sealed class ClientSettingsStore
             : DefaultUiChromeStyle;
 
     /// <summary>
+    /// A missing or out-of-range pawn body style resolves to the procedural
+    /// default without invalidating any sibling field. Missing is what a
+    /// version 11 file — written before this field existed — looks like.
+    /// </summary>
+    private static PawnVisualStyle ResolvePawnVisualStyle(
+        PawnVisualStyle? persisted) =>
+        persisted is { } value && Enum.IsDefined(value)
+            ? value
+            : DefaultPawnVisualStyle;
+
+    /// <summary>
     /// A missing or out-of-range weapon visual style resolves to the
     /// procedural default without invalidating any sibling field. Missing is
-    /// what a version 11 file - written before this field existed - looks
+    /// what a version 12 file - written before this field existed - looks
     /// like.
     /// </summary>
     private static WeaponVisualStyle ResolveWeaponVisualStyle(
@@ -533,5 +568,6 @@ internal sealed class ClientSettingsStore
         StartupDisplayMode? StartupDisplayMode,
         MovementPresetId? MovementPreset,
         UiChromeStyle? UiChromeStyle,
+        PawnVisualStyle? PawnVisualStyle,
         WeaponVisualStyle? WeaponVisualStyle);
 }

@@ -39,4 +39,22 @@ internal enum ClientCommand
     // boolean, because the user can maximize or restore outside the
     // application and a tracked flag would invert the button.
     ToggleMaximize,
+
+    // Appended, never inserted, for the same reason: no existing member's
+    // ordinal moves.
+    //
+    // Flips Settings.PawnVisualStyle between Procedural and SpriteBody and
+    // persists the result (the 2026-08-15 pawn sprite body design, section 8).
+    // A shortcut key rather than a menu row because the menu panel is full:
+    // its content budget is 657 pixels and both columns already stand at 634,
+    // while one more selector costs 104. Section 9 of that design records what
+    // this costs in discoverability.
+    ToggleWarriorBody,
+
+    // Appended, never inserted, for the same reason: no existing member's
+    // ordinal moves. Toggles the battle event log's own visibility, which now
+    // defaults to hidden so the arena starts at full width; bound to F8 and
+    // to the "Events" control-bar button, sitting beside ToggleSoundLog's F9
+    // and "Sounds" button.
+    ToggleEventLog,
 }

@@ -25,8 +25,10 @@ Four phases, and the first one can end the workstream.
 
 **Phase 0 has a real stop condition.** If the re-measurement shows the
 1,000-unit frame already inside budget at all three camera stations, the correct
-action is to run `GR-3` and `GR-5` and close the workstream having written no
-code. Task TU-4 is that decision point and it is a genuine one.
+action is to run `GR-5` and close the workstream having written no
+code. `GR-3` closed `PASS` on 2026-08-15, run by a person at the desktop against
+that row's own `Expected` column. Task TU-4 is that decision point
+and it is a genuine one.
 
 ---
 
@@ -85,7 +87,7 @@ is the one that applies.
 | --- | --- | --- | --- | --- |
 | TU-14 | **Run the canonical gate and record it.** `./scripts/verify.ps1` with no arguments, from a clean worktree at the integration commit. Paste the real output. All five workload digests must match the design's section 6 table exactly | `docs/development/testing.md` | A recorded gate result with every stage's verdict and all five state and event hashes quoted. **Not delegable** — no sub-agent report substitutes for the gate's own output | Every live task above |
 | TU-15 | **Re-run both measurements and record the delta.** The 500- and 1,000-agent headless points under the shipped presets, whose digests must equal `9486F45B5BC59B80` / `B2D66B025BD1BBD3` and `01F9FD533AE0F018` / `9B25A4FA432E4CE8`, and the render matrix from TU-1. Record before and after side by side, including max and p99, not only p50 — the design's section 3 states the tail is the target | `docs/development/measurement-history.md`, `docs/development/render-baselines/`, `docs/development/testing.md` | Both digest pairs byte-identical, `maximumPenetrationRaw 0` at every point, and a before-and-after table covering p50, p95, p99, and max | TU-14 |
-| TU-16 | **Run `GR-3` and `GR-5`.** Set `Units Per Team` to 500 for both teams, start the 1,000-unit battle, and watch one full engagement at all three camera stations; then watch hit pulses in the dense melee. **A person at the desktop, watching. No agent may flip either row**, and neither compilation, nor a green gate, nor a window-opening probe is evidence for them. Report `BLOCKED` honestly if they cannot be run | `docs/development/smoke-checklist.md` | The two rows carry a real `Actual` column written by the person who watched, and a status of `PASS`, `FAIL`, or `BLOCKED` | TU-15, or TU-4 directly if Phase 0 stopped the workstream |
+| TU-16 | **Run `GR-5`.** `GR-3` closed `PASS` on 2026-08-15, run by a person at the desktop against that row's own `Expected` column; no observation beyond the pass itself was recorded. Set `Units Per Team` to 500 for both teams, start the 1,000-unit battle, and watch hit pulses in the dense melee. **A person at the desktop, watching. No agent may flip this row**, and neither compilation, nor a green gate, nor a window-opening probe is evidence for it. Report `BLOCKED` honestly if it cannot be run | `docs/development/smoke-checklist.md` | The row carries a real `Actual` column written by the person who watched, and a status of `PASS`, `FAIL`, or `BLOCKED` | TU-15, or TU-4 directly if Phase 0 stopped the workstream |
 
 ---
 
@@ -103,7 +105,7 @@ The workstream is complete when all of the following hold, and not before.
    simulation at 500 and 1,000 agents, and for the render matrix at all three
    stations and all three agent counts.
 5. `GR-3` and `GR-5` carry a status written by a person who watched a 1,000-unit
-   battle.
+   battle. `GR-3` closed `PASS` on 2026-08-15; `GR-5` remains open.
 6. Every claim of improvement in the recorded documentation is backed by the
    output of the command that produced it.
 

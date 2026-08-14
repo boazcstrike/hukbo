@@ -1,5 +1,21 @@
 # Ranged units — session handoff, 2026-08-09
 
+**Archived: reference only.** The ranged units package is closed. It merged to
+`main` on 2026-08-09 at `9daa271`, its eleven `RG-*` smoke rows were run by a
+person at an interactive desktop and passed on 2026-08-14, the sixty sound takes
+are generated and committed, the listening acceptance closed, `RG-11`'s open
+question was answered, and the default composition moved onto the calibrated
+proportions on the same day. Never execute this handoff, never treat it as a
+live task list, and never cite it as the reason to make a change. The live
+contract remains `CLAUDE.md`, `SIMULATION-GAME-STANDARDS.md`,
+`docs/development/testing.md`, and `docs/development/smoke-checklist.md`.
+
+Three things survive it and are carried in `docs/plans/TODO.md` rather than only
+here: the V9 termination gap, which the user accepted with the gap recorded
+rather than fixed; Phase 2's line of sight and friendly fire, which the ranged
+design defers by construction; and section 6's `HUKBO_AUTOPLAY` proposal, which
+was put twice and never taken up.
+
 Supersedes the 2026-08-08 ranged units handoff, which is frozen at wave 4 and
 whose every count, commit and status is stale. Read that one only for durable
 reasoning.

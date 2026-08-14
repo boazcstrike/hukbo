@@ -10,16 +10,34 @@ public sealed class RightColumnSplitTests
     [Fact]
     public void Split_GivesTheWholeColumnToTheEventLogWhenTheSoundLogIsHidden()
     {
-        var split = Split(isSoundLogVisible: false);
+        var split = Split(isEventLogVisible: true, isSoundLogVisible: false);
 
         Assert.Equal(Column, split.EventBounds);
         Assert.Equal(Rectangle.Empty, split.SoundLogBounds);
     }
 
     [Fact]
+    public void Split_GivesTheWholeColumnToTheSoundLogWhenTheEventLogIsHidden()
+    {
+        var split = Split(isEventLogVisible: false, isSoundLogVisible: true);
+
+        Assert.Equal(Rectangle.Empty, split.EventBounds);
+        Assert.Equal(Column, split.SoundLogBounds);
+    }
+
+    [Fact]
+    public void Split_ProducesNoBoundsWhenNeitherLogIsVisible()
+    {
+        var split = Split(isEventLogVisible: false, isSoundLogVisible: false);
+
+        Assert.Equal(Rectangle.Empty, split.EventBounds);
+        Assert.Equal(Rectangle.Empty, split.SoundLogBounds);
+    }
+
+    [Fact]
     public void Split_StacksTheSoundLogUnderTheEventLogWithoutOverlap()
     {
-        var split = Split(isSoundLogVisible: true);
+        var split = Split(isEventLogVisible: true, isSoundLogVisible: true);
 
         Assert.Equal(Column.Left, split.SoundLogBounds.Left);
         Assert.Equal(Column.Width, split.SoundLogBounds.Width);
@@ -34,7 +52,7 @@ public sealed class RightColumnSplitTests
     [Fact]
     public void Split_UsesTheRequestedShareOfTheColumn()
     {
-        var split = Split(isSoundLogVisible: true);
+        var split = Split(isEventLogVisible: true, isSoundLogVisible: true);
 
         Assert.Equal(Column.Height * 45 / 100, split.SoundLogBounds.Height);
         Assert.Equal(
@@ -47,6 +65,7 @@ public sealed class RightColumnSplitTests
     {
         var split = RightColumnSplit.Split(
             new Rectangle(0, 0, 420, 200),
+            isEventLogVisible: true,
             isSoundLogVisible: true,
             soundLogMinimumHeight: 168,
             soundLogHeightPercent: 45,
@@ -61,6 +80,7 @@ public sealed class RightColumnSplitTests
     {
         var split = RightColumnSplit.Split(
             new Rectangle(0, 0, 420, 40),
+            isEventLogVisible: true,
             isSoundLogVisible: true,
             soundLogMinimumHeight: 168,
             soundLogHeightPercent: 45,
@@ -74,16 +94,18 @@ public sealed class RightColumnSplitTests
     public void Split_RejectsInvalidArguments()
     {
         Assert.Throws<ArgumentOutOfRangeException>(
-            () => RightColumnSplit.Split(Column, true, -1, 45, 10));
+            () => RightColumnSplit.Split(Column, true, true, -1, 45, 10));
         Assert.Throws<ArgumentOutOfRangeException>(
-            () => RightColumnSplit.Split(Column, true, 168, 45, -1));
+            () => RightColumnSplit.Split(Column, true, true, 168, 45, -1));
         Assert.Throws<ArgumentOutOfRangeException>(
-            () => RightColumnSplit.Split(Column, true, 168, 101, 10));
+            () => RightColumnSplit.Split(Column, true, true, 168, 101, 10));
     }
 
-    private static RightColumnSplit.ColumnBounds Split(bool isSoundLogVisible) =>
+    private static RightColumnSplit.ColumnBounds Split(
+        bool isEventLogVisible, bool isSoundLogVisible) =>
         RightColumnSplit.Split(
             Column,
+            isEventLogVisible,
             isSoundLogVisible,
             soundLogMinimumHeight: 168,
             soundLogHeightPercent: 45,

@@ -32,14 +32,15 @@ public sealed class ControlBarTests
                 new InputEdges(),
                 AvailableBounds,
                 isPlaying: false,
-                isSoundLogVisible: false);
+                isSoundLogVisible: false,
+                isEventLogVisible: false);
 
             Assert.Equal(new Rectangle(1330, 10, 660, 48), controlBar.Bounds);
             Assert.Equal(
-                new Rectangle(1340, 17, 84, 34),
+                new Rectangle(1340, 17, 72, 34),
                 controlBar.ButtonBounds[0]);
             Assert.Equal(
-                new Rectangle(1892, 17, 84, 34),
+                new Rectangle(1900, 17, 72, 34),
                 controlBar.ButtonBounds[^1]);
         });
     }
@@ -59,7 +60,8 @@ public sealed class ControlBarTests
                 new InputEdges(),
                 available,
                 isPlaying: false,
-                isSoundLogVisible: false);
+                isSoundLogVisible: false,
+                isEventLogVisible: false);
 
             Assert.True(available.Contains(controlBar.Bounds));
             Assert.All(
@@ -74,7 +76,7 @@ public sealed class ControlBarTests
     }
 
     [Fact]
-    public void Update_LaysOutSevenButtonsEntirelyInsideTheBar()
+    public void Update_LaysOutEightButtonsEntirelyInsideTheBar()
     {
         var controlBar = new ControlBar();
 
@@ -82,9 +84,10 @@ public sealed class ControlBarTests
             new InputEdges(),
             AvailableBounds,
             isPlaying: false,
-            isSoundLogVisible: false);
+            isSoundLogVisible: false,
+            isEventLogVisible: false);
 
-        Assert.Equal(7, controlBar.ButtonBounds.Count);
+        Assert.Equal(8, controlBar.ButtonBounds.Count);
         foreach (var buttonBounds in controlBar.ButtonBounds)
         {
             Assert.True(
@@ -112,7 +115,8 @@ public sealed class ControlBarTests
             new InputEdges(),
             AvailableBounds,
             isPlaying: false,
-            isSoundLogVisible: false);
+            isSoundLogVisible: false,
+            isEventLogVisible: false);
 
         var rightmost = controlBar.ButtonBounds[^1];
 
@@ -134,20 +138,51 @@ public sealed class ControlBarTests
             new InputEdges(),
             AvailableBounds,
             isPlaying: false,
-            isSoundLogVisible: false);
+            isSoundLogVisible: false,
+            isEventLogVisible: false);
 
         Assert.Equal(
             ClientCommand.Minimize,
-            controlBar.GetCommandAt(controlBar.ButtonBounds[4].Center));
+            controlBar.GetCommandAt(controlBar.ButtonBounds[5].Center));
         Assert.Equal(
             ClientCommand.ToggleMaximize,
-            controlBar.GetCommandAt(controlBar.ButtonBounds[5].Center));
+            controlBar.GetCommandAt(controlBar.ButtonBounds[6].Center));
 
         // RequestExit, not Exit: the bar asks, and only the confirmation
         // prompt's confirm button acts.
         Assert.Equal(
             ClientCommand.RequestExit,
-            controlBar.GetCommandAt(controlBar.ButtonBounds[6].Center));
+            controlBar.GetCommandAt(controlBar.ButtonBounds[7].Center));
+    }
+
+    /// <summary>
+    /// The "Events" button reports active only while the event log is
+    /// actually visible, mirroring how the "Sounds" button already tracks
+    /// <c>isSoundLogVisible</c>.
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Update_EventsButtonIsActiveOnlyWhenEventLogVisible(
+        bool isEventLogVisible)
+    {
+        var controlBar = new ControlBar();
+
+        controlBar.Update(
+            new InputEdges(),
+            AvailableBounds,
+            isPlaying: false,
+            isSoundLogVisible: false,
+            isEventLogVisible: isEventLogVisible);
+
+        var eventsButtonIndex = Array.FindIndex(
+            controlBar.ButtonBounds.ToArray(),
+            bounds => controlBar.GetCommandAt(bounds.Center)
+                == ClientCommand.ToggleEventLog);
+
+        Assert.Equal(
+            isEventLogVisible,
+            controlBar.ButtonActiveStates[eventsButtonIndex]);
     }
 
     /// <summary>
@@ -165,7 +200,8 @@ public sealed class ControlBarTests
             new InputEdges(),
             AvailableBounds,
             isPlaying: false,
-            isSoundLogVisible: false);
+            isSoundLogVisible: false,
+            isEventLogVisible: false);
 
         foreach (var buttonBounds in controlBar.ButtonBounds)
         {
@@ -183,7 +219,8 @@ public sealed class ControlBarTests
             new InputEdges(),
             AvailableBounds,
             isPlaying: false,
-            isSoundLogVisible: false);
+            isSoundLogVisible: false,
+            isEventLogVisible: false);
         var originalBounds = controlBar.ButtonBounds.ToArray();
         var pointer = originalBounds[0].Center;
         var released = new MouseState(
@@ -206,6 +243,7 @@ public sealed class ControlBarTests
             AvailableBounds,
             isPlaying: false,
             isSoundLogVisible: false,
+            isEventLogVisible: false,
             TimeSpan.FromMilliseconds(30),
             MotionIntensity.Reduced);
 

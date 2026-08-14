@@ -5,8 +5,12 @@ namespace Hukbo.Client.UI;
 /// <summary>
 /// Splits the right-hand log column between the battle event log and the sound
 /// log. Pure geometry, kept out of <c>ArenaGame</c> so it can be tested without
-/// a window: with the sound log hidden the battle log keeps the whole column,
-/// which is the behaviour that existed before the sound system.
+/// a window. Both logs carry their own visibility flag, giving four rows: with
+/// both visible the column splits as usual, with only the event log visible it
+/// keeps the whole column (the behaviour that existed before the sound
+/// system), with only the sound log visible the sound log instead takes the
+/// whole column, and with both hidden both bounds are
+/// <see cref="Rectangle.Empty"/>.
 /// </summary>
 internal static class RightColumnSplit
 {
@@ -16,6 +20,7 @@ internal static class RightColumnSplit
 
     public static ColumnBounds Split(
         Rectangle columnBounds,
+        bool isEventLogVisible,
         bool isSoundLogVisible,
         int soundLogMinimumHeight,
         int soundLogHeightPercent,
@@ -29,6 +34,13 @@ internal static class RightColumnSplit
                 nameof(soundLogHeightPercent),
                 soundLogHeightPercent,
                 "The sound log share of the column must be a percentage.");
+        }
+
+        if (!isEventLogVisible)
+        {
+            return isSoundLogVisible
+                ? new ColumnBounds(Rectangle.Empty, columnBounds)
+                : new ColumnBounds(Rectangle.Empty, Rectangle.Empty);
         }
 
         if (!isSoundLogVisible)

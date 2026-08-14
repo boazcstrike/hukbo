@@ -69,9 +69,9 @@ public sealed class PresentationSaltsTests
     }
 
     [Fact]
-    public void RegistryListsAllFifteenSalts()
+    public void RegistryListsAllSixteenSalts()
     {
-        Assert.Equal(15, PresentationSalts.All.Count);
+        Assert.Equal(16, PresentationSalts.All.Count);
     }
 
     /// <summary>
@@ -93,5 +93,18 @@ public sealed class PresentationSaltsTests
         Assert.Equal(
             0x9B4F1E7A3C6D2058UL,
             PresentationSalts.WeaponSpriteVariantSalt);
+    }
+
+    /// <summary>
+    /// The pawn body atlas cell selection stream's salt is the value
+    /// <c>PawnSpriteAtlas</c> actually mixes, inlined there the way
+    /// <c>PawnAppearanceFactory</c> inlines its own three. The registry
+    /// exists so the distinctness test above can see every salt beside
+    /// every other, which only works if the two stay equal.
+    /// </summary>
+    [Fact]
+    public void PawnSpriteVariantSaltMatchesThePawnSpriteAtlasValue()
+    {
+        Assert.Equal(0x3C8E71A4D9B25F60UL, PresentationSalts.PawnSpriteVariantSalt);
     }
 }

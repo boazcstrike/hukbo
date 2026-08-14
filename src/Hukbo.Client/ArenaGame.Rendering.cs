@@ -678,6 +678,7 @@ public sealed partial class ArenaGame
             screenBounds,
             _presentation.Playback.IsPlaying,
             _isSoundLogVisible,
+            _isEventLogVisible,
             theme);
         _inspectorPanel.Draw(
             spriteBatch,
@@ -688,13 +689,17 @@ public sealed partial class ArenaGame
             _scenario.Seed,
             theme,
             _scenario.MovementSpeedRaw);
-        _eventLogPanel.Draw(
-            spriteBatch,
-            pixel,
-            fonts,
-            _presentation.EventFeed,
-            layout.EventBounds,
-            theme);
+        if (_isEventLogVisible)
+        {
+            _eventLogPanel.Draw(
+                spriteBatch,
+                pixel,
+                fonts,
+                _presentation.EventFeed,
+                layout.EventBounds,
+                theme);
+        }
+
         if (_isSoundLogVisible)
         {
             _soundLogPanel.Draw(
@@ -1383,7 +1388,10 @@ public sealed partial class ArenaGame
                 contingentId: agent.ContingentId,
                 contingentState: agent.ContingentState,
                 isLeader: agent.IsLeader,
-                brokeOffUnderPressure: agent.BrokeOffUnderPressure);
+                brokeOffUnderPressure: agent.BrokeOffUnderPressure,
+                pawnVisualStyle: _configuredPawnVisualStyle,
+                bodyAtlas: _pawnBodyAtlas,
+                entityId: agent.EntityId);
 
             DrawEmbeddedProjectiles(spriteBatch, pixel, agent.EntityId, pawnLayout);
 

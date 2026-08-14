@@ -53,8 +53,7 @@ public sealed class ClientSettingsStoreTests
                 UiScale.Auto,
                 StartupDisplayMode.Windowed,
                 MovementPresetId.LastStandEngagementV11,
-                UiChromeStyle.Procedural,
-                WeaponVisualStyle.Procedural));
+                UiChromeStyle.Procedural));
             Assert.True(store.TrySave(
                 "broadcast",
                 ArmyComposition.Default,
@@ -64,8 +63,7 @@ public sealed class ClientSettingsStoreTests
                 UiScale.Auto,
                 StartupDisplayMode.Windowed,
                 MovementPresetId.LastStandEngagementV11,
-                UiChromeStyle.Procedural,
-                WeaponVisualStyle.Procedural));
+                UiChromeStyle.Procedural));
 
             var settings = store.Load("command");
 
@@ -157,8 +155,7 @@ public sealed class ClientSettingsStoreTests
                 UiScale.Auto,
                 StartupDisplayMode.Windowed,
                 MovementPresetId.LastStandEngagementV11,
-                UiChromeStyle.Procedural,
-                WeaponVisualStyle.Procedural));
+                UiChromeStyle.Procedural));
 
             var settings = store.Load("command");
 
@@ -180,8 +177,7 @@ public sealed class ClientSettingsStoreTests
                 UiScale.Auto,
                 StartupDisplayMode.Windowed,
                 MovementPresetId.LastStandEngagementV11,
-                UiChromeStyle.Procedural,
-                WeaponVisualStyle.Procedural));
+                UiChromeStyle.Procedural));
 
             var settings = store.Load("signal");
 
@@ -211,8 +207,7 @@ public sealed class ClientSettingsStoreTests
                 UiScale.Auto,
                 StartupDisplayMode.Windowed,
                 MovementPresetId.LastStandEngagementV11,
-                UiChromeStyle.Procedural,
-                WeaponVisualStyle.Procedural));
+                UiChromeStyle.Procedural));
 
             var settings = store.Load("signal");
 
@@ -234,8 +229,7 @@ public sealed class ClientSettingsStoreTests
                 UiScale.Auto,
                 StartupDisplayMode.Windowed,
                 MovementPresetId.LastStandEngagementV11,
-                UiChromeStyle.Procedural,
-                WeaponVisualStyle.Procedural));
+                UiChromeStyle.Procedural));
 
             var settings = store.Load("signal");
 
@@ -391,8 +385,7 @@ public sealed class ClientSettingsStoreTests
     [InlineData(7)]
     [InlineData(8)]
     [InlineData(9)]
-    [InlineData(10)]
-    public void EverySchemaVersionBeforeElevenIsDiscardedWhole(int schemaVersion)
+    public void EverySchemaVersionBeforeTenIsDiscardedWhole(int schemaVersion)
     {
         WithTemporarySettings((store, settingsPath) =>
         {
@@ -454,8 +447,7 @@ public sealed class ClientSettingsStoreTests
                 UiScale.Auto,
                 StartupDisplayMode.Windowed,
                 MovementPresetId.LastStandEngagementV11,
-                UiChromeStyle.Procedural,
-                WeaponVisualStyle.Procedural));
+                UiChromeStyle.Procedural));
 
             var settings = store.Load("command");
 
@@ -485,8 +477,7 @@ public sealed class ClientSettingsStoreTests
                 uiScale,
                 StartupDisplayMode.Fullscreen,
                 MovementPresetId.LastStandEngagementV11,
-                UiChromeStyle.Procedural,
-                WeaponVisualStyle.Procedural));
+                UiChromeStyle.Procedural));
 
             var settings = store.Load("command");
 
@@ -519,8 +510,7 @@ public sealed class ClientSettingsStoreTests
                 UiScale.Percent150,
                 startupDisplayMode,
                 MovementPresetId.LastStandEngagementV11,
-                UiChromeStyle.Procedural,
-                WeaponVisualStyle.Procedural));
+                UiChromeStyle.Procedural));
 
             var settings = store.Load("command");
 
@@ -652,8 +642,7 @@ public sealed class ClientSettingsStoreTests
                 UiScale.Auto,
                 StartupDisplayMode.Windowed,
                 MovementPresetId.LastStandEngagementV11,
-                UiChromeStyle.Procedural,
-                WeaponVisualStyle.Procedural));
+                UiChromeStyle.Procedural));
 
             Assert.True(store.TryUpdate(
                 "command",
@@ -710,8 +699,7 @@ public sealed class ClientSettingsStoreTests
                 UiScale.Percent150,
                 StartupDisplayMode.Fullscreen,
                 MovementPresetId.LastStandEngagementV11,
-                UiChromeStyle.Procedural,
-                WeaponVisualStyle.Procedural));
+                UiChromeStyle.Procedural));
             using var locked = new FileStream(
                 settingsPath,
                 FileMode.Open,
@@ -727,8 +715,7 @@ public sealed class ClientSettingsStoreTests
                 UiScale.Percent100,
                 StartupDisplayMode.Windowed,
                 MovementPresetId.LastStandEngagementV11,
-                UiChromeStyle.Procedural,
-                WeaponVisualStyle.Procedural));
+                UiChromeStyle.Procedural));
             Assert.Empty(
                 Directory.GetFiles(
                     Path.GetDirectoryName(settingsPath)!,
@@ -760,8 +747,7 @@ public sealed class ClientSettingsStoreTests
                 UiScale.Percent150,
                 StartupDisplayMode.Fullscreen,
                 MovementPresetId.EquipmentRelativeFootworkV7,
-                UiChromeStyle.Procedural,
-                WeaponVisualStyle.Procedural));
+                UiChromeStyle.Procedural));
 
             var settings = store.Load("command");
 
@@ -914,8 +900,7 @@ public sealed class ClientSettingsStoreTests
                 UiScale.Percent150,
                 StartupDisplayMode.Fullscreen,
                 MovementPresetId.LastStandEngagementV11,
-                uiChromeStyle,
-                WeaponVisualStyle.Procedural));
+                uiChromeStyle));
 
             var settings = store.Load("command");
 
@@ -926,12 +911,13 @@ public sealed class ClientSettingsStoreTests
     }
 
     /// <summary>
-    /// A version 10 file predated <see cref="UiChromeStyle"/> and was accepted
-    /// while the window stood at <c>[10, 11]</c>. The 11-to-12 bump narrowed
-    /// the window to <c>[11, 12]</c>, so version 10 moved into
-    /// <see cref="EverySchemaVersionBeforeElevenIsDiscardedWhole"/> and is
-    /// discarded whole rather than loaded and defaulted; that theory is the
-    /// coverage this fact used to provide.
+    /// A version 11 file predates both <c>PawnVisualStyle</c> and
+    /// <c>WeaponVisualStyle</c>, and loads with both at their defaults. The
+    /// version 10 case, which additionally predates <see cref="UiChromeStyle"/>,
+    /// is covered by
+    /// <see cref="AVersionTenFileLoadsCleanlyAndDefaultsTheChromeStyle"/>;
+    /// widening the accepted window with each field-adding bump is what keeps
+    /// both of them loadable rather than discarded.
     /// </summary>
     [Fact]
     public void AVersionElevenFileLoadsCleanlyAndDefaultsTheWeaponVisualStyle()
@@ -967,6 +953,41 @@ public sealed class ClientSettingsStoreTests
         });
     }
 
+    /// <summary>
+    /// A version 10 file predates this field, so it looks exactly like a file
+    /// with the field absent: it loads cleanly rather than being discarded,
+    /// and the style defaults to <see cref="UiChromeStyle.Procedural"/>
+    /// without disturbing any sibling field. Version 9 is not used here even
+    /// though this field was planned against a 9-to-10 bump: the composition
+    /// reset took version 10 first, and a version 9 file is discarded whole.
+    /// </summary>
+    [Fact]
+    public void AVersionTenFileLoadsCleanlyAndDefaultsTheChromeStyle()
+    {
+        WithTemporarySettings((store, settingsPath) =>
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(settingsPath)!);
+            File.WriteAllText(
+                settingsPath,
+                "{\"schemaVersion\":10,\"selectedThemeId\":\"signal\"," +
+                ValidCompositionJson +
+                ",\"goreIntensity\":2,\"motionIntensity\":0," +
+                "\"autoCameraMode\":2,\"uiScale\":2," +
+                "\"startupDisplayMode\":1,\"movementPreset\":11}");
+
+            var settings = store.Load("command");
+
+            Assert.Equal(
+                ClientSettingsStore.SupportedSchemaVersion,
+                settings.SchemaVersion);
+            Assert.Equal("signal", settings.SelectedThemeId);
+            Assert.Equal(
+                MovementPresetId.LastStandEngagementV11,
+                settings.MovementPreset);
+            Assert.Equal(UiChromeStyle.Procedural, settings.UiChromeStyle);
+        });
+    }
+
     [Fact]
     public void AnOutOfRangeUiChromeStyleResetsOnlyThatField()
     {
@@ -994,12 +1015,18 @@ public sealed class ClientSettingsStoreTests
     }
 
     /// <summary>
-    /// The literal <c>12</c> rather than
+    /// The literal <c>13</c> rather than
     /// <see cref="ClientSettingsStore.SupportedSchemaVersion"/> is asserted
     /// against here, so this test still catches the schema window narrowing
     /// unexpectedly even if the constant itself moves in the same change. It
-    /// was literal <c>11</c> before the 11-to-12 bump, when 11 was the current
-    /// version.
+    /// was literal <c>12</c> before the 12-to-13 bump added the weapon
+    /// visual style field, and literal <c>11</c> before that, before the
+    /// 11-to-12 bump added the pawn visual style field. The input file
+    /// itself stays at schema version 11 - a load always normalizes the
+    /// loaded settings' <c>SchemaVersion</c> to whatever is currently
+    /// supported, so the source file predating both the pawn visual style
+    /// field and the weapon visual style field is what this test still
+    /// exercises.
     /// </summary>
     [Fact]
     public void ASchemaVersionElevenFileLoadsAndRoundTripsTheChromeStyle()
@@ -1016,9 +1043,37 @@ public sealed class ClientSettingsStoreTests
 
             var settings = store.Load("command");
 
-            Assert.Equal(12, settings.SchemaVersion);
+            Assert.Equal(13, settings.SchemaVersion);
             Assert.Equal("signal", settings.SelectedThemeId);
             Assert.Equal(UiChromeStyle.NineSlice, settings.UiChromeStyle);
+        });
+    }
+
+    [Theory]
+    [InlineData(PawnVisualStyle.Procedural)]
+    [InlineData(PawnVisualStyle.SpriteBody)]
+    public void EveryPawnVisualStyleValueSurvivesARoundTrip(
+        PawnVisualStyle pawnVisualStyle)
+    {
+        WithTemporarySettings((store, _) =>
+        {
+            Assert.True(store.TrySave(
+                "signal",
+                SampleComposition,
+                GoreIntensity.Full,
+                MotionIntensity.Reduced,
+                AutoCameraMode.Follow,
+                UiScale.Percent150,
+                StartupDisplayMode.Fullscreen,
+                MovementPresetId.LastStandEngagementV11,
+                UiChromeStyle.Procedural,
+                pawnVisualStyle));
+
+            var settings = store.Load("command");
+
+            Assert.Equal("signal", settings.SelectedThemeId);
+            Assert.Equal(SampleComposition, settings.Composition);
+            Assert.Equal(pawnVisualStyle, settings.PawnVisualStyle);
         });
     }
 
@@ -1040,7 +1095,7 @@ public sealed class ClientSettingsStoreTests
                 StartupDisplayMode.Fullscreen,
                 MovementPresetId.LastStandEngagementV11,
                 UiChromeStyle.Procedural,
-                weaponVisualStyle));
+                weaponVisualStyle: weaponVisualStyle));
 
             var settings = store.Load("command");
 
@@ -1050,6 +1105,48 @@ public sealed class ClientSettingsStoreTests
         });
     }
 
+    /// <summary>
+    /// A file at the current schema version but written before the pawn
+    /// visual style field existed looks exactly like one with the field
+    /// absent: it loads cleanly rather than being discarded, and the style
+    /// defaults to <see cref="PawnVisualStyle.Procedural"/> without
+    /// disturbing any sibling field.
+    /// </summary>
+    [Fact]
+    public void AFileMissingPawnVisualStyleLoadsCleanlyAndDefaultsIt()
+    {
+        WithTemporarySettings((store, settingsPath) =>
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(settingsPath)!);
+            File.WriteAllText(
+                settingsPath,
+                "{\"schemaVersion\":" +
+                ClientSettingsStore.SupportedSchemaVersion +
+                ",\"selectedThemeId\":\"signal\"," +
+                ValidCompositionJson +
+                ",\"goreIntensity\":2,\"motionIntensity\":0," +
+                "\"autoCameraMode\":2,\"uiChromeStyle\":1}");
+
+            var settings = store.Load("command");
+
+            Assert.Equal(
+                ClientSettingsStore.SupportedSchemaVersion,
+                settings.SchemaVersion);
+            Assert.Equal("signal", settings.SelectedThemeId);
+            Assert.Equal(UiChromeStyle.NineSlice, settings.UiChromeStyle);
+            Assert.Equal(
+                PawnVisualStyle.Procedural,
+                settings.PawnVisualStyle);
+        });
+    }
+
+    /// <summary>
+    /// A file at the current schema version but written before the weapon
+    /// visual style field existed looks exactly like one with the field
+    /// absent: it loads cleanly rather than being discarded, and the style
+    /// defaults to <see cref="WeaponVisualStyle.Procedural"/> without
+    /// disturbing any sibling field.
+    /// </summary>
     [Fact]
     public void AFileMissingWeaponVisualStyleLoadsCleanlyAndDefaultsItToProcedural()
     {
@@ -1075,6 +1172,36 @@ public sealed class ClientSettingsStoreTests
             Assert.Equal(
                 WeaponVisualStyle.Procedural,
                 settings.WeaponVisualStyle);
+        });
+    }
+
+    [Fact]
+    public void AnOutOfRangePawnVisualStyleResetsOnlyThatField()
+    {
+        WithTemporarySettings((store, settingsPath) =>
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(settingsPath)!);
+            File.WriteAllText(
+                settingsPath,
+                "{\"schemaVersion\":" +
+                ClientSettingsStore.SupportedSchemaVersion +
+                ",\"selectedThemeId\":\"signal\"," +
+                ValidCompositionJson +
+                ",\"goreIntensity\":2,\"motionIntensity\":0," +
+                "\"autoCameraMode\":2,\"uiChromeStyle\":1," +
+                "\"pawnVisualStyle\":99}");
+
+            var settings = store.Load("command");
+
+            Assert.Equal("signal", settings.SelectedThemeId);
+            Assert.Equal(80, settings.Composition.UnitsPerTeam);
+            Assert.Equal(GoreIntensity.Full, settings.GoreIntensity);
+            Assert.Equal(MotionIntensity.Off, settings.MotionIntensity);
+            Assert.Equal(AutoCameraMode.Follow, settings.AutoCameraMode);
+            Assert.Equal(UiChromeStyle.NineSlice, settings.UiChromeStyle);
+            Assert.Equal(
+                PawnVisualStyle.Procedural,
+                settings.PawnVisualStyle);
         });
     }
 
@@ -1105,6 +1232,39 @@ public sealed class ClientSettingsStoreTests
             Assert.Equal(
                 WeaponVisualStyle.Procedural,
                 settings.WeaponVisualStyle);
+        });
+    }
+
+    /// <summary>
+    /// A version 11 file predates the pawn visual style field, so it looks
+    /// exactly like a file with the field absent: it loads cleanly rather
+    /// than being discarded, and the style defaults to
+    /// <see cref="PawnVisualStyle.Procedural"/> without disturbing any
+    /// sibling field.
+    /// </summary>
+    [Fact]
+    public void ASchemaVersionElevenFileLoadsAndGetsPawnVisualStyleDefaulted()
+    {
+        WithTemporarySettings((store, settingsPath) =>
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(settingsPath)!);
+            File.WriteAllText(
+                settingsPath,
+                "{\"schemaVersion\":11,\"selectedThemeId\":\"signal\"," +
+                ValidCompositionJson +
+                ",\"goreIntensity\":2,\"motionIntensity\":0," +
+                "\"autoCameraMode\":2,\"uiChromeStyle\":1}");
+
+            var settings = store.Load("command");
+
+            Assert.Equal(
+                ClientSettingsStore.SupportedSchemaVersion,
+                settings.SchemaVersion);
+            Assert.Equal("signal", settings.SelectedThemeId);
+            Assert.Equal(UiChromeStyle.NineSlice, settings.UiChromeStyle);
+            Assert.Equal(
+                PawnVisualStyle.Procedural,
+                settings.PawnVisualStyle);
         });
     }
 

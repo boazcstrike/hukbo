@@ -13,6 +13,7 @@ internal sealed record ClientSettings(
     StartupDisplayMode StartupDisplayMode,
     MovementPresetId MovementPreset,
     UiChromeStyle UiChromeStyle = UiChromeStyle.Procedural,
+    PawnVisualStyle PawnVisualStyle = PawnVisualStyle.Procedural,
     WeaponVisualStyle WeaponVisualStyle = WeaponVisualStyle.Procedural);
 
 /// <summary>
