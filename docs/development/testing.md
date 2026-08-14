@@ -670,6 +670,71 @@ on 2026-08-14 and closed it `PASS`. The row is no longer in the live checklist;
 its record is the archive document titled "Battlefield realism cohort smoke —
 closed 2026-08-14".
 
+## Canonical gate result — Hukbo, 2026-08-14 (ranged package closeout)
+
+`./scripts/verify.ps1 -SkipBootstrap`, run twice on 2026-08-14 in a dedicated
+integration worktree at branch `ranged-integration`. The first run had both
+closeout branches merged in and reported 763 files, 2 568 Core tests and 3 787
+Client tests. **The run recorded here is the second**, taken after `main` moved
+four commits underneath the branch — the death-collapse feature at `0d4b34e`,
+the nine-slice panel texture at `54c0bca`, an archive prune, and a backlog tidy
+— and `main` was merged into the branch. That merge produced no conflicts.
+**Verdict: pass, exit code 0.** The run reported:
+
+```
+Formatted 0 of 770 files.
+[PASS] Formatting verification completed.
+[PASS] Release solution build completed.
+Total tests: 2568     Passed: 2568
+Total tests: 3850     Passed: 3850
+[PASS] Release repository tests completed.
+[PASS] Canonical repository verification completed.
+```
+
+The Client suite's rise from 3 787 to 3 850 is the death-collapse work's own
+tests arriving with the merge, not anything this closeout added.
+
+All five headless workloads reproduced their recorded pairs:
+
+| Workload | combat / movement | stateHash | eventHash |
+| --- | --- | --- | --- |
+| Default | 6 / 4 | `5460D13E3F7FD3E5` | `8E18ED1437B2924B` |
+| Ranged standoff | 5 / 8 | `C8023D3B5BEB005E` | `F709A345E2F7370E` |
+| Battlefield realism | 5 / 10 | `7C145A9E05916E4C` | `77626E104234206C` |
+| Last-stand engagement | 5 / 11 | `6225182B4A470F91` | `C4DABE6AF98B6BEC` |
+| Cohort lateral spread | 5 / 13 | `4A0723BC9A1B924B` | `E0CE32CF8830A864` |
+
+**Why this run was not made in the main checkout.** Another session was working
+in the shared tree throughout. At first that was uncommitted death-collapse
+work, including 115 new lines in `PawnGeometry.cs`, a file the archiving change
+also edits; `git merge` refused outright rather than touching it. That session
+then committed, and by the time this second run finished it was holding
+`docs/development/smoke-checklist.md`, `docs/development/testing.md`, and
+`docs/plans/README.md` staged — the same three files this closeout changes. So
+the merge and both gate runs were done in a separate worktree and `main` was
+left alone throughout. **The closeout is therefore verified but unmerged**, and
+whoever merges it owes nothing further: this is the gate run for that merge,
+taken at the merged tree with `main`'s own latest work folded in.
+
+**The ranged workload reproducing `C8023D3B5BEB005E` / `F709A345E2F7370E` is
+the load-bearing line here.** The composition change moves the client's default
+army, which is the sort of change that looks like it should move a hash. It does
+not, and this is the evidence rather than the argument: `ArmyComposition` is a
+`Hukbo.Client` settings record, the headless workloads build their scenarios
+without it, and every recorded pair is unchanged to the byte.
+
+**The Client suite fell from 3 805 to 3 787.** That is not a regression and not
+a deletion of coverage. The composition work replaced one test that asserted
+behaviour which no longer exists — a schema-8 file loading and defaulting its
+movement preset — with one asserting the behaviour that replaced it, and the
+roster-expansion suite's theory cases collapsed as the expected apportionment
+became a single calibrated array rather than several even-split cases.
+
+**No evidence about anything interactive.** The three new `AC-*` rows in the
+smoke checklist are what this change owes, and every one of them is `PENDING`.
+The gate never opened the Army Composition panel, never discarded a settings
+file, and never watched a battle.
+
 ## Sandata — recorded baselines and measurement runs, 2026-08-09
 
 This repository builds two games. Everything above and below this section, unless

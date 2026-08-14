@@ -73,9 +73,10 @@ public sealed class ArmyCompositionRosterExpansionTests
         // Arquebus(Timawa), Kalis+Shield(Timawa), Itak+Shield(AlipingNamamahay).
         // Expected values are the RU-24/RU-45 calibrated share weights
         // [19, 19, 10, 9, 11, 8, 6, 9, 9] apportioned by largest remainder
-        // against each rank's slider count at the default composition
-        // (Datu 63, Maharlika 63, Timawa 62, AlipingNamamahay 62).
-        int[] expected = [63, 63, 14, 31, 16, 11, 8, 13, 31];
+        // against each rank's slider count at the 2026-08-14 calibrated
+        // default composition (Datu 48, Maharlika 47, Timawa 110,
+        // AlipingNamamahay 45).
+        int[] expected = [48, 47, 25, 23, 28, 20, 15, 22, 22];
 
         Assert.Equal(expected, result.AsSpan().ToArray());
     }
@@ -92,21 +93,21 @@ public sealed class ArmyCompositionRosterExpansionTests
             DefaultComposition);
 
         // Timawa's five roster rows (indices 2, 4, 5, 6, 7 — Kalis, Bangkaw,
-        // Busog, Arquebus, Kalis+Shield) sum to the rank's 62-unit slider
+        // Busog, Arquebus, Kalis+Shield) sum to the rank's 110-unit slider
         // count no matter how the split is computed, so the sum alone
         // cannot catch a regression that flattens the split to an even one.
-        // An even split of 62 across 5 rows is {12, 12, 12, 13, 13} in some
-        // order — it contains neither an 8 nor a 16. The calibrated weights
-        // RU-24/RU-45 measured do produce both: Arquebus (weight 6, the
-        // lowest of the five) gets 8, and Bangkaw (weight 11, the highest)
-        // gets 16. If the calibrated-weight mapping is deleted or replaced
-        // with an even split, these two assertions turn red.
+        // An even split of 110 across 5 rows is {22, 22, 22, 22, 22} — it
+        // contains neither a 15 nor a 28. The calibrated weights RU-24/RU-45
+        // measured do produce both: Arquebus (weight 6, the lowest of the
+        // five) gets 15, and Bangkaw (weight 11, the highest) gets 28. If the
+        // calibrated-weight mapping is deleted or replaced with an even
+        // split, these two assertions turn red.
         int[] timawaCounts =
             [result[2], result[4], result[5], result[6], result[7]];
 
-        Assert.Equal(62, timawaCounts.Sum());
-        Assert.Contains(8, timawaCounts);
-        Assert.Contains(16, timawaCounts);
+        Assert.Equal(110, timawaCounts.Sum());
+        Assert.Contains(15, timawaCounts);
+        Assert.Contains(28, timawaCounts);
     }
 
     [Fact]

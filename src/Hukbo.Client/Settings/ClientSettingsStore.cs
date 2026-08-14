@@ -40,22 +40,35 @@ internal sealed class ClientSettingsStore
     /// This is backward compatible on the same terms as the 7-to-8 bump: a
     /// version 8 file loads through <see cref="AcceptedSchemaVersions"/> with
     /// only that absent field defaulting.
-    /// Raised again from 9 to 10 by the <see cref="UiChromeStyle"/> setting.
+    /// Raised again from 9 to 10 by the fourth deliberate composition reset
+    /// recorded on <see cref="ArmyComposition"/>, when the default moved off
+    /// an even four-way split onto calibrated per-rank proportions. This
+    /// behaves like the 2-to-3, 5-to-6, and 6-to-7 bumps rather than a
+    /// field-adding bump: the shape is unchanged and a version 9 file would
+    /// still parse, but a saved composition always overrides
+    /// <see cref="ArmyComposition.Default"/>, so accepting the old file would
+    /// silently keep the old even split forever.
+    /// Raised again from 10 to 11 by the <see cref="UiChromeStyle"/> setting.
     /// This is backward compatible on the same terms as the 8-to-9 bump: a
-    /// version 9 file loads through <see cref="AcceptedSchemaVersions"/> with
-    /// only that absent field defaulting.
+    /// version 10 file loads through <see cref="AcceptedSchemaVersions"/> with
+    /// only that absent field defaulting. The chrome-style work was planned
+    /// against a 9-to-10 bump while the composition reset was being built on
+    /// another branch; the reset landed first, so the setting took the next
+    /// version rather than sharing one.
     /// </summary>
-    public const int SupportedSchemaVersion = 10;
+    public const int SupportedSchemaVersion = 11;
 
     /// <summary>
     /// Schema versions <see cref="Load"/> accepts without discarding the
-    /// whole file. Version 8, version 9, and the current version qualify
-    /// because the 8-to-9 and 9-to-10 changes each only add an independently
-    /// defaulted field. Versions before 8 remain incompatible because of the
-    /// deliberate composition resets recorded on <see cref="ArmyComposition"/>.
+    /// whole file. Version 10 and the current version qualify because the
+    /// 10-to-11 change only adds an independently defaulted field. Version 9
+    /// and everything before it stay incompatible: the 9-to-10 change is a
+    /// deliberate composition reset, so those files must be discarded whole,
+    /// on the same grounds as the 2-to-3, 5-to-6, and 6-to-7 resets recorded
+    /// on <see cref="ArmyComposition"/>.
     /// </summary>
     private static readonly int[] AcceptedSchemaVersions =
-        [8, 9, SupportedSchemaVersion];
+        [10, SupportedSchemaVersion];
 
     // Moved from Stylized to Full on 2026-08-13 by the lethal blow
     // legibility design, on the explicit request of the person the

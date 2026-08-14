@@ -361,8 +361,15 @@ public sealed class ClientSettingsStoreTests
     /// default, and version 6's field names do not even exist on the version
     /// 7 record — so every version through 7 is discarded whole. Version 7
     /// itself moved into this theory when the 8-to-9 bump narrowed the
-    /// accepted window to <c>[8, SupportedSchemaVersion]</c>, the same
-    /// precedent the 7-to-8 bump set for version 6.
+    /// accepted window to <c>[8, 9]</c>, the same precedent the 7-to-8 bump
+    /// set for version 6. Versions 8 and 9 moved into this theory in turn
+    /// when the 9-to-10 bump — the fourth deliberate composition reset,
+    /// recorded on <see cref="ArmyComposition"/> — narrowed the accepted
+    /// window to version 10 alone: a saved composition always overrides the
+    /// new calibrated default, so an old even-split composition can no longer
+    /// be allowed to survive a load. The 10-to-11 bump widened the window
+    /// back to <c>[10, 11]</c> without moving any version in this theory,
+    /// because it only adds an independently defaulted chrome-style field.
     /// </summary>
     [Theory]
     [InlineData(2)]
@@ -371,7 +378,9 @@ public sealed class ClientSettingsStoreTests
     [InlineData(5)]
     [InlineData(6)]
     [InlineData(7)]
-    public void EverySchemaVersionBeforeEightIsDiscardedWhole(int schemaVersion)
+    [InlineData(8)]
+    [InlineData(9)]
+    public void EverySchemaVersionBeforeTenIsDiscardedWhole(int schemaVersion)
     {
         WithTemporarySettings((store, settingsPath) =>
         {
@@ -832,26 +841,37 @@ public sealed class ClientSettingsStoreTests
         });
     }
 
+    /// <summary>
+    /// Before the 9-to-10 composition reset, a version 9 file was fully
+    /// shape-compatible with the current record — every field, including
+    /// <see cref="ClientSettings.MovementPreset"/>, already existed and
+    /// would have loaded verbatim. This test pins that the reset discards
+    /// it anyway: shape compatibility alone is not enough, because a saved
+    /// composition always overrides <see cref="ArmyComposition.Default"/>,
+    /// and an old even-split composition would otherwise survive the load
+    /// and silently defeat the calibrated default.
+    /// </summary>
     [Fact]
-    public void ASchemaEightFileStillLoadsAndDefaultsTheMovementPreset()
+    public void ASchemaNineFileWithAFullMovementPresetIsStillDiscardedByTheCompositionReset()
     {
         WithTemporarySettings((store, settingsPath) =>
         {
             Directory.CreateDirectory(Path.GetDirectoryName(settingsPath)!);
             File.WriteAllText(
                 settingsPath,
-                "{\"schemaVersion\":8,\"selectedThemeId\":\"signal\"," +
+                "{\"schemaVersion\":9,\"selectedThemeId\":\"signal\"," +
                 ValidCompositionJson +
                 ",\"goreIntensity\":2,\"motionIntensity\":0," +
                 "\"autoCameraMode\":2,\"uiScale\":2," +
-                "\"startupDisplayMode\":1}");
+                "\"startupDisplayMode\":1,\"movementPreset\":11}");
 
             var settings = store.Load("command");
 
             Assert.Equal(
                 ClientSettingsStore.SupportedSchemaVersion,
                 settings.SchemaVersion);
-            Assert.Equal("signal", settings.SelectedThemeId);
+            Assert.Equal("command", settings.SelectedThemeId);
+            Assert.Equal(ArmyComposition.Default, settings.Composition);
             Assert.Equal(
                 MovementPresetId.CohortLateralSpreadV13,
                 settings.MovementPreset);
@@ -886,20 +906,22 @@ public sealed class ClientSettingsStoreTests
     }
 
     /// <summary>
-    /// A version 9 file predates this field, so it looks exactly like a file
+    /// A version 10 file predates this field, so it looks exactly like a file
     /// with the field absent: it loads cleanly rather than being discarded,
     /// and the style defaults to <see cref="UiChromeStyle.Procedural"/>
-    /// without disturbing any sibling field.
+    /// without disturbing any sibling field. Version 9 is not used here even
+    /// though this field was planned against a 9-to-10 bump: the composition
+    /// reset took version 10 first, and a version 9 file is discarded whole.
     /// </summary>
     [Fact]
-    public void AVersionNineFileLoadsCleanlyAndDefaultsTheChromeStyle()
+    public void AVersionTenFileLoadsCleanlyAndDefaultsTheChromeStyle()
     {
         WithTemporarySettings((store, settingsPath) =>
         {
             Directory.CreateDirectory(Path.GetDirectoryName(settingsPath)!);
             File.WriteAllText(
                 settingsPath,
-                "{\"schemaVersion\":9,\"selectedThemeId\":\"signal\"," +
+                "{\"schemaVersion\":10,\"selectedThemeId\":\"signal\"," +
                 ValidCompositionJson +
                 ",\"goreIntensity\":2,\"motionIntensity\":0," +
                 "\"autoCameraMode\":2,\"uiScale\":2," +
@@ -945,27 +967,27 @@ public sealed class ClientSettingsStoreTests
     }
 
     /// <summary>
-    /// The literal <c>10</c> rather than
+    /// The literal <c>11</c> rather than
     /// <see cref="ClientSettingsStore.SupportedSchemaVersion"/> is asserted
     /// against here, so this test still catches the schema window narrowing
     /// unexpectedly even if the constant itself moves in the same change.
     /// </summary>
     [Fact]
-    public void ASchemaVersionTenFileLoadsAndRoundTripsTheChromeStyle()
+    public void ASchemaVersionElevenFileLoadsAndRoundTripsTheChromeStyle()
     {
         WithTemporarySettings((store, settingsPath) =>
         {
             Directory.CreateDirectory(Path.GetDirectoryName(settingsPath)!);
             File.WriteAllText(
                 settingsPath,
-                "{\"schemaVersion\":10,\"selectedThemeId\":\"signal\"," +
+                "{\"schemaVersion\":11,\"selectedThemeId\":\"signal\"," +
                 ValidCompositionJson +
                 ",\"goreIntensity\":2,\"motionIntensity\":0," +
                 "\"autoCameraMode\":2,\"uiChromeStyle\":1}");
 
             var settings = store.Load("command");
 
-            Assert.Equal(10, settings.SchemaVersion);
+            Assert.Equal(11, settings.SchemaVersion);
             Assert.Equal("signal", settings.SelectedThemeId);
             Assert.Equal(UiChromeStyle.NineSlice, settings.UiChromeStyle);
         });

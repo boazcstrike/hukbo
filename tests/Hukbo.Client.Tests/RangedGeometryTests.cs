@@ -7,8 +7,7 @@ namespace Hukbo.Client.Tests;
 /// <summary>
 /// Covers the pure phase-to-pose mathematics <see cref="RangedGeometry"/>
 /// owns for the three ranged weapons, and the per-weapon differentiation
-/// design section 8.4 of <c>docs/plans/2026-08-07-ranged-units-design.md</c>
-/// requires.
+/// section 8.4 of the ranged-units design document requires.
 /// </summary>
 public sealed class RangedGeometryTests
 {
