@@ -36,28 +36,6 @@ public sealed partial class ArenaGame
         1_000_000.0 / Stopwatch.Frequency;
 
     /// <summary>
-    /// RU-25. The wooden-shaft tint drawn for every in-flight
-    /// <see cref="ProjectileFlight"/>, provisional gameplay presentation
-    /// rather than a historical measurement (CLAUDE.md section 7).
-    /// </summary>
-    private static readonly Color ProjectileShaftColor = new(214, 178, 122);
-
-    /// <summary>
-    /// The metal tint of a spear head and of a lead ball — darker and cooler
-    /// than <see cref="ProjectileShaftColor"/> so the two parts of a spear
-    /// read as two parts. Provisional gameplay presentation rather than a
-    /// historical measurement (CLAUDE.md section 7).
-    /// </summary>
-    private static readonly Color ProjectileHeadColor = new(168, 172, 178);
-
-    /// <summary>
-    /// The tint of an arrow's fletching. Pale enough to separate from
-    /// <see cref="ProjectileShaftColor"/> at the tail. Provisional gameplay
-    /// presentation rather than a historical measurement (CLAUDE.md section 7).
-    /// </summary>
-    private static readonly Color ProjectileFletchColor = new(236, 228, 208);
-
-    /// <summary>
     /// GPU-004. The instant the current arena span opened, moved forward by
     /// every boundary crossing inside <see cref="DrawArenaLayer"/>. Meaningful
     /// only while the render probe is enabled and only for the duration of one
@@ -979,17 +957,7 @@ public sealed partial class ArenaGame
     }
 
     private static Color GetProjectileElementColor(ProjectilePropElementKind kind) =>
-        kind switch
-        {
-            ProjectilePropElementKind.Shaft => ProjectileShaftColor,
-            ProjectilePropElementKind.Head => ProjectileHeadColor,
-            ProjectilePropElementKind.Fletch => ProjectileFletchColor,
-            ProjectilePropElementKind.Ball => ProjectileHeadColor,
-            _ => throw new ArgumentOutOfRangeException(
-                nameof(kind),
-                kind,
-                null),
-        };
+        ProjectilePalette.GetColor(kind);
 
     private void DrawMapSurface(
         SpriteBatch spriteBatch,
