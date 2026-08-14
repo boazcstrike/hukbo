@@ -14,6 +14,19 @@ record are all live, because a future session still has to read them. What none
 of them means is *go and build this* — only an explicit authorization does that,
 and section 6 of [`../../CLAUDE.md`](../../CLAUDE.md) says how one is given.
 
+Swept a sixth time on 2026-08-15, after that day's smoke closures. Three
+documents left this folder and none joined it: the pawn sprite body plan and its
+design, and the hide-the-event-log plan. Each was checked against code on `main`
+before it moved rather than against its own status line — `PawnSpriteAtlas`, the
+`B` command arm, the `Events` control-bar button, and the F8 toggle all exist
+there, at `21e1abb` and `8a25abf` — and each had every smoke row it owed run and
+passed by a person at an interactive desktop the same day, eight `SB` rows and
+five `HEL` rows. One thing survives the pawn sprite pair and is recorded in both
+archive banners rather than only here: nothing on screen announces the `B` key,
+because the menu panel is full, and making room for it is its own design. No
+source, test, or live document cited any of the three by path, so nothing needed
+rewriting into prose.
+
 Swept a fifth time on 2026-08-14, after the UI chrome nine-slice package
 finally reached `main`. Three documents left this folder and none joined it:
 the UI chrome nine-slice design, and the death-collapse plan and its design.
@@ -32,11 +45,16 @@ accepted window of `[10, 11]`, and the archive banner records that. The chrome
 design's section 8 left one live question — whether linear filtering bleeds
 across the nine-slice seams, and therefore whether a nested `PointClamp` batch
 is worth splitting the interface batch into three — and that question, with the
-mitigation spelled out, now lives in the `CH-4` row's own preamble in the smoke
-checklist instead of in the archived design. No source, test, or live document
-cited any of the three by path, so nothing needed rewriting into prose. The
-death-collapse family's ten `DC` smoke rows are still `PENDING` and stay in the
-checklist; a plan is archived when its build is finished, not when its rows are.
+mitigation spelled out, moved to the `CH-4` row's own preamble in the smoke
+checklist instead of staying in the archived design. That row was run and passed
+on 2026-08-15 and left the checklist with its family, so the question and its
+mitigation now live in the archive record titled "UI chrome nine-slice smoke —
+`CH-4`, and the family closing in full", which also records that the pass
+carried no written observation of which scale tiers were reached. No source,
+test, or live document cited any of the three by path, so nothing needed
+rewriting into prose. The death-collapse family's ten `DC` smoke rows closed
+`PASS` on 2026-08-15 and left the checklist; a plan is archived when its build
+is finished, not when its rows are, which is why those two dates differ.
 
 Swept a fourth time on 2026-08-14, and that pass changed the rule below rather
 than only applying it. Eleven finished designs left this folder and none joined
@@ -160,7 +178,7 @@ designs archived in the fourth sweep of 2026-08-14 left.
 | [`2026-07-30-formation-blocking-baseline.md`](2026-07-30-formation-blocking-baseline.md) | Formation blocking at 500 agents, with the measured baseline a future change has to beat. Section 5 is the twenty-seed sweep the document's own section 3 asked for, run on 2026-08-13 under the presets the client actually launches: it shows a 146 per cent ordinary spread in `blockedAgentTicks` across seeds, which retires the two-seed comparison the document was built on, and it records a longest blocked streak of 904 ticks — 45 seconds of one warrior standing still | Backlog; authorizes nothing. The sweep is a fresh baseline and is explicitly not comparable to the 2026-07-30 table above it |
 | [`2026-07-28-follower-trailing-deadlock-design.md`](2026-07-28-follower-trailing-deadlock-design.md) | The follower-trailing mutual block in the collision resolver, with its diagnosis measured | Design only; options unchosen |
 | [`2026-08-14-thousand-unit-performance-design.md`](2026-08-14-thousand-unit-performance-design.md) | Whether a 1,000-unit battle can be watched at all: the render matrix that predates the corpse layer, the gait legs, and the projectile props, and the per-tick scans in `BattleSimulation` that are quadratic in agent count. Section 2.4 closes the instanced-rendering question rather than leaving it open, and section 4.1 shows why a spatial index buys target selection nothing under the shipped scenario | Design only; authorizes nothing |
-| [`2026-08-14-thousand-unit-performance.md`](2026-08-14-thousand-unit-performance.md) | That design's sixteen tasks in four phases, every one of them hash-neutral by construction, with a genuine stop condition at TU-4: if re-measurement shows the 1,000-unit frame already inside budget, the correct action is to run `GR-3` and `GR-5` and close the workstream having written no code | Plan only; **not authorized**. Not started |
+| [`2026-08-14-thousand-unit-performance.md`](2026-08-14-thousand-unit-performance.md) | That design's sixteen tasks in four phases, every one of them hash-neutral by construction, with a genuine stop condition at TU-4: if re-measurement shows the 1,000-unit frame already inside budget, the correct action is to run `GR-5` and close the workstream having written no code. `GR-3` closed `PASS` on 2026-08-15; `GR-5` remains open | Plan only; **not authorized**. Not started |
 
 ## Sandata
 
@@ -171,7 +189,16 @@ designs archived in the fourth sweep of 2026-08-14 left.
 ## Where the rest of it went
 
 Finished plans, one-off orchestration prompts, and superseded handoffs live in
-`docs/archives/`, in dated batches. The most recent batch is `2026-08-14`, and
+`docs/archives/`, in dated batches. The most recent batch is `2026-08-15`, and
+it is where the live checklist emptied down to a single row: it holds seven
+smoke records — for the calibrated army composition, death collapse, the UI
+chrome nine-slice family's last row, pawn visual fidelity, the pawn sprite body,
+the hidden battle event log, and the render family's `GR-3` — and the three
+finished plans and designs behind two of them, the pawn sprite body plan and
+design and the hide-the-event-log plan. Every one of those records says the same
+thing about its evidence: the tester returned pass verdicts and wrote no
+separate observation, and several of the rows had asked for one. The batch
+before it is `2026-08-14`, and
 it grew through that day as one smoke family after another closed. It began with
 "Last-stand engagement smoke — closed 2026-08-14", the record of a one-row
 family: `LS-1` was the only row it had, so it closed at one of one and its
