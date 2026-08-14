@@ -1007,6 +1007,12 @@ public sealed partial class ArenaGame : Game
             _soundDirector,
             allowRelease: _presentation.Playback.IsPlaying);
 
+        // After the release above, never before it: a lethal contact released
+        // this frame registers its defender reaction there, and the collapse
+        // reads that reaction for the direction the killing blow pushed the
+        // body (the 2026-08-14 death-collapse design, section 7).
+        _presentation.ObserveDeaths(_simulation.Agents);
+
         _attackPoses.Clear();
         var activeAttacks = _presentation.AttackAnimations.ActiveAnimations;
         for (var index = 0; index < activeAttacks.Length; index++)

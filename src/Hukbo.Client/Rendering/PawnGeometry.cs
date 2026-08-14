@@ -149,6 +149,17 @@ internal readonly record struct ArmLayout(
 /// and for a pawn with no ranged pose active, matching every other
 /// "zero/empty when absent" field on this record.
 /// </summary>
+/// <remarks>
+/// <see cref="Collapse"/> (the 2026-08-14 death-collapse design, section 4) is
+/// the rigid transform <c>PawnRenderer</c> applies to every quad it submits for
+/// this pawn — <see cref="PawnTransform.Identity"/> for every living pawn and
+/// for every dead one still inside its lethal hold, and a rotation about
+/// <see cref="FootAnchor"/> for a body that is falling or has fallen. It is the
+/// one field here that is not a rectangle, a point, or a scalar the renderer
+/// draws directly: it composes with everything else rather than replacing any
+/// of it, which is why the collapse disturbs no rectangle on this record and
+/// why <c>SubmissionCount</c> is blind to it — a rotated quad is one quad.
+/// </remarks>
 internal readonly record struct PawnLayout(
     Vector2 FootAnchor,
     float ApparentScale,
@@ -179,7 +190,8 @@ internal readonly record struct PawnLayout(
     Rectangle LeftFootBounds,
     Rectangle RightFootBounds,
     ArmLayout Arms,
-    float RangedDrawTension);
+    float RangedDrawTension,
+    PawnTransform Collapse = default);
 
 /// <summary>
 /// GPU-013. Both answers the arena render loop needs about one pawn, from
@@ -552,7 +564,8 @@ internal static class PawnGeometry
         bool hasSash = false,
         int adornmentAccentMarkCount = 0,
         GaitPose? gaitPose = null,
-        RangedPose? rangedPose = null)
+        RangedPose? rangedPose = null,
+        float collapseRotationRadians = 0f)
     {
         var proportions = CreateProportions(
             footAnchor,
@@ -571,7 +584,10 @@ internal static class PawnGeometry
             hasSash,
             adornmentAccentMarkCount,
             gaitPose ?? default,
-            rangedPose ?? default);
+            rangedPose ?? default,
+            attackPose: null,
+            reactionOffset: default,
+            collapseRotationRadians);
     }
 
     /// <summary>
@@ -816,11 +832,20 @@ internal static class PawnGeometry
         /// is a third additive channel and its draw tension reaches
         /// <see cref="PawnLayout.RangedDrawTension"/>.
         /// </param>
+        /// <param name="collapseRotationRadians">
+        /// The death-collapse rotation this pawn's whole body is drawn at, from
+        /// <c>DeathCollapseSystem.ResolveRotationRadians</c>, or zero for a pawn
+        /// that is not a corpse. Zero produces
+        /// <see cref="PawnTransform.Identity"/> on the layout, and therefore a
+        /// draw sequence identical to the one every pawn had before the collapse
+        /// existed.
+        /// </param>
         public PawnLayout CompleteAttackPosedLayout(
             AttackPose? attackPose = null,
             GaitPose? gaitPose = null,
             (float X, float Y) reactionOffset = default,
-            RangedPose? rangedPose = null) =>
+            RangedPose? rangedPose = null,
+            float collapseRotationRadians = 0f) =>
             CreateLayout(
                 _proportions,
                 _footAnchor,
@@ -834,7 +859,81 @@ internal static class PawnGeometry
                 gaitPose ?? default,
                 rangedPose ?? default,
                 attackPose,
-                reactionOffset);
+                reactionOffset,
+                collapseRotationRadians);
+
+        /// <summary>
+        /// The cull rectangle a corpse is tested against (the 2026-08-14
+        /// death-collapse design, section 5): the square centred on the foot
+        /// anchor whose half-side is the greatest distance from that anchor to
+        /// any corner of <see cref="PoseBlindVisualBounds"/>.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// A prone body does not fit inside its standing rectangle. The
+        /// standing rectangle is tall and narrow; rotated a quarter turn about
+        /// the foot anchor it is short and wide, and it reaches roughly a
+        /// body's height sideways. Culled against the standing rectangle, a
+        /// corpse near the panel edge would vanish while most of it was still
+        /// on screen — the exact "no visible casualty" failure the corpse
+        /// placeholder was written to fix.
+        /// </para>
+        /// <para>
+        /// This square contains the standing rectangle under <em>every</em>
+        /// rotation about that anchor, so one value covers the whole collapse
+        /// and the final prone pose at once and does not depend on the collapse
+        /// clock, the fall direction, or the per-warrior jitter. The cull
+        /// therefore still does not vary with animation phase; it varies with
+        /// aliveness, which the two-pass corpse draw order already depends on.
+        /// It is a separate member rather than a widening of
+        /// <see cref="PoseBlindVisualBounds"/> so that a living pawn keeps the
+        /// exact rectangle it is culled against today.
+        /// </para>
+        /// </remarks>
+        public Rectangle ProneEnvelopeVisualBounds =>
+            CreateProneEnvelope(PoseBlindVisualBounds, _footAnchor);
+    }
+
+    /// <summary>
+    /// See <see cref="PoseBlindPrefix.ProneEnvelopeVisualBounds"/>. Separated
+    /// out so <c>PawnGeometryTests</c> can drive the containment claim over
+    /// arbitrary rectangles and anchors rather than only over the ones a real
+    /// appearance produces.
+    /// </summary>
+    internal static Rectangle CreateProneEnvelope(
+        Rectangle standingBounds,
+        Vector2 footAnchor)
+    {
+        var left = standingBounds.Left - footAnchor.X;
+        var right = standingBounds.Right - footAnchor.X;
+        var top = standingBounds.Top - footAnchor.Y;
+        var bottom = standingBounds.Bottom - footAnchor.Y;
+
+        // The greatest distance from the anchor to any corner. Squared while
+        // comparing, so the four candidates cost one square root between them.
+        var farthestSquared = MathF.Max(
+            MathF.Max(
+                (left * left) + (top * top),
+                (right * right) + (top * top)),
+            MathF.Max(
+                (left * left) + (bottom * bottom),
+                (right * right) + (bottom * bottom)));
+        var radius = MathF.Sqrt(farthestSquared);
+
+        // Floored on the low edges and ceilinged on the high ones, so the
+        // integer rectangle never cuts inside the real interval the radius
+        // describes — the same rounding rule ConservativePawnCull.Bounds uses.
+        var boundsLeft = (int)MathF.Floor(footAnchor.X - radius);
+        var boundsTop = (int)MathF.Floor(footAnchor.Y - radius);
+        var boundsRight = (int)MathF.Ceiling(footAnchor.X + radius);
+        var boundsBottom = (int)MathF.Ceiling(footAnchor.Y + radius);
+        return Rectangle.Union(
+            standingBounds,
+            new Rectangle(
+                boundsLeft,
+                boundsTop,
+                boundsRight - boundsLeft,
+                boundsBottom - boundsTop));
     }
 
     private static SwingPose ToSwingPose(
@@ -1028,7 +1127,8 @@ internal static class PawnGeometry
         GaitPose gaitPose,
         RangedPose rangedPose,
         AttackPose? attackPose = null,
-        (float X, float Y) reactionOffset = default)
+        (float X, float Y) reactionOffset = default,
+        float collapseRotationRadians = 0f)
     {
         var apparentScale = proportions.ApparentScale;
         var detailTier = proportions.DetailTier;
@@ -1166,7 +1266,15 @@ internal static class PawnGeometry
             legs.LeftFoot,
             legs.RightFoot,
             arms,
-            rangedPose.DrawTension);
+            rangedPose.DrawTension,
+
+            // The pivot is the foot anchor, not the body anchor and not the
+            // torso centre. A body turns about the point where it is standing,
+            // so a quarter turn about this point leaves the feet on the
+            // authoritative position the simulation put them on and lays the
+            // head on the ground plane a body's length away. Pivoting anywhere
+            // higher would slide the whole corpse off the ground it fell on.
+            PawnTransform.AboutPivot(footAnchor, collapseRotationRadians));
     }
 
     /// <summary>

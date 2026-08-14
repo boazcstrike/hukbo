@@ -19,6 +19,42 @@ this plan was written, but `src/Hukbo.Client/ArenaGame.Rendering.cs`,
 `ArenaGame.cs`, and the pawn rendering files were not — confirm before assuming
 a conflict is yours.
 
+## What was run, 2026-08-14
+
+Every task except CH-T9 is done, and the package is on branch
+`ui-chrome-nine-slice` branched from `main` at `8f2207f`. CH-T9's six rows are
+in `docs/development/smoke-checklist.md` in the main working tree rather than on
+this branch, because that file was being rewritten concurrently by the
+death-collapse package and forking it would have built a conflict for nothing.
+
+The canonical gate was run by the integrator on the integrated branch, not by
+any sub-agent:
+
+```
+[PASS] Required prerequisites and repository configuration are present.
+[PASS] Locked package restore completed.
+[PASS] Formatting verification completed.
+[PASS] Release solution build completed.
+[PASS] Release repository tests completed.
+[PASS] Headless workload completed: agents=200 ticks=10000 seed=1.   (x5)
+[PASS] Canonical repository verification completed.
+```
+
+`Hukbo.Client.Tests` went from 3,786 to 3,867. None of that is evidence for a
+single `CH` smoke row: what it proves is that the tile arithmetic, the settings
+round-trip, the schema window, and the focus chain behave as specified. Whether
+a nine-slice panel reads as an improvement is not a property a test holds an
+opinion about.
+
+Two things were found rather than planned, and both are recorded where they
+happened rather than only here. CH-T6 found that `SettingsSelectorCount = 5` is
+correct and that a sixth settings-column selector would overflow the panel by
+81 pixels, which is why the chrome selector went into the button column
+instead — design sections 10 and 10a. CH-T5 found that `SourceHygieneTests`
+pinned `Content.mgcb` to exactly 24 spritefonts under R-W6.18 and OD-4, so the
+first texture this repository has ever built required re-recording that pin;
+the list stays an exact match and a twenty-sixth entry still fails.
+
 ## Tasks
 
 | Task | What | Files | Done when | Depends on | Verified by |

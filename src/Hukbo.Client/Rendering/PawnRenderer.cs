@@ -370,7 +370,11 @@ internal static class PawnRenderer
             isDead);
         if (torsoResolutionStep == VisualFallbackStep.DiagnosticPlaceholder)
         {
-            DrawPlaceholder(spriteBatch, pixel, layout.PlaceholderBounds);
+            DrawPlaceholder(
+                spriteBatch,
+                pixel,
+                layout.PlaceholderBounds,
+                layout.Collapse);
             if (log is not null)
             {
                 PlaceholderDiagnostics.ReportFallback(
@@ -402,7 +406,7 @@ internal static class PawnRenderer
             appearance.ShieldSkinId,
             appearance.ShieldFaceColor,
             isDead);
-        DrawHead(spriteBatch, pixel, layout.HeadBounds, skinColor);
+        DrawHead(spriteBatch, pixel, layout.HeadBounds, skinColor, layout.Collapse);
 
         if (layout.DetailTier != PawnDetailTier.Low)
         {
@@ -419,8 +423,8 @@ internal static class PawnRenderer
         // Before the trail and the weapon, after the torso and the shield: the
         // arms leave the body and the weapon is held in the hand, so the
         // weapon has to draw over the hand that holds it rather than under it.
-        DrawArms(spriteBatch, pixel, layout.Arms, skinColor);
-        DrawSwingTrail(spriteBatch, pixel, layout.SwingTrail);
+        DrawArms(spriteBatch, pixel, layout.Arms, skinColor, layout.Collapse);
+        DrawSwingTrail(spriteBatch, pixel, layout.SwingTrail, layout.Collapse);
         DrawWeapon(
             spriteBatch,
             pixel,
@@ -432,6 +436,14 @@ internal static class PawnRenderer
 
         if (state is PawnVisualState.Hovered or PawnVisualState.Selected)
         {
+            // Deliberately not carried by layout.Collapse. The selection ring
+            // is a screen-space marker around the pawn rather than a part of
+            // it, and a tilted selection ring would read as a rotated
+            // interface element. It can never meet a collapsing body in any
+            // case: AgentSelection refuses to select or hover a dead agent, so
+            // this branch and a non-identity collapse are mutually exclusive
+            // by construction, and this comment records that the exclusion was
+            // checked rather than assumed.
             DrawSelectionMark(
                 spriteBatch,
                 pixel,
@@ -441,14 +453,22 @@ internal static class PawnRenderer
                     : HoverColor,
                 state == PawnVisualState.Selected ? 2 : 1);
         }
-        else if (isDead)
+        else if (isDead && layout.DetailTier == PawnDetailTier.Low)
         {
+            // The 2026-08-14 death-collapse design, section 6. At Medium and
+            // High the prone silhouette carries the read on its own, and an X
+            // painted over a body is an interface marker on a battlefield. At
+            // Low the pawn is a handful of pixels, a quarter turn is not
+            // resolvable, and this mark is the only signal a spectator has
+            // left — the same argument by which DrawHeadTreatment is already
+            // gated off at Low, run in the opposite direction.
             DrawDeadMark(
                 spriteBatch,
                 pixel,
                 Rectangle.Union(
                     layout.TorsoBounds,
-                    layout.HeadBounds));
+                    layout.HeadBounds),
+                layout.Collapse);
         }
 
         // Coexistence decision, made explicitly rather than left to
@@ -464,7 +484,7 @@ internal static class PawnRenderer
         // either/or.
         if (isLeader)
         {
-            DrawLeaderMark(spriteBatch, pixel, layout.HeadBounds);
+            DrawLeaderMark(spriteBatch, pixel, layout.HeadBounds, layout.Collapse);
         }
 
         // The same coexistence decision as the leader mark above, taken for
@@ -481,7 +501,12 @@ internal static class PawnRenderer
                 layout.HeadBounds,
                 out var breakOffMarkBounds))
         {
-            spriteBatch.Draw(pixel, breakOffMarkBounds, BreakOffColor);
+            DrawQuad(
+                spriteBatch,
+                pixel,
+                breakOffMarkBounds,
+                BreakOffColor,
+                layout.Collapse);
         }
     }
 
@@ -491,6 +516,13 @@ internal static class PawnRenderer
         Rectangle bounds,
         Color factionColor)
     {
+        // The one layer on a pawn that is deliberately not carried by
+        // PawnLayout.Collapse (the 2026-08-14 death-collapse design, section
+        // 4). This is the faction-tinted footprint on the ground plane, not
+        // part of the body: it marks where the warrior is standing, and where
+        // a corpse fell. It is nearly square and centred on the foot anchor,
+        // which is also the collapse's pivot, so rotating it would move almost
+        // nothing and would mean something wrong.
         spriteBatch.Draw(pixel, bounds, factionColor);
 
         var inner = Inset(bounds, 1);
@@ -521,12 +553,12 @@ internal static class PawnRenderer
     {
         if (!layout.LeftLegBounds.IsEmpty)
         {
-            spriteBatch.Draw(pixel, layout.LeftLegBounds, legColor);
+            DrawQuad(spriteBatch, pixel, layout.LeftLegBounds, legColor, layout.Collapse);
         }
 
         if (!layout.RightLegBounds.IsEmpty)
         {
-            spriteBatch.Draw(pixel, layout.RightLegBounds, legColor);
+            DrawQuad(spriteBatch, pixel, layout.RightLegBounds, legColor, layout.Collapse);
         }
     }
 
@@ -549,12 +581,12 @@ internal static class PawnRenderer
     {
         if (!layout.LeftFootBounds.IsEmpty)
         {
-            spriteBatch.Draw(pixel, layout.LeftFootBounds, skinColor);
+            DrawQuad(spriteBatch, pixel, layout.LeftFootBounds, skinColor, layout.Collapse);
         }
 
         if (!layout.RightFootBounds.IsEmpty)
         {
-            spriteBatch.Draw(pixel, layout.RightFootBounds, skinColor);
+            DrawQuad(spriteBatch, pixel, layout.RightFootBounds, skinColor, layout.Collapse);
         }
     }
 
@@ -569,19 +601,22 @@ internal static class PawnRenderer
             spriteBatch,
             pixel,
             layout.TorsoBounds,
-            OutlineColor);
+            OutlineColor,
+            layout.Collapse);
         DrawSteppedCapsule(
             spriteBatch,
             pixel,
             Inset(layout.TorsoBounds, 1),
-            torsoFillColor);
+            torsoFillColor,
+            layout.Collapse);
 
         if (layout.DetailTier == PawnDetailTier.High)
         {
             var beltHeight = Math.Max(
                 1,
                 (int)MathF.Round(layout.ApparentScale));
-            spriteBatch.Draw(
+            DrawQuad(
+                spriteBatch,
                 pixel,
                 new Rectangle(
                     layout.TorsoBounds.Left + 1,
@@ -589,7 +624,8 @@ internal static class PawnRenderer
                         Math.Max(2, layout.TorsoBounds.Height / 3),
                     Math.Max(1, layout.TorsoBounds.Width - 2),
                     beltHeight),
-                accentColor);
+                accentColor,
+                layout.Collapse);
         }
     }
 
@@ -608,14 +644,20 @@ internal static class PawnRenderer
     private static void DrawPlaceholder(
         SpriteBatch spriteBatch,
         Texture2D pixel,
-        Rectangle bounds)
+        Rectangle bounds,
+        PawnTransform transform)
     {
         if (bounds.IsEmpty)
         {
             return;
         }
 
-        spriteBatch.Draw(pixel, bounds, VisualFallbackResolver.PlaceholderColor);
+        DrawQuad(
+            spriteBatch,
+            pixel,
+            bounds,
+            VisualFallbackResolver.PlaceholderColor,
+            transform);
     }
 
     /// <summary>
@@ -666,9 +708,21 @@ internal static class PawnRenderer
             layout.ApparentScale);
 
         DrawArmorFlankBar(
-            spriteBatch, pixel, left, armorMaterialTone, isLeftBar: true, layout.DetailTier);
+            spriteBatch,
+            pixel,
+            left,
+            armorMaterialTone,
+            isLeftBar: true,
+            layout.DetailTier,
+            layout.Collapse);
         DrawArmorFlankBar(
-            spriteBatch, pixel, right, armorMaterialTone, isLeftBar: false, layout.DetailTier);
+            spriteBatch,
+            pixel,
+            right,
+            armorMaterialTone,
+            isLeftBar: false,
+            layout.DetailTier,
+            layout.Collapse);
     }
 
     /// <summary>
@@ -689,16 +743,17 @@ internal static class PawnRenderer
         Rectangle bar,
         Color armorMaterialTone,
         bool isLeftBar,
-        PawnDetailTier detailTier)
+        PawnDetailTier detailTier,
+        PawnTransform transform)
     {
-        spriteBatch.Draw(pixel, bar, armorMaterialTone);
+        DrawQuad(spriteBatch, pixel, bar, armorMaterialTone, transform);
 
         var outerEdge = new Rectangle(
             isLeftBar ? bar.Left : bar.Right - 1,
             bar.Top,
             1,
             bar.Height);
-        spriteBatch.Draw(pixel, outerEdge, OutlineColor);
+        DrawQuad(spriteBatch, pixel, outerEdge, OutlineColor, transform);
 
         if (detailTier == PawnDetailTier.High)
         {
@@ -707,8 +762,12 @@ internal static class PawnRenderer
                 bar.Top,
                 1,
                 bar.Height);
-            spriteBatch.Draw(
-                pixel, innerEdge, DarkenChannels(armorMaterialTone, ArmorInnerEdgeDarkenFactor));
+            DrawQuad(
+                spriteBatch,
+                pixel,
+                innerEdge,
+                DarkenChannels(armorMaterialTone, ArmorInnerEdgeDarkenFactor),
+                transform);
         }
     }
 
@@ -734,17 +793,18 @@ internal static class PawnRenderer
             return;
         }
 
-        spriteBatch.Draw(pixel, layout.SashBounds, sashColor);
+        DrawQuad(spriteBatch, pixel, layout.SashBounds, sashColor, layout.Collapse);
     }
 
     private static void DrawHead(
         SpriteBatch spriteBatch,
         Texture2D pixel,
         Rectangle bounds,
-        Color skinColor)
+        Color skinColor,
+        PawnTransform transform)
     {
-        DrawDisk(spriteBatch, pixel, bounds, OutlineColor);
-        DrawDisk(spriteBatch, pixel, Inset(bounds, 1), skinColor);
+        DrawDisk(spriteBatch, pixel, bounds, OutlineColor, transform);
+        DrawDisk(spriteBatch, pixel, Inset(bounds, 1), skinColor, transform);
     }
 
     private static void DrawHeadTreatment(
@@ -759,18 +819,20 @@ internal static class PawnRenderer
         switch (treatment)
         {
             case PawnHeadTreatment.CroppedHair:
-                spriteBatch.Draw(pixel, bounds, color);
-                spriteBatch.Draw(
+                DrawQuad(spriteBatch, pixel, bounds, color, layout.Collapse);
+                DrawQuad(
+                    spriteBatch,
                     pixel,
                     new Rectangle(
                         bounds.Left,
                         bounds.Bottom,
                         Math.Max(1, bounds.Width / 4),
                         Math.Max(1, bounds.Height / 2)),
-                    color);
+                    color,
+                    layout.Collapse);
                 break;
             case PawnHeadTreatment.Headcloth:
-                spriteBatch.Draw(pixel, bounds, color);
+                DrawQuad(spriteBatch, pixel, bounds, color, layout.Collapse);
                 var tailWidth = Math.Max(
                     1,
                     (int)MathF.Round(layout.ApparentScale));
@@ -778,25 +840,29 @@ internal static class PawnRenderer
                     bounds.Bottom - 1,
                     layout.HeadBounds.Top,
                     layout.HeadBounds.Bottom - 1);
-                spriteBatch.Draw(
+                DrawQuad(
+                    spriteBatch,
                     pixel,
                     new Rectangle(
                         layout.HeadBounds.Right - tailWidth,
                         tailTop,
                         tailWidth,
                         layout.HeadBounds.Bottom - tailTop),
-                    color);
+                    color,
+                    layout.Collapse);
                 break;
             case PawnHeadTreatment.WrappedCloth:
-                spriteBatch.Draw(pixel, bounds, color);
-                spriteBatch.Draw(
+                DrawQuad(spriteBatch, pixel, bounds, color, layout.Collapse);
+                DrawQuad(
+                    spriteBatch,
                     pixel,
                     new Rectangle(
                         bounds.Left,
                         bounds.Top + Math.Max(1, bounds.Height / 2),
                         bounds.Width,
                         1),
-                    color);
+                    color,
+                    layout.Collapse);
                 break;
             default:
                 throw new ArgumentOutOfRangeException(
@@ -829,12 +895,22 @@ internal static class PawnRenderer
     {
         if (!layout.AdornmentAccentPrimaryBounds.IsEmpty)
         {
-            spriteBatch.Draw(pixel, layout.AdornmentAccentPrimaryBounds, accentColor);
+            DrawQuad(
+                spriteBatch,
+                pixel,
+                layout.AdornmentAccentPrimaryBounds,
+                accentColor,
+                layout.Collapse);
         }
 
         if (!layout.AdornmentAccentSecondaryBounds.IsEmpty)
         {
-            spriteBatch.Draw(pixel, layout.AdornmentAccentSecondaryBounds, accentColor);
+            DrawQuad(
+                spriteBatch,
+                pixel,
+                layout.AdornmentAccentSecondaryBounds,
+                accentColor,
+                layout.Collapse);
         }
     }
 
@@ -876,10 +952,12 @@ internal static class PawnRenderer
         // lashing band (lashedWorn only) draws over it.
         if (role == PawnWeaponRole.Wasay)
         {
-            spriteBatch.Draw(
+            DrawQuad(
+                spriteBatch,
                 pixel,
                 layout.SecondaryEquipmentBounds,
-                ApplyState(weaponBladeColor, isDead));
+                ApplyState(weaponBladeColor, isDead),
+                layout.Collapse);
             DrawLashingBand(
                 spriteBatch,
                 pixel,
@@ -901,7 +979,8 @@ internal static class PawnRenderer
             layout.FootAnchor + new Vector2(-2f * scale, -4f * scale),
             layout.FootAnchor + new Vector2(-6f * scale, -11f * scale),
             ApplyState(CharredWood, isDead),
-            MathF.Max(2f, 2f * scale));
+            MathF.Max(2f, 2f * scale),
+            layout.Collapse);
     }
 
     /// <summary>
@@ -946,7 +1025,12 @@ internal static class PawnRenderer
             bounds.Width,
             bandHeight);
 
-        spriteBatch.Draw(pixel, band, ApplyState(lashingBandColor.Value, isDead));
+        DrawQuad(
+            spriteBatch,
+            pixel,
+            band,
+            ApplyState(lashingBandColor.Value, isDead),
+            layout.Collapse);
     }
 
     /// <summary>
@@ -991,7 +1075,7 @@ internal static class PawnRenderer
     /// </param>
     /// <remarks>
     /// VIS-015 (S12 active posture): every element below is drawn through
-    /// <see cref="DrawRotatedBlock"/> about one shared pivot —
+    /// <see cref="DrawQuad"/> under one shared transform — built about
     /// <c>bounds.Center</c> — instead of the plain axis-aligned
     /// <c>SpriteBatch.Draw(Texture2D, Rectangle, Color)</c> the block used
     /// before. <see cref="PawnLayout.ShieldPostureRotationRadians"/> is the
@@ -1014,7 +1098,14 @@ internal static class PawnRenderer
 
         var bounds = layout.ShieldBounds;
         var pivot = new Vector2(bounds.Center.X, bounds.Center.Y);
-        var rotation = layout.ShieldPostureRotationRadians;
+
+        // The posture rotation first, about the shield's own centre, then the
+        // collapse, about the whole body's foot anchor. Composed once here so
+        // every sub-element below shares one value and the block cannot come
+        // apart on a falling body.
+        var transform = PawnTransform
+            .AboutPivot(pivot, layout.ShieldPostureRotationRadians)
+            .Then(layout.Collapse);
         var faceColor = ApplyState(shieldFaceColor, isDead);
         var isBoxerCagayan =
             shieldSkinId == ShieldVisualCatalog.BoxerCagayan.Catalog.Id;
@@ -1031,14 +1122,13 @@ internal static class PawnRenderer
                 spriteBatch,
                 pixel,
                 bounds,
-                pivot,
-                rotation,
+                transform,
                 ShieldCurvatureInsetPixels(layout.DetailTier),
                 faceColor);
         }
         else
         {
-            DrawRotatedBlock(spriteBatch, pixel, bounds, pivot, rotation, faceColor);
+            DrawQuad(spriteBatch, pixel, bounds, faceColor, transform);
         }
 
         if (DetailTierGate.ShouldDraw(layout.ApparentScale, VisualDetailTier.Medium))
@@ -1049,7 +1139,7 @@ internal static class PawnRenderer
                 // face, replacing the vertical seam on this skin only.
                 if (bounds.Height >= 3)
                 {
-                    DrawRotatedBlock(
+                    DrawQuad(
                         spriteBatch,
                         pixel,
                         new Rectangle(
@@ -1057,9 +1147,8 @@ internal static class PawnRenderer
                             bounds.Center.Y,
                             Math.Max(1, bounds.Width - 2),
                             1),
-                        pivot,
-                        rotation,
-                        ApplyState(WeaponVisualCatalog.RattanLashingTone, isDead));
+                        ApplyState(WeaponVisualCatalog.RattanLashingTone, isDead),
+                        transform);
                 }
             }
             else if (bounds.Width >= 3)
@@ -1067,7 +1156,7 @@ internal static class PawnRenderer
                 // A lighter vertical seam so the block reads as a face
                 // rather than a silhouette hole. Kept for S3 alongside its
                 // curvature (OD-W2-c, default retained).
-                DrawRotatedBlock(
+                DrawQuad(
                     spriteBatch,
                     pixel,
                     new Rectangle(
@@ -1075,9 +1164,8 @@ internal static class PawnRenderer
                         bounds.Top + 1,
                         1,
                         Math.Max(1, bounds.Height - 2)),
-                    pivot,
-                    rotation,
-                    ApplyState(Iron, isDead));
+                    ApplyState(Iron, isDead),
+                    transform);
             }
         }
 
@@ -1089,20 +1177,18 @@ internal static class PawnRenderer
             var edgeToneColor = ApplyState(
                 Color.Lerp(shieldFaceColor, OutlineColor, ShieldEdgeToneDarkenFactor),
                 isDead);
-            DrawRotatedBlock(
+            DrawQuad(
                 spriteBatch,
                 pixel,
                 new Rectangle(bounds.Left, bounds.Top, 1, bounds.Height),
-                pivot,
-                rotation,
-                edgeToneColor);
-            DrawRotatedBlock(
+                edgeToneColor,
+                transform);
+            DrawQuad(
                 spriteBatch,
                 pixel,
                 new Rectangle(bounds.Right - 1, bounds.Top, 1, bounds.Height),
-                pivot,
-                rotation,
-                edgeToneColor);
+                edgeToneColor,
+                transform);
         }
     }
 
@@ -1129,29 +1215,24 @@ internal static class PawnRenderer
     /// exactly how the curvature degrades to the straight block at Low tier
     /// and on the smallest blocks at any tier.
     /// </summary>
-    /// <param name="pivot">
-    /// The shared point (VIS-015, S12) every sub-rectangle of the curved
-    /// face rotates about, so the cap-and-middle assembly stays rigid
-    /// instead of rotating each part about its own center.
-    /// </param>
-    /// <param name="rotationRadians">
-    /// The fixed active-posture rotation (VIS-015);
-    /// <see cref="PawnLayout.ShieldPostureRotationRadians"/> at every call
-    /// site today.
+    /// <param name="transform">
+    /// The shared transform (VIS-015, S12, composed with the death collapse)
+    /// every sub-rectangle of the curved face is carried by, so the
+    /// cap-and-middle assembly stays rigid instead of each part moving about
+    /// its own centre.
     /// </param>
     private static void DrawCurvedShieldFace(
         SpriteBatch spriteBatch,
         Texture2D pixel,
         Rectangle bounds,
-        Vector2 pivot,
-        float rotationRadians,
+        PawnTransform transform,
         int insetPixels,
         Color color)
     {
         var insetWidth = bounds.Width - (insetPixels * 2);
         if (insetPixels <= 0 || insetWidth <= 0)
         {
-            DrawRotatedBlock(spriteBatch, pixel, bounds, pivot, rotationRadians, color);
+            DrawQuad(spriteBatch, pixel, bounds, color, transform);
             return;
         }
 
@@ -1173,46 +1254,63 @@ internal static class PawnRenderer
             insetWidth,
             capHeight);
 
-        DrawRotatedBlock(spriteBatch, pixel, middle, pivot, rotationRadians, color);
-        DrawRotatedBlock(spriteBatch, pixel, top, pivot, rotationRadians, color);
-        DrawRotatedBlock(spriteBatch, pixel, bottom, pivot, rotationRadians, color);
+        DrawQuad(spriteBatch, pixel, middle, color, transform);
+        DrawQuad(spriteBatch, pixel, top, color, transform);
+        DrawQuad(spriteBatch, pixel, bottom, color, transform);
     }
 
     /// <summary>
-    /// Draws <paramref name="localBounds"/> — a rectangle expressed in the
-    /// shield block's own unrotated local layout, computed the same way
-    /// every other <see cref="DrawShield"/> sub-element already is — rotated
-    /// by <paramref name="rotationRadians"/> about <paramref name="pivot"/>
-    /// rather than about its own center, so a group of sub-rectangles
-    /// sharing one pivot stays rigid together (VIS-015, S12 active posture).
-    /// A rotation of zero reproduces the plain axis-aligned draw this
-    /// replaces, up to the sub-pixel rounding the rotation overload's
-    /// floating-point origin introduces on an odd width or height — never
-    /// visible in practice, since the posture rotation is never zero at any
-    /// call site today.
+    /// The single point every rectangle on a pawn reaches the sprite batch
+    /// through. <paramref name="localBounds"/> is a rectangle expressed in the
+    /// pawn's own unrotated layout, exactly as <see cref="PawnGeometry"/>
+    /// produced it; <paramref name="transform"/> is what carries it wherever it
+    /// is actually drawn.
     /// </summary>
-    private static void DrawRotatedBlock(
+    /// <remarks>
+    /// <para>
+    /// Two transforms reach here. The shield's fixed active-posture rotation
+    /// about the shield block's own centre (VIS-015, S12) keeps a group of
+    /// sub-rectangles rigid together instead of rotating each about its own
+    /// centre. The death collapse (the 2026-08-14 death-collapse design,
+    /// section 4) rotates the whole pawn about its foot anchor. A shield on a
+    /// collapsing body carries both, composed through
+    /// <see cref="PawnTransform.Then"/> into the one value this method takes.
+    /// </para>
+    /// <para>
+    /// <see cref="PawnTransform.Identity"/> is not merely a rotation of zero —
+    /// it takes the plain axis-aligned overload, which is what makes this
+    /// method free of consequence for every pawn that is neither shielded nor
+    /// falling.
+    /// </para>
+    /// </remarks>
+    private static void DrawQuad(
         SpriteBatch spriteBatch,
         Texture2D pixel,
         Rectangle localBounds,
-        Vector2 pivot,
-        float rotationRadians,
-        Color color)
+        Color color,
+        PawnTransform transform)
     {
-        var localCenter =
-            new Vector2(localBounds.Center.X, localBounds.Center.Y) - pivot;
-        var cosine = MathF.Cos(rotationRadians);
-        var sine = MathF.Sin(rotationRadians);
-        var rotatedCenter = new Vector2(
-            (localCenter.X * cosine) - (localCenter.Y * sine),
-            (localCenter.X * sine) + (localCenter.Y * cosine));
+        if (transform.IsIdentity)
+        {
+            // The axis-aligned overload, unchanged. Every living pawn takes
+            // this branch at every one of its call sites, so a living pawn's
+            // drawn pixels are what they were before the collapse existed —
+            // not merely equal up to the sub-pixel rounding the rotation
+            // overload's floating-point origin introduces on an odd width or
+            // height.
+            spriteBatch.Draw(pixel, localBounds, color);
+            return;
+        }
+
+        var center = transform.Apply(
+            new Vector2(localBounds.Center.X, localBounds.Center.Y));
 
         spriteBatch.Draw(
             pixel,
-            pivot + rotatedCenter,
+            center,
             sourceRectangle: null,
             color,
-            rotationRadians,
+            transform.Radians,
             new Vector2(0.5f, 0.5f),
             new Vector2(localBounds.Width, localBounds.Height),
             SpriteEffects.None,
@@ -1229,17 +1327,18 @@ internal static class PawnRenderer
         SpriteBatch spriteBatch,
         Texture2D pixel,
         ArmLayout arms,
-        Color skinColor)
+        Color skinColor,
+        PawnTransform transform)
     {
         if (arms.IsEmpty)
         {
             return;
         }
 
-        DrawArmSegment(spriteBatch, pixel, arms.WeaponUpperArm, arms.Thickness, skinColor);
-        DrawArmSegment(spriteBatch, pixel, arms.WeaponForearm, arms.Thickness, skinColor);
-        DrawArmSegment(spriteBatch, pixel, arms.SupportUpperArm, arms.Thickness, skinColor);
-        DrawArmSegment(spriteBatch, pixel, arms.SupportForearm, arms.Thickness, skinColor);
+        DrawArmSegment(spriteBatch, pixel, arms.WeaponUpperArm, arms.Thickness, skinColor, transform);
+        DrawArmSegment(spriteBatch, pixel, arms.WeaponForearm, arms.Thickness, skinColor, transform);
+        DrawArmSegment(spriteBatch, pixel, arms.SupportUpperArm, arms.Thickness, skinColor, transform);
+        DrawArmSegment(spriteBatch, pixel, arms.SupportForearm, arms.Thickness, skinColor, transform);
     }
 
     private static void DrawArmSegment(
@@ -1247,7 +1346,8 @@ internal static class PawnRenderer
         Texture2D pixel,
         ArmSegment segment,
         float thickness,
-        Color skinColor)
+        Color skinColor,
+        PawnTransform transform)
     {
         if (segment.IsEmpty)
         {
@@ -1260,7 +1360,8 @@ internal static class PawnRenderer
             segment.From,
             segment.To,
             skinColor,
-            thickness);
+            thickness,
+            transform);
     }
 
     /// <summary>
@@ -1271,7 +1372,8 @@ internal static class PawnRenderer
     private static void DrawSwingTrail(
         SpriteBatch spriteBatch,
         Texture2D pixel,
-        SwingTrail trail)
+        SwingTrail trail,
+        PawnTransform transform)
     {
         if (trail.IsEmpty)
         {
@@ -1292,7 +1394,8 @@ internal static class PawnRenderer
                     trail.Strength * trail.Emphasis * along * 0.55f,
                     0f,
                     1f),
-                trail.Thickness);
+                trail.Thickness,
+                transform);
             previous = current;
         }
     }
@@ -1445,21 +1548,24 @@ internal static class PawnRenderer
             layout.WeaponStart,
             bladeStart,
             gripColor,
-            MathF.Max(2f, layout.WeaponThickness * 0.85f));
+            MathF.Max(2f, layout.WeaponThickness * 0.85f),
+            layout.Collapse);
         DrawLine(
             spriteBatch,
             pixel,
             bladeStart,
             layout.WeaponEnd,
             bladeColor,
-            MathF.Max(2f, layout.WeaponThickness * widthMultiplier));
+            MathF.Max(2f, layout.WeaponThickness * widthMultiplier),
+            layout.Collapse);
         DrawLine(
             spriteBatch,
             pixel,
             bladeStart,
             layout.WeaponEnd,
             highlightColor,
-            MathF.Max(1f, layout.WeaponThickness * 0.55f));
+            MathF.Max(1f, layout.WeaponThickness * 0.55f),
+            layout.Collapse);
     }
 
     /// <summary>
@@ -1492,15 +1598,16 @@ internal static class PawnRenderer
     {
         var (staveTip, midpoint, staveBase) = GetBowstringLine(layout);
         var thickness = MathF.Max(1f, layout.WeaponThickness * 0.4f);
-        DrawLine(spriteBatch, pixel, staveTip, midpoint, stringColor, thickness);
-        DrawLine(spriteBatch, pixel, midpoint, staveBase, stringColor, thickness);
+        DrawLine(spriteBatch, pixel, staveTip, midpoint, stringColor, thickness, layout.Collapse);
+        DrawLine(spriteBatch, pixel, midpoint, staveBase, stringColor, thickness, layout.Collapse);
     }
 
     private static void DrawSteppedCapsule(
         SpriteBatch spriteBatch,
         Texture2D pixel,
         Rectangle bounds,
-        Color color)
+        Color color,
+        PawnTransform transform)
     {
         if (bounds.IsEmpty)
         {
@@ -1527,16 +1634,17 @@ internal static class PawnRenderer
             capWidth,
             Math.Max(1, step));
 
-        spriteBatch.Draw(pixel, middle, color);
-        spriteBatch.Draw(pixel, top, color);
-        spriteBatch.Draw(pixel, bottom, color);
+        DrawQuad(spriteBatch, pixel, middle, color, transform);
+        DrawQuad(spriteBatch, pixel, top, color, transform);
+        DrawQuad(spriteBatch, pixel, bottom, color, transform);
     }
 
     private static void DrawDisk(
         SpriteBatch spriteBatch,
         Texture2D pixel,
         Rectangle bounds,
-        Color color)
+        Color color,
+        PawnTransform transform)
     {
         if (bounds.IsEmpty)
         {
@@ -1545,30 +1653,36 @@ internal static class PawnRenderer
 
         var bandHeight = Math.Max(1, bounds.Height / 4);
         var inset = Math.Max(1, bounds.Width / 5);
-        spriteBatch.Draw(
+        DrawQuad(
+            spriteBatch,
             pixel,
             new Rectangle(
                 bounds.Left,
                 bounds.Top + bandHeight,
                 bounds.Width,
                 Math.Max(1, bounds.Height - (bandHeight * 2))),
-            color);
-        spriteBatch.Draw(
+            color,
+            transform);
+        DrawQuad(
+            spriteBatch,
             pixel,
             new Rectangle(
                 bounds.Left + inset,
                 bounds.Top,
                 Math.Max(1, bounds.Width - (inset * 2)),
                 bandHeight),
-            color);
-        spriteBatch.Draw(
+            color,
+            transform);
+        DrawQuad(
+            spriteBatch,
             pixel,
             new Rectangle(
                 bounds.Left + inset,
                 bounds.Bottom - bandHeight,
                 Math.Max(1, bounds.Width - (inset * 2)),
                 bandHeight),
-            color);
+            color,
+            transform);
     }
 
     /// <summary>
@@ -1657,12 +1771,15 @@ internal static class PawnRenderer
     private static void DrawLeaderMark(
         SpriteBatch spriteBatch,
         Texture2D pixel,
-        Rectangle headBounds)
+        Rectangle headBounds,
+        PawnTransform transform)
     {
         var glyph = GetLeaderMarkGlyph(headBounds);
-        spriteBatch.Draw(pixel, glyph.Base, LeaderColor);
-        DrawLine(spriteBatch, pixel, glyph.LeftArmStart, glyph.LeftArmEnd, LeaderColor, 1f);
-        DrawLine(spriteBatch, pixel, glyph.RightArmStart, glyph.RightArmEnd, LeaderColor, 1f);
+        DrawQuad(spriteBatch, pixel, glyph.Base, LeaderColor, transform);
+        DrawLine(
+            spriteBatch, pixel, glyph.LeftArmStart, glyph.LeftArmEnd, LeaderColor, 1f, transform);
+        DrawLine(
+            spriteBatch, pixel, glyph.RightArmStart, glyph.RightArmEnd, LeaderColor, 1f, transform);
     }
 
     /// <summary>
@@ -1785,7 +1902,8 @@ internal static class PawnRenderer
     private static void DrawDeadMark(
         SpriteBatch spriteBatch,
         Texture2D pixel,
-        Rectangle bounds)
+        Rectangle bounds,
+        PawnTransform transform)
     {
         DrawLine(
             spriteBatch,
@@ -1793,24 +1911,38 @@ internal static class PawnRenderer
             new Vector2(bounds.Left, bounds.Top),
             new Vector2(bounds.Right, bounds.Bottom),
             DeadColor,
-            2f);
+            2f,
+            transform);
         DrawLine(
             spriteBatch,
             pixel,
             new Vector2(bounds.Right, bounds.Top),
             new Vector2(bounds.Left, bounds.Bottom),
             DeadColor,
-            2f);
+            2f,
+            transform);
     }
 
+    /// <param name="transform">
+    /// Applied to both endpoints before the stroke is measured. A rigid
+    /// transform preserves length, and the stroke's own angle is recomputed
+    /// from the transformed points below, so nothing else here has to know the
+    /// line was carried anywhere. Defaults to
+    /// <see cref="PawnTransform.Identity"/>, which returns both points
+    /// untouched.
+    /// </param>
     private static void DrawLine(
         SpriteBatch spriteBatch,
         Texture2D pixel,
         Vector2 start,
         Vector2 end,
         Color color,
-        float thickness)
+        float thickness,
+        PawnTransform transform = default)
     {
+        start = transform.Apply(start);
+        end = transform.Apply(end);
+
         var delta = end - start;
         var length = delta.Length();
         if (length <= float.Epsilon)
@@ -1843,8 +1975,23 @@ internal static class PawnRenderer
                 height);
     }
 
+    /// <summary>
+    /// PROVISIONAL. How far a corpse's every colour is pulled toward
+    /// <see cref="DeadColor"/>.
+    /// </summary>
+    /// <remarks>
+    /// It was 0.68 while a corpse stood up, because colour was then the only
+    /// thing saying the warrior was dead. A body lying flat on the ground says
+    /// it in the silhouette (the 2026-08-14 death-collapse design, section 6),
+    /// so the blend no longer has to carry the whole message — and at 0.68 a
+    /// field of dead read as a field of grey furniture rather than of fallen
+    /// warriors. This is the tuning knob if the manual smoke rows say the read
+    /// is wrong in either direction.
+    /// </remarks>
+    private const float DeadDesaturationBlend = 0.40f;
+
     private static Color ApplyState(Color color, bool isDead) =>
-        isDead ? Color.Lerp(color, DeadColor, 0.68f) : color;
+        isDead ? Color.Lerp(color, DeadColor, DeadDesaturationBlend) : color;
 
     private static Color ApplyHitPulse(Color color, float strength) =>
         Color.Lerp(color, HitPulseColor, strength * 0.55f);

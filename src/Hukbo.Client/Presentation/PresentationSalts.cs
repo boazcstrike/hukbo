@@ -142,6 +142,19 @@ internal static class PresentationSalts
     public const ulong WarriorNameSelectionSalt = 0xD6B03F82A5C1E794UL;
 
     /// <summary>
+    /// Death-collapse resting-angle jitter stream (the 2026-08-14
+    /// death-collapse design, section 3), scoped by <c>EntityId</c>. Chooses
+    /// how far one fallen warrior's resting angle deviates from the flat
+    /// quarter turn, inside <c>CollapsePose.FallJitterRadians</c>. Declared and
+    /// consumed in <see cref="Hukbo.Client.Rendering.CollapsePose"/>. Its own
+    /// stream rather than a reuse of <see cref="PawnBodySalt"/>: a warrior's
+    /// stature and build are chosen from that stream, and a body's resting
+    /// angle correlating with how tall its owner was is exactly the kind of
+    /// accidental pattern the one-salt-per-stream rule exists to prevent.
+    /// </summary>
+    public const ulong DeathFallJitterSalt = 0x7F2B95E0C4A16D38UL;
+
+    /// <summary>
     /// Every registered salt, existing and new, in declaration order. The
     /// pairwise-distinctness test walks this list; nothing else should need to.
     /// </summary>
@@ -173,5 +186,7 @@ internal static class PresentationSalts
             "Warrior personal-name regional corpus assignment."),
         new(nameof(WarriorNameSelectionSalt), WarriorNameSelectionSalt,
             "Warrior personal-name selection within the assigned region."),
+        new(nameof(DeathFallJitterSalt), DeathFallJitterSalt,
+            "Death-collapse resting-angle jitter."),
     ];
 }

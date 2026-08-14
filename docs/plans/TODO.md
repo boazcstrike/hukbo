@@ -54,25 +54,30 @@ is not authorized work; it is a reminder that the question was decided
   shape of `src/Hukbo.Client/Rendering/SwingPoseResolver.cs` instead. Revisit
   only as its own design document, never as a sub-task of a gameplay feature.
 
-- **Projectile props and embedded projectiles.** A ranged shot currently draws
-  as a stretched pixel from the launch point to the projectile's current
-  position, so it reads as a line growing behind the thrower rather than as an
-  object in the air. The proposal replaces that with a per-weapon in-flight
-  prop, and then leaves the projectile embedded in the body part or shield it
-  struck so that it rides with the pawn. Requested by the user on 2026-08-09
-  after the first successful ranged battle, and parked the same day: the
-  package's own goal had been reached, and this is a new feature rather than a
-  fix to one. The full design, including the two features' separation, the
-  quad-budget arithmetic that constrains both, the bounded ring buffer that
-  keeps the embedded population from becoming the unbounded cache `CLAUDE.md`
-  section 9 forbids, and five open decisions that must be answered before a
-  plan is written, is in
-  [`2026-08-09-projectile-props-design.md`](2026-08-09-projectile-props-design.md).
-  Two things a future session should not have to rediscover. The in-flight prop
-  is the small half — it fixes the reported complaint on its own, costs roughly
-  1,024 quads against 1,956 of headroom, and needs none of the open decisions
-  answered. And this is the feature `src/Hukbo.Client/Rendering/SubmissionCount.cs`
-  warns about by name: the 500-unit margin fell from 3,468 to 1,956 across
-  RU-23 and RU-42, and the next feature wanting a per-pawn quad owes a fresh
-  measurement rather than an assumption. `HUKBO_RENDER_PROBE=1` with
-  `tools/Hukbo.Tools.RenderProbe` is how that measurement gets taken.
+- **Projectile props and embedded projectiles — shipped, no longer parked.**
+  The entry that stood here described work that has since been built. The
+  per-weapon in-flight prop and the embedded projectile both shipped at
+  `3ec5523` on 2026-08-11, the five open decisions its design left were all
+  answered by its plan, and all eight `PP-*` smoke rows closed `PASS`, the last
+  of them on 2026-08-13. Both documents are archived; find them by their titles,
+  "Projectile props and embedded projectiles — design" and "Projectile props and
+  embedded projectiles — plan". The quad-budget warning the entry carried is not
+  lost with it: it lives in `src/Hukbo.Client/Rendering/SubmissionCount.cs` by
+  name, which is where a future feature wanting a per-pawn quad will meet it.
+
+## From the unit test cleanup (2026-08-14)
+
+- **Three settings managers with no shared type behind them.**
+  `MotionIntensityManager`, `GoreIntensityManager`, and `AutoCameraModeManager`
+  are still three independently copied classes, and their twenty test methods
+  are three copies of one suite. The cleanup plan's bucket D closed for the
+  three *selectors*, which now delegate to `SettingsChoiceSelector<T>`, and the
+  managers were left alone deliberately, on that plan's own criterion: folding
+  tests for a source duplication nobody has consolidated deletes real coverage
+  for nothing. Consolidating the managers is therefore the prerequisite, and it
+  is a source change rather than a test change. `UiThemeSelector` is not part of
+  this — it does not delegate to the generic selector at all, it carries its own
+  bounds math, swatch rendering, and provisional-reconstruction label, and its
+  five tests hold behaviour nothing else asserts. Context: the archived unit
+  test cleanup plan, "Unit test cleanup — what can be removed, and what must
+  not be", section 12.

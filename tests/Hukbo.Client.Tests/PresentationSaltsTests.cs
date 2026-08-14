@@ -67,8 +67,21 @@ public sealed class PresentationSaltsTests
     }
 
     [Fact]
-    public void RegistryListsAllThirteenSalts()
+    public void RegistryListsAllFourteenSalts()
     {
-        Assert.Equal(13, PresentationSalts.All.Count);
+        Assert.Equal(14, PresentationSalts.All.Count);
+    }
+
+    /// <summary>
+    /// The death-collapse jitter stream's salt is the value
+    /// <c>CollapsePose.ResolveFinalRotation</c> actually mixes, inlined there
+    /// the way <c>PawnAppearanceFactory</c> inlines its own three. The
+    /// registry exists so the distinctness test above can see every salt
+    /// beside every other, which only works if the two stay equal.
+    /// </summary>
+    [Fact]
+    public void DeathFallJitterSaltMatchesTheCollapsePoseValue()
+    {
+        Assert.Equal(0x7F2B95E0C4A16D38UL, PresentationSalts.DeathFallJitterSalt);
     }
 }

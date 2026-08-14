@@ -37,6 +37,7 @@ internal sealed class PresentationCoordinator
         int projectileCapacity = DefaultProjectileCapacity,
         int embeddedProjectileCapacity = EmbeddedProjectileSystem.Capacity,
         int attackCapacity = PawnAppearanceCache.Capacity,
+        int deathCollapseCapacity = PawnAppearanceCache.Capacity,
         IRenderMetricsRecorder? renderMetricsRecorder = null)
     {
         PawnAppearances = new PawnAppearanceCache(
@@ -55,6 +56,7 @@ internal sealed class PresentationCoordinator
         EmbeddedProjectiles = new EmbeddedProjectileSystem(embeddedProjectileCapacity);
         AttackFrames = new AttackFrameCoordinator(attackCapacity);
         DefenderReactions = new DefenderReactionSystem(attackCapacity);
+        DeathCollapse = new DeathCollapseSystem(deathCollapseCapacity);
         BattleReportAccumulator = new BattleReportAccumulator();
     }
 
@@ -124,6 +126,14 @@ internal sealed class PresentationCoordinator
     public AttackAnimationSystem AttackAnimations => AttackFrames.Animations;
 
     public DefenderReactionSystem DefenderReactions { get; }
+
+    /// <summary>
+    /// The per-warrior death-collapse clocks (the 2026-08-14 death-collapse
+    /// design). Unlike every ageing system beside it nothing here is ever
+    /// evicted — a corpse persists for the rest of the battle — so its only
+    /// clearing point is <see cref="ResetFor"/>.
+    /// </summary>
+    public DeathCollapseSystem DeathCollapse { get; }
 
     public bool HasUndrawnAttackContacts => AttackFrames.HasUndrawnContacts;
 
@@ -271,6 +281,12 @@ internal sealed class PresentationCoordinator
             Blood.Advance(elapsedSeconds);
             ClashEffects.Advance(elapsedSeconds);
             DefenderReactions.Advance(elapsedSeconds);
+
+            // Inside the contact group deliberately. A collapse is contact
+            // presentation and must freeze when playback is paused, exactly as
+            // the lethal hold above it does: a spectator who pauses mid-fall
+            // sees a body held mid-fall, which is correct.
+            DeathCollapse.Advance(elapsedSeconds);
         }
 
         AttackFrames.Advance(
@@ -321,6 +337,21 @@ internal sealed class PresentationCoordinator
 
         return released.Length;
     }
+
+    /// <summary>
+    /// Registers a death collapse for every warrior that has just become a
+    /// corpse (the 2026-08-14 death-collapse design, section 7).
+    /// </summary>
+    /// <remarks>
+    /// Called once per frame, and specifically <em>after</em>
+    /// <see cref="ReleaseAttackContactsForDraw"/>, so a lethal contact released
+    /// this frame has already registered its defender reaction and the killing
+    /// blow's screen direction is readable. Its own method rather than a line
+    /// inside <see cref="AdvanceEffects"/> because it needs the agent views and
+    /// that method does not take them.
+    /// </remarks>
+    public void ObserveDeaths(IReadOnlyList<AgentView> agents) =>
+        DeathCollapse.Observe(agents, DefenderReactions);
 
     public int AcknowledgeAttackDraw() => AttackFrames.AcknowledgeDraw();
 
@@ -382,6 +413,7 @@ internal sealed class PresentationCoordinator
         Blood.Clear();
         AttackFrames.Clear();
         DefenderReactions.Clear();
+        DeathCollapse.Clear();
         ClashEffects.Clear();
         Trample.Clear();
         Dust.Clear();
