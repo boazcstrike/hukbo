@@ -2258,6 +2258,93 @@ consolidation's own list and the eleventh was added on 2026-08-10.
 
 ---
 
+### Decisions taken 2026-08-14
+
+The user answered eight of the questions above in one pass. They are recorded
+here rather than edited into the numbered list, so that what was asked and what
+was answered stay separately readable.
+
+**Question 2 — two-dimensional weapon geometry, not meshes.** Confirmed. The plan
+already assumed 2D throughout and that assumption is now a decision.
+
+**Question 4 — real weapon names in shipped display strings.** The user chose
+real names over generic aliases.
+
+The design's own analysis of this question was that Glock, Heckler & Koch,
+Beretta, SIG Sauer, FN Herstal, Steyr, and IWI are high-risk marks, that Heckler
+& Koch and Glock are the most aggressive enforcers, and that Glock and Steyr have
+separately asserted trade-dress claims — meaning a recognisable silhouette
+carries exposure independently of the name. Numeric designations issued by
+governments (M4, Mk 18, L85, QBZ-191, M7, MP-443) were identified as materially
+safer. That analysis is not withdrawn by this decision; the decision is taken
+with it on the record, which is what the design asked for by putting the choice
+behind one field. The field stays, so the decision remains reversible in one
+place.
+
+**Question 8 — the shared assemblies keep the `Hukbo.` prefix.** Confirmed.
+`Hukbo.Shared.Core` and `Hukbo.Diagnostics` are used by both games and keep their
+names.
+
+The user's stated reason is that Sandata is treated as downloadable content for
+Hukbo rather than as a wholly separate product. **That framing contradicts
+`CLAUDE.md` section 1**, which states that Sandata "is a separate product with a
+separate simulation, a separate ruleset, a separate preset stream, and separate
+hashes. It is not a mode of Hukbo, it is not a fork." The naming decision itself
+is unaffected either way. What needs settling is whether the product statement in
+`CLAUDE.md` should change, because it currently governs release shape, store
+presentation, and whether the two games ever ship in one package. Recorded as
+open rather than silently resolved in favour of either reading.
+
+Nothing in this decision relaxes the separation rules themselves. No `Sandata.*`
+project may reference a `Hukbo.Core` or `Hukbo.Client` type and no `Hukbo.*`
+project may reference a `Sandata.*` type, whatever the two are called on a store
+page.
+
+**Question 9 — map authoring stays hand-written for now.** No editor. The
+follow-up the user accepted is that the `.hkmap` format should be documented in
+its own right, so that authoring a second map does not mean reading
+`MapTokenizer` to discover the grammar.
+
+**Question 10 — Sandata stays in this repository long-term.** Confirmed. The
+extraction shape described in section 3 stops being a live concern, though the
+audio library's disk cost against every Hukbo clone remains a real consequence of
+staying and is unchanged by the decision.
+
+**Question 11 — what an autonomous squad wants.** Answered: **clear the map.**
+The squad's objective is to sweep the interior and check every corner, and its
+priority order is rooms first, then the map as a whole. This replaces the single
+hardcoded objective request at tick zero that shipped in wave 12.
+
+This is the largest of the answers and it is a feature rather than a
+clarification. It needs its own design document before any of it is built,
+because it introduces at least four things the simulation does not have: a notion
+of a room as a distinct region of the map, a notion of a corner or of a
+sight-line that has not yet been checked, a per-region cleared/uncleared state
+that has to be authoritative and hashed, and a total order over regions so that
+"rooms first, then the map" is deterministic rather than incidental.
+
+**Question 12's live consequence — a blocked mover re-requests its path.** The
+user chose re-request over the alternatives (entering operators into the nav
+search's blocked span, or leaving the stall in place). Task 89 measured the stall
+and left it as a known gap; this decision closes the question and opens the work.
+
+**Question 17's live consequence — no real-map determinism fixture yet.** The
+user's reason is that the basic mechanics are not finalised, so pinning a digest
+against a real map now would pin a moving target. The gap stays parked in
+`docs/plans/TODO.md`, and the standing limit it describes still holds: the
+Sandata gate cannot detect a pathfinding change that only manifests around
+geometry.
+
+**Question 5 — the audio catalog moves out of the plans folder.** The user
+confirmed the focus stays on the AK-pattern rifle and the Glock-pattern pistol,
+and that the wider catalog is a later concern that does not belong in
+`docs/plans/`. It moves to `docs/weapons/guns/`, where it is reference material
+rather than pending work. No further generation is authorised.
+
+**Still open after this pass.** Question 3, the product name, was marked for
+settling but no name was given, so `Sandata` stands unconfirmed rather than
+confirmed. Questions 6 and 7 were not reached.
+
 ## 16. The order layer
 
 Added 2026-08-07, after the user answered question 1 with "both". This section
