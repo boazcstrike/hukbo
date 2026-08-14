@@ -43,8 +43,12 @@ clear-the-map design: only its stage 0 shipped, as `RoomLayout` and
 `RoomClearStates` — the corner bake of stage 1 and the map residual of stage 2
 are absent, and `MissionState` records the simplification in its own remarks.
 The mission-does-not-end plan: its tasks 2 and 3 shipped at `51c0a86` and
-`ea3bbc1`, but tasks 5 through 9 have not, and neither `OutcomeRules` nor a
-stalemate predicate exists, so the mission still cannot end. The contingent
+`ea3bbc1`, but tasks 5 through 9 have not. `OutcomeRules` does exist, and it
+predates this plan: `OutcomeRules.Resolve` is wired into the tick pipeline and
+sets `MissionState.Winner`, but it decides on elimination alone. What is absent
+is the stalemate predicate task 6 would add to it — the word does not appear
+anywhere in `src/Sandata.Core` — so a mission that nobody can win and nobody can
+lose still cannot end. The contingent
 cohesion plan: `MovementPresetId` stops at 13. The thousand-unit plan: not
 started, and not authorized.
 
@@ -223,7 +227,7 @@ designs archived in the fourth sweep of 2026-08-14 left.
 | [`2026-08-14-sandata-blocked-mover-replan-design.md`](2026-08-14-sandata-blocked-mover-replan-design.md) | What counts as stalled, what stops re-request thrashing, and how the fixed-latency path rule applies to a mover that asks again. Seven decisions, none of them a task list | Design only; awaiting review. No re-request mechanism exists on disk |
 | [`2026-08-14-sandata-clear-the-map-design.md`](2026-08-14-sandata-clear-the-map-design.md) | What an autonomous squad wants when nobody has drawn it an order: rooms first, then the map, with corners as the unit of clearing. Its stage 0 has since shipped — `RoomLayout`, `RoomClearStates`, and `SquadSlot.TargetRoomId` — and `MissionState`'s own remarks record that the shipped record carries no corner mask | Design only; authorizes nothing. Stage 0 shipped, stages 1 and 2 absent |
 | [`2026-08-14-sandata-mission-does-not-end-design.md`](2026-08-14-sandata-mission-does-not-end-design.md) | The measured freeze: the shipped four-operator mission was ticked 3,000 times and never resolved. Four decisions, D1 through D4, from writing the selected intent into authoritative state to resolving a mission that can no longer progress | Design only; binds the plan below |
-| [`2026-08-14-sandata-mission-does-not-end.md`](2026-08-14-sandata-mission-does-not-end.md) | That design's nine tasks. Task 1 answered the open sensing question — the frozen survivor is behind a wall and the sensing layer is correct — and dropped task 4; tasks 2 and 3 shipped at `51c0a86` and `ea3bbc1`. **Tasks 5 through 9 have not been built**, there is no `OutcomeRules` and no stalemate predicate, and the mission therefore still cannot end | Plan; partly built, five tasks open |
+| [`2026-08-14-sandata-mission-does-not-end.md`](2026-08-14-sandata-mission-does-not-end.md) | That design's nine tasks. Task 1 answered the open sensing question — the frozen survivor is behind a wall and the sensing layer is correct — and dropped task 4; tasks 2 and 3 shipped at `51c0a86` and `ea3bbc1`. **Tasks 5 through 9 have not been built**. `OutcomeRules` already exists and already resolves the mission, but only by elimination; the stalemate predicate task 6 would add to it does not, so a mission nobody can win still cannot end. Read task 3 with care as well: it shipped as `ContactMemoryTests.cs`, not under the `RetargetOnDeathTests.cs` name the table gives it | Plan; partly built, five tasks open |
 | [`2026-08-15-sandata-column-about-face-design.md`](2026-08-15-sandata-column-about-face-design.md) | How a squad reverses direction without deadlocking. A column whose path turns back the way it came stops permanently, because the follower ends up in front and stage 10 refuses the leader; this has been measured, reproduced, and mis-diagnosed three times. Decision 2 redefines `SquadSlot.LeaderEntityId` as the entity holding slot 0 | Design only; not authorized. Its staging is what the audit below executes |
 | [`2026-08-15-sandata-column-about-face-stage-0-audit.md`](2026-08-15-sandata-column-about-face-stage-0-audit.md) | Stage 0 of that design's staging, read-only by definition: every production reader of `LeaderEntityId` audited against `main` at `cfe0c22`. Its answer is that no reader wants the lowest living id, so decision 2 does not reopen | Audit; stage 0 complete, later stages unstarted |
 
