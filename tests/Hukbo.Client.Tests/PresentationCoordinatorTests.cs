@@ -64,6 +64,67 @@ public sealed class PresentationCoordinatorTests
     }
 
     /// <summary>
+    /// The death-collapse store has a one-battle lifetime like every system
+    /// beside it, and it is the one that never evicts anything of its own — a
+    /// corpse persists for the rest of the battle — so <c>ResetFor</c> is its
+    /// only clearing point and a missed call there would carry bodies from one
+    /// battle into the next.
+    /// </summary>
+    [Theory]
+    [InlineData((int)ClientCommand.NextRound)]
+    [InlineData((int)ClientCommand.FullReset)]
+    public void ResetFor_ClearsTheDeathCollapseStore(int commandValue)
+    {
+        var coordinator = new PresentationCoordinator(eventCapacity: 5);
+        AgentView[] agents = [CreateAgent(1) with { IsAlive = false }];
+        coordinator.ObserveDeaths(agents);
+
+        Assert.True(coordinator.DeathCollapse.TryGetCollapse(0, 1, out _));
+
+        coordinator.ResetFor((ClientCommand)commandValue);
+
+        Assert.False(coordinator.DeathCollapse.TryGetCollapse(0, 1, out _));
+    }
+
+    /// <summary>
+    /// A collapse advances only while contacts do. A spectator who pauses
+    /// mid-fall sees a body held mid-fall, exactly as the lethal hold it
+    /// follows is held.
+    /// </summary>
+    [Fact]
+    public void AdvanceEffects_AdvancesTheDeathCollapseOnlyWithContacts()
+    {
+        var coordinator = new PresentationCoordinator(eventCapacity: 5);
+        AgentView[] agents = [CreateAgent(1) with { IsAlive = false }];
+        coordinator.ObserveDeaths(agents);
+
+        coordinator.AdvanceEffects(0.1f, advanceContacts: false);
+
+        Assert.True(coordinator.DeathCollapse.TryGetCollapse(0, 1, out var paused));
+        Assert.Equal(0f, paused.AgeSeconds);
+
+        coordinator.AdvanceEffects(0.1f, advanceContacts: true);
+
+        Assert.True(coordinator.DeathCollapse.TryGetCollapse(0, 1, out var played));
+        Assert.Equal(0.1f, played.AgeSeconds, 1e-5f);
+    }
+
+    /// <summary>
+    /// A living roster produces no bodies. The one thing this route must never
+    /// do is lay a fighting warrior on the ground.
+    /// </summary>
+    [Fact]
+    public void ObserveDeaths_RegistersNothingForALivingRoster()
+    {
+        var coordinator = new PresentationCoordinator(eventCapacity: 5);
+
+        coordinator.ObserveDeaths([CreateAgent(1), CreateAgent(2)]);
+
+        Assert.False(coordinator.DeathCollapse.TryGetCollapse(0, 1, out _));
+        Assert.False(coordinator.DeathCollapse.TryGetCollapse(1, 2, out _));
+    }
+
+    /// <summary>
     /// Mirrors <see cref="IngestTick_ForwardsEveryBatchToFeedAndHitEffects"/>,
     /// but for the battle-report accumulator, and asserts it received the raw
     /// per-tick events directly — not a truncated view through

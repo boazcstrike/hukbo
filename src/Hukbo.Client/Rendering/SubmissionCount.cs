@@ -122,7 +122,7 @@ internal static class PawnQuadCount
         total += CountArms(layout.Arms);
         total += CountSwingTrail(layout.SwingTrail);
         total += WeaponQuadCount(appearance.WeaponRole);
-        total += CountStateMark(state);
+        total += CountStateMark(state, layout.DetailTier);
 
         if (isLeader)
         {
@@ -382,11 +382,20 @@ internal static class PawnQuadCount
     /// for a hovered or selected pawn, the crossed dead mark for a dead one,
     /// nothing for a pawn in its normal state.
     /// </summary>
-    private static int CountStateMark(PawnVisualState state) =>
+    private static int CountStateMark(
+        PawnVisualState state,
+        PawnDetailTier detailTier) =>
         state switch
         {
             PawnVisualState.Hovered or PawnVisualState.Selected => SelectionMarkQuadCount,
-            PawnVisualState.Dead => DeadMarkQuadCount,
+
+            // The 2026-08-14 death-collapse design, section 6:
+            // PawnRenderer.DrawLayout now gates the crossed mark to Low tier,
+            // where the prone silhouette is not resolvable. At Medium and High
+            // a corpse costs two quads fewer than it did.
+            PawnVisualState.Dead => detailTier == PawnDetailTier.Low
+                ? DeadMarkQuadCount
+                : 0,
             _ => 0,
         };
 

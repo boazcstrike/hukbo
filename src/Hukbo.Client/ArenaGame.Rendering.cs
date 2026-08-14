@@ -450,8 +450,16 @@ public sealed partial class ArenaGame
         // overhead, which is exactly where it belongs.
         var pawnGeometryInvocations = 0;
 
-        foreach (var agent in _simulation.Agents)
+        // Indexed rather than enumerated since the death collapse, for the
+        // reason the draw path's own loop records at length: the collapse
+        // store addresses its slots by the agent's ordinal position in this
+        // roster, and that ordinal has to be the position in the whole list
+        // rather than a count of anything.
+        var agents = _simulation.Agents;
+        for (var ordinal = 0; ordinal < agents.Count; ordinal++)
         {
+            var agent = agents[ordinal];
+
             // Corpse layer (2026-08-13). A dead agent is no
             // longer skipped: it is drawn — and so counted here — for the
             // rest of the battle. The lethal-hold lookup only runs for a
@@ -497,28 +505,60 @@ public sealed partial class ArenaGame
                 appearance);
             pawnGeometryInvocations++;
 
-            if (!arenaBounds.Intersects(pawnPrefix.PoseBlindVisualBounds))
-            {
-                continue;
-            }
-
+            // Resolved before the cull rather than after it, because since the
+            // death collapse the cull rectangle itself depends on whether this
+            // agent is a corpse. The draw path resolves it at the top of its
+            // own loop for the same reason, and both passes must cull the same
+            // agents.
             var state = PawnVisualStateResolver.Resolve(
                 agent.EntityId,
                 selectedEntityId,
                 hoveredEntityId,
                 isAlive,
                 isLethalHoldActive);
+            var isDead = state == PawnVisualState.Dead;
+
+            // The 2026-08-14 death-collapse design, section 5. A prone body
+            // does not fit inside its standing rectangle: rotated a quarter
+            // turn about the foot anchor, a tall narrow silhouette becomes a
+            // short wide one reaching roughly a body's height sideways. Culled
+            // against the standing rectangle, a corpse near the panel edge
+            // would vanish while most of it was still on screen, which is the
+            // exact "no visible casualty" failure the corpse placeholder was
+            // written to fix. The envelope covers every rotation about that
+            // anchor, so it does not vary with the collapse clock, the fall
+            // direction, or the per-warrior jitter, and the drawn set
+            // therefore still does not depend on animation phase. A living
+            // pawn keeps the exact rectangle it was culled against before
+            // this existed.
+            if (!arenaBounds.Intersects(
+                    isDead
+                        ? pawnPrefix.ProneEnvelopeVisualBounds
+                        : pawnPrefix.PoseBlindVisualBounds))
+            {
+                continue;
+            }
 
             // A corpse does not animate: no attack pose, matching the draw
             // path's own null-pose rule (see DrawPawns).
-            var attackPose = state != PawnVisualState.Dead &&
+            var attackPose = !isDead &&
                 _attackPoses.TryGetValue(agent.EntityId, out var pose)
                 ? pose
                 : (AttackPose?)null;
             var layout = pawnPrefix.CompleteAttackPosedLayout(
                 attackPose,
                 gaitPose: null,
-                ResolveReactionOffset(agent.EntityId));
+                ResolveReactionOffset(agent.EntityId),
+                rangedPose: null,
+
+                // The collapse reaches the layout here too, so the probe's
+                // quad count is taken from the same layout the renderer draws.
+                // It cannot change the count — a rotated quad is one quad —
+                // and passing it anyway is what keeps that claim checkable
+                // rather than assumed.
+                _presentation.DeathCollapse.ResolveRotationRadians(
+                    ordinal,
+                    agent.EntityId));
 
             RecordQuads(PawnQuadCount.Count(
                 layout,
@@ -1243,7 +1283,23 @@ public sealed partial class ArenaGame
                 pawnGeometryInvocations++;
             }
 
-            if (!arenaBounds.Intersects(pawnPrefix.PoseBlindVisualBounds))
+            // The 2026-08-14 death-collapse design, section 5. A prone body
+            // does not fit inside its standing rectangle: rotated a quarter
+            // turn about the foot anchor, a tall narrow silhouette becomes a
+            // short wide one reaching roughly a body's height sideways. Culled
+            // against the standing rectangle, a corpse near the panel edge
+            // would vanish while most of it was still on screen, which is the
+            // exact "no visible casualty" failure the corpse placeholder was
+            // written to fix. The envelope covers every rotation about that
+            // anchor, so it does not vary with the collapse clock, the fall
+            // direction, or the per-warrior jitter, and the drawn set
+            // therefore still does not depend on animation phase. A living
+            // pawn keeps the exact rectangle it was culled against before
+            // this existed.
+            if (!arenaBounds.Intersects(
+                    isDead
+                        ? pawnPrefix.ProneEnvelopeVisualBounds
+                        : pawnPrefix.PoseBlindVisualBounds))
             {
                 continue;
             }
@@ -1317,7 +1373,15 @@ public sealed partial class ArenaGame
                 attackPose,
                 gaitPose,
                 ResolveReactionOffset(agent.EntityId),
-                rangedPose);
+                rangedPose,
+
+                // The 2026-08-14 death-collapse design. Zero for every agent
+                // that is not a corpse, which puts PawnTransform.Identity on
+                // the layout and therefore leaves PawnRenderer taking the
+                // axis-aligned overload it always took.
+                _presentation.DeathCollapse.ResolveRotationRadians(
+                    ordinal,
+                    agent.EntityId));
 
             CloseArenaGeometrySpan();
 

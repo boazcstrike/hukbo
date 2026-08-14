@@ -198,18 +198,68 @@ public sealed class PawnQuadCountTests
 
     /// <summary>
     /// <c>PawnRenderer.DrawDeadMark</c> draws two crossed lines — a fixed +2
-    /// over the same layout's normal-state count.
+    /// over the same layout's normal-state count — but only at
+    /// <c>PawnDetailTier.Low</c> since the 2026-08-14 death collapse, where
+    /// the prone silhouette that now carries the read is not resolvable.
     /// </summary>
     [Fact]
-    public void Count_AddsExactlyTwoForTheDeadMark()
+    public void Count_AddsExactlyTwoForTheDeadMarkAtLowTier()
     {
         var appearance = PawnAppearanceFactory.Create(0, WeaponId.Kalis, ShieldId.None);
-        var layout = PawnGeometry.Create(Vector2.Zero, HighTierZoom, appearance);
+        var layout = PawnGeometry.Create(Vector2.Zero, LowTierZoom, appearance);
+
+        Assert.Equal(PawnDetailTier.Low, layout.DetailTier);
 
         var normal = PawnQuadCount.Count(layout, appearance, PawnVisualState.Normal);
         var dead = PawnQuadCount.Count(layout, appearance, PawnVisualState.Dead);
 
         Assert.Equal(normal + 2, dead);
+    }
+
+    /// <summary>
+    /// The other side of the same rule: at Medium and High a corpse costs
+    /// exactly what the same warrior cost alive. The collapse itself is free —
+    /// a rotated quad is one quad — so this is not merely "two fewer than
+    /// before", it is level with the living pawn.
+    /// </summary>
+    [Theory]
+    [InlineData(MediumTierZoom)]
+    [InlineData(HighTierZoom)]
+    public void Count_AddsNothingForADeadPawnAboveLowTier(float zoom)
+    {
+        var appearance = PawnAppearanceFactory.Create(0, WeaponId.Kalis, ShieldId.None);
+        var layout = PawnGeometry.Create(Vector2.Zero, zoom, appearance);
+
+        Assert.NotEqual(PawnDetailTier.Low, layout.DetailTier);
+
+        var normal = PawnQuadCount.Count(layout, appearance, PawnVisualState.Normal);
+        var dead = PawnQuadCount.Count(layout, appearance, PawnVisualState.Dead);
+
+        Assert.Equal(normal, dead);
+    }
+
+    /// <summary>
+    /// A collapsing body submits exactly as many quads as the same body
+    /// standing. The rotation reaches the layout as a transform rather than as
+    /// geometry, so no rectangle on the layout moves and
+    /// <c>SubmissionCount</c> is blind to it by construction — this pins that
+    /// claim rather than leaving it to the reader.
+    /// </summary>
+    [Fact]
+    public void Count_IsUnchangedByTheCollapseRotation()
+    {
+        var appearance = PawnAppearanceFactory.Create(0, WeaponId.Kalis, ShieldId.None);
+        var upright = PawnGeometry.Create(Vector2.Zero, HighTierZoom, appearance);
+        var fallen = PawnGeometry.Create(
+            Vector2.Zero,
+            HighTierZoom,
+            appearance,
+            collapseRotationRadians: CollapsePose.ProneRotationRadians);
+
+        Assert.False(fallen.Collapse.IsIdentity);
+        Assert.Equal(
+            PawnQuadCount.Count(upright, appearance, PawnVisualState.Dead),
+            PawnQuadCount.Count(fallen, appearance, PawnVisualState.Dead));
     }
 
     /// <summary>
