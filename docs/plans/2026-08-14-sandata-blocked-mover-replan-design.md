@@ -697,3 +697,48 @@ that `AdvancePathService`, `GroupPathState`, and the state hash are all
 genuinely exercised) is the natural verification this design's
 implementation should add, though authoring it is implementation's task, not
 a decision this design document is making on its own.
+
+## Decision reversed, 2026-08-14
+
+**Dynamic bodies now enter the nav search's blocked span.** The user's first
+answer was to re-request the path and explicitly not to do this. That answer was
+reversed the same day, once this document's own section 5 had established why it
+could not work.
+
+The reasoning that reversed it is worth keeping, because it is short and it is
+checkable. A blocked mover has zero displacement by definition — that is what
+`SandataMovementResolution.Blocked` means — so its start cell is unchanged. Its
+goal is unchanged. The blocked span is unchanged. `NavSearch` contains no
+randomness at all. A search over identical inputs therefore returns the identical
+route, and the mover refuses it again on the next tick exactly as it refused it
+on the last one. Re-requesting alone converts a silent forever-stall into a
+bounded, legible, logged forever-stall. That is an improvement in observability
+and no improvement at all in behaviour.
+
+Everything above stays. The stall detector, the attempt cap, the published-path
+clear, and the event are all still wanted, because a re-plan needs a trigger and
+a spectator needs to see it happen. What changes is that the search the trigger
+fires now has something new to see.
+
+**What the reversal opens, and what this document does not yet answer.** Putting
+a body into the span is not a one-line change, and the questions it raises belong
+in a follow-up design rather than being answered here by assertion:
+
+- **Which bodies?** Every living operator, or only those that have not moved for
+  some number of ticks? Marking every operator every tick makes squads unable to
+  path through their own formation.
+- **When is the span written and cleared?** It is currently allocated once at
+  construction and never written after. A per-tick write is a per-tick
+  allocation unless the same array is reused, and stage 5 was once ninety-four
+  percent of the tick's allocation.
+- **Does a body block its own group?** A mover should not be blocked by the
+  squadmate it is following.
+- **Does this move the seed-1 baseline?** The workload leaves `Groups` empty, so
+  no path is searched in it. That insulation is the same one this document
+  already relies on, and it holds only until something wires the headless runner
+  to a real map.
+- **What happens to the path already published** when the body that blocked it
+  moves away? A route around an obstruction that has gone is worse than the
+  direct one.
+
+Until those are answered, the mechanism above is the part that is designed.
