@@ -33,7 +33,8 @@ public sealed class WeaponLoweredRulesTests
 
         // x = 42: distance to the wall is exactly 8, the inclusive threshold.
         var isLowered = WeaponLoweredRules.IsForcedLowered(
-            positionX: 42, positionY: 60, grid, wallBuckets, LoweredWallDistanceWu, exemptFromLoweredRule: false);
+            positionX: 42, positionY: 60, grid, wallBuckets, LoweredWallDistanceWu,
+            exemptFromLoweredRule: false, engagingIdentifiedHostile: false);
 
         Assert.True(isLowered);
     }
@@ -48,9 +49,27 @@ public sealed class WeaponLoweredRulesTests
         // x = 41: distance to the wall is 9, one world unit past the
         // threshold that made the previous test's x = 42 lowered.
         var isLowered = WeaponLoweredRules.IsForcedLowered(
-            positionX: 41, positionY: 60, grid, wallBuckets, LoweredWallDistanceWu, exemptFromLoweredRule: false);
+            positionX: 41, positionY: 60, grid, wallBuckets, LoweredWallDistanceWu,
+            exemptFromLoweredRule: false, engagingIdentifiedHostile: false);
 
         Assert.False(isLowered);
+    }
+
+    [Fact]
+    public void PositionWithinLoweredWallDistance_EngagingIdentifiedHostile_IsNotForcedLowered()
+    {
+        var grid = NewGrid();
+        var wallBuckets = WallBuckets.Build(grid, [50], [0], [50], [100]);
+        const int LoweredWallDistanceWu = 8;
+
+        // The exact same position as the exact-threshold test above — proven
+        // lowered when not engaging — but this time engaging an identified
+        // hostile. Only the new flag differs.
+        var isLoweredWhileEngaging = WeaponLoweredRules.IsForcedLowered(
+            positionX: 42, positionY: 60, grid, wallBuckets, LoweredWallDistanceWu,
+            exemptFromLoweredRule: false, engagingIdentifiedHostile: true);
+
+        Assert.False(isLoweredWhileEngaging);
     }
 
     [Fact]
@@ -69,9 +88,29 @@ public sealed class WeaponLoweredRulesTests
 
         // (21, 21) falls inside cell (5, 5): 21 >> 2 == 5.
         var isLowered = WeaponLoweredRules.IsForcedLowered(
-            positionX: 21, positionY: 21, grid, wallBuckets, loweredWallDistanceWu: 8, exemptFromLoweredRule: false);
+            positionX: 21, positionY: 21, grid, wallBuckets, loweredWallDistanceWu: 8,
+            exemptFromLoweredRule: false, engagingIdentifiedHostile: false);
 
         Assert.True(isLowered);
+    }
+
+    [Fact]
+    public void PositionInsideDoorCell_EngagingIdentifiedHostile_IsNotForcedLowered()
+    {
+        var grid = NewGrid();
+        var wallBuckets = WallBuckets.Build(grid, [], [], [], []);
+
+        var doorCellIndex = grid.CellIndex(5, 5);
+        grid.Passability[doorCellIndex] = NavCellFlags.Door;
+
+        // The exact same door-cell position as the test above — proven
+        // lowered when not engaging — but this time engaging an identified
+        // hostile. Only the new flag differs.
+        var isLoweredWhileEngaging = WeaponLoweredRules.IsForcedLowered(
+            positionX: 21, positionY: 21, grid, wallBuckets, loweredWallDistanceWu: 8,
+            exemptFromLoweredRule: false, engagingIdentifiedHostile: true);
+
+        Assert.False(isLoweredWhileEngaging);
     }
 
     [Fact]
@@ -90,7 +129,8 @@ public sealed class WeaponLoweredRulesTests
         Assert.Equal(NavCellFlags.Blocked, grid.Passability[neighbourCellIndex]);
 
         var isLowered = WeaponLoweredRules.IsForcedLowered(
-            positionX: 25, positionY: 21, grid, wallBuckets, loweredWallDistanceWu: 8, exemptFromLoweredRule: false);
+            positionX: 25, positionY: 21, grid, wallBuckets, loweredWallDistanceWu: 8,
+            exemptFromLoweredRule: false, engagingIdentifiedHostile: false);
 
         Assert.False(isLowered);
     }
@@ -105,7 +145,8 @@ public sealed class WeaponLoweredRulesTests
         // position in this file already proven to force a non-exempt
         // weapon lowered — so the only variable here is the exemption flag.
         var isLowered = WeaponLoweredRules.IsForcedLowered(
-            positionX: 42, positionY: 60, grid, wallBuckets, loweredWallDistanceWu: 8, exemptFromLoweredRule: true);
+            positionX: 42, positionY: 60, grid, wallBuckets, loweredWallDistanceWu: 8,
+            exemptFromLoweredRule: true, engagingIdentifiedHostile: false);
 
         Assert.False(isLowered);
 
@@ -115,9 +156,28 @@ public sealed class WeaponLoweredRulesTests
         grid.Passability[doorCellIndex] = NavCellFlags.Door;
 
         var isLoweredInDoorway = WeaponLoweredRules.IsForcedLowered(
-            positionX: 21, positionY: 21, grid, wallBuckets, loweredWallDistanceWu: 8, exemptFromLoweredRule: true);
+            positionX: 21, positionY: 21, grid, wallBuckets, loweredWallDistanceWu: 8,
+            exemptFromLoweredRule: true, engagingIdentifiedHostile: false);
 
         Assert.False(isLoweredInDoorway);
+    }
+
+    [Fact]
+    public void ExemptWeapon_EngagingIdentifiedHostile_IsStillNeverForcedLowered()
+    {
+        // Both early-out flags true at once: still false, and still without
+        // ever evaluating the wall or door geometry — proven the same way
+        // ExemptWeapon_IsNeverForcedLowered proves the exemption alone, by
+        // reusing the exact-threshold position that a non-exempt,
+        // non-engaging call forces lowered.
+        var grid = NewGrid();
+        var wallBuckets = WallBuckets.Build(grid, [50], [0], [50], [100]);
+
+        var isLowered = WeaponLoweredRules.IsForcedLowered(
+            positionX: 42, positionY: 60, grid, wallBuckets, loweredWallDistanceWu: 8,
+            exemptFromLoweredRule: true, engagingIdentifiedHostile: true);
+
+        Assert.False(isLowered);
     }
 
     [Fact]
@@ -141,11 +201,13 @@ public sealed class WeaponLoweredRulesTests
         const int PositionY = 60;
 
         var forcedNearWall = WeaponLoweredRules.IsForcedLowered(
-            NearWallX, PositionY, grid, wallBuckets, LoweredWallDistanceWu, exemptFromLoweredRule: false);
+            NearWallX, PositionY, grid, wallBuckets, LoweredWallDistanceWu,
+            exemptFromLoweredRule: false, engagingIdentifiedHostile: false);
         Assert.True(forcedNearWall);
 
         var forcedFarFromWall = WeaponLoweredRules.IsForcedLowered(
-            FarFromWallX, PositionY, grid, wallBuckets, LoweredWallDistanceWu, exemptFromLoweredRule: false);
+            FarFromWallX, PositionY, grid, wallBuckets, LoweredWallDistanceWu,
+            exemptFromLoweredRule: false, engagingIdentifiedHostile: false);
         Assert.False(forcedFarFromWall);
 
         // While standing in the wall's zone, the rule holds the chain
@@ -204,7 +266,9 @@ public sealed class WeaponLoweredRulesTests
         var wallBuckets = WallBuckets.Build(grid, [], [], [], []);
 
         Assert.Throws<ArgumentNullException>(() =>
-            WeaponLoweredRules.IsForcedLowered(0, 0, null!, wallBuckets, loweredWallDistanceWu: 8, exemptFromLoweredRule: false));
+            WeaponLoweredRules.IsForcedLowered(
+                0, 0, null!, wallBuckets, loweredWallDistanceWu: 8,
+                exemptFromLoweredRule: false, engagingIdentifiedHostile: false));
     }
 
     [Fact]
@@ -213,7 +277,9 @@ public sealed class WeaponLoweredRulesTests
         var grid = NewGrid();
 
         Assert.Throws<ArgumentNullException>(() =>
-            WeaponLoweredRules.IsForcedLowered(0, 0, grid, null!, loweredWallDistanceWu: 8, exemptFromLoweredRule: false));
+            WeaponLoweredRules.IsForcedLowered(
+                0, 0, grid, null!, loweredWallDistanceWu: 8,
+                exemptFromLoweredRule: false, engagingIdentifiedHostile: false));
     }
 
     [Fact]
@@ -223,6 +289,8 @@ public sealed class WeaponLoweredRulesTests
         var wallBuckets = WallBuckets.Build(grid, [], [], [], []);
 
         Assert.Throws<ArgumentOutOfRangeException>(() =>
-            WeaponLoweredRules.IsForcedLowered(0, 0, grid, wallBuckets, loweredWallDistanceWu: -1, exemptFromLoweredRule: false));
+            WeaponLoweredRules.IsForcedLowered(
+                0, 0, grid, wallBuckets, loweredWallDistanceWu: -1,
+                exemptFromLoweredRule: false, engagingIdentifiedHostile: false));
     }
 }

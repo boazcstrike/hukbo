@@ -210,10 +210,17 @@ public sealed class HudLayoutTests
         Assert.False(speed.Intersects(restart));
     }
 
+    /// <summary>
+    /// The pinned height was 222 until 2026-08-14, when decision D2 of the
+    /// lowered-weapon design added the firearm and weapon-state rows and took
+    /// <see cref="OperatorInspector.LineCount"/> from 11 to 13. The panel is
+    /// two line heights taller as a result; nothing else about its anchoring
+    /// moved, which is what the unchanged x, y, and width columns assert.
+    /// </summary>
     [Theory]
-    [InlineData(1280, 720, 12, 12, 320, 222)]
-    [InlineData(1600, 900, 12, 12, 320, 222)]
-    [InlineData(1920, 1080, 12, 12, 320, 222)]
+    [InlineData(1280, 720, 12, 12, 320, 258)]
+    [InlineData(1600, 900, 12, 12, 320, 258)]
+    [InlineData(1920, 1080, 12, 12, 320, 258)]
     public void OperatorInspector_BoundsArePinnedAtThreeWindowSizes(
         int windowWidth, int windowHeight, int x, int y, int width, int height)
     {

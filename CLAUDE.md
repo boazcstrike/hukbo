@@ -503,9 +503,13 @@ presentation-only), `game-ui-ux` (HUD anchoring, controller focus),
   and because `ShotSlotResolver` picks a variant uniformly across a row's
   declared count, so a higher declared count is the only way more of the
   generated takes are ever heard; every other row still declares six and
-  remains wholly ungenerated. The remaining catalog is still 106 slots
-  expanding to 540 variant files in total, roughly 108,000 ElevenLabs
-  credits, and that remaining spend is **not authorized**; design section 15
+  remains wholly ungenerated. The remaining catalog is still 114 slots
+  expanding to 572 variant files in total, roughly 114,400 ElevenLabs
+  credits — 106 slots and 540 files until 2026-08-14, when the automatic loop
+  and tail rows were declared for every caliber family rather than the six
+  rifle calibers alone, closing a crash an automatic-capable pistol would have
+  hit on its first round. Declaring a row generates no file and spends no
+  credit, and that remaining spend is **not authorized**; design section 15
   keeps it behind a reviewed dry-run manifest, and `scripts/sfx-manifest.ps1`
   is the network-free script that produces one.
 

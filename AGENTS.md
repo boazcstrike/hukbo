@@ -242,8 +242,12 @@ at all. Full rules: `docs/research/HISTORICAL_1500s_WEAPONS.md` and
   plus the MonoGame-backed playback path that plays them, are already
   committed; the provenance is recorded in
   `src/Sandata.Client/Content/Audio/README.md`. The remaining catalog is still
-  106 slots expanding to 540 variant files in total, roughly 108,000
-  ElevenLabs credits, and that remaining spend is **not authorized**.
+  114 slots expanding to 572 variant files in total, roughly 114,400
+  ElevenLabs credits, and that remaining spend is **not authorized**. It was
+  106 slots and 540 files until 2026-08-14, when the automatic loop and tail
+  rows were declared for every caliber family rather than the six rifle
+  calibers alone, closing a crash an automatic-capable pistol would have hit
+  on its first round. Declaring a row generates no file and spends no credit.
   `scripts/sfx-manifest.ps1` is the network-free script that produces the
   dry-run manifest that would have to be reviewed first.
 

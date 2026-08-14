@@ -137,6 +137,16 @@ public sealed class SandataSoundBudgetTests
     /// Once a shooter's automatic burst stops, exactly one tail instance
     /// plays for that shooter, using the reservation the burst already held.
     /// </summary>
+    /// <remarks>
+    /// The stop is reported well clear of the burst's last round rather than
+    /// on the tick after it. Decision D4 of the 2026-08-14 lowered-weapon and
+    /// automatic-fire design gives <see cref="SandataSoundPlayer.HandleAutomaticFireStopped"/>
+    /// a grace window, because the real caller reports a stop on every tick a
+    /// shooter did not fire on — including the four quiet ticks between two
+    /// rounds of one burst at 600 rounds per minute. A stop one tick after a
+    /// round is now that quiet-tick case and is deliberately a no-op; only a
+    /// gap wider than the window ends a burst.
+    /// </remarks>
     [Fact]
     public void StoppingAutomaticFirePlaysExactlyOneTailInstance()
     {
@@ -161,7 +171,7 @@ public sealed class SandataSoundBudgetTests
             rangeWu: 100,
             shooterIsIndoors: true,
             suppressorFitted: false,
-            tick: 5,
+            tick: 12,
             shooterEntityId: 1);
 
         Assert.Equal(1, output.PlayCount(SoundFamily.GunLoop));
