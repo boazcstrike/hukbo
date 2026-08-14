@@ -170,6 +170,38 @@ public sealed class SandataSimulation
     private readonly RoomLayout? _roomLayout;
 
     /// <summary>
+    /// One entry per <see cref="Navigation.RoomLayout.RoomIds"/> value, in that
+    /// array's own ascending order: the cell <see cref="TrySelectNextRoom"/>
+    /// names as a room's pathfinding goal, or <c>-1</c> for a room no body of
+    /// this mission's radius can stand anywhere inside.
+    /// <para>
+    /// A room's <em>id</em> and a room's <em>representative cell</em> are
+    /// deliberately two different cells. The id is the lowest
+    /// <c>nodeIndex</c> in the component, which <see cref="RoomLayout"/>
+    /// derives from wall and door geometry alone with no body radius in the
+    /// calculation, so it is always the cell hard against the room's
+    /// top-left interior corner — and on every room of every map measured so
+    /// far, <see cref="NavBake"/>'s body-radius inflation marks exactly that
+    /// cell <see cref="NavCellFlags.Blocked"/>. Handing it to
+    /// <see cref="PathService.RequestPath"/> as a goal produced a search that
+    /// could never succeed, for every room, on every tick, which is what made
+    /// the whole sweep look like a squad that had stopped moving. The
+    /// representative is instead the lowest-<c>nodeIndex</c> cell of the same
+    /// component that is not blocked, so it is reachable-shaped by
+    /// construction while staying just as stable and just as derived.
+    /// </para>
+    /// <para>
+    /// Built once, here, from <see cref="_pathBlockedCells"/> — the same
+    /// blocked span <see cref="NavSearch"/> itself reads — so the two can
+    /// never disagree about what a goal cell is. Derived, never hashed, never
+    /// snapshotted, recomputed identically on resume, exactly like
+    /// <see cref="_roomLayout"/> itself. Empty when this simulation was
+    /// constructed without a room layout.
+    /// </para>
+    /// </summary>
+    private readonly int[] _roomRepresentativeCells = [];
+
+    /// <summary>
     /// Creates a simulation caller bound to one mission, its resolved
     /// ruleset, the baked navigation artifacts stages 5 and 7 need, and the
     /// authoritative state to begin ticking from. <paramref name="roomLayout"/>
@@ -229,6 +261,37 @@ public sealed class SandataSimulation
         // A NavGrid's dimensions are fixed for its lifetime, so stage 5's
         // cell chain can be sized once here rather than grown.
         _sightCellBuffer = new int[LineOfSight.RequiredCellBufferLength(navGrid)];
+
+        // See _roomRepresentativeCells: one pass over the whole grid fills
+        // every room's goal cell at once, rather than one scan per room per
+        // retarget. Cells ascend, so the first unblocked cell a room is seen
+        // to own is that room's lowest unblocked nodeIndex by construction,
+        // and a room whose every cell is blocked keeps its -1.
+        if (roomLayout is not null)
+        {
+            _roomRepresentativeCells = new int[roomLayout.RoomIds.Length];
+            Array.Fill(_roomRepresentativeCells, -1);
+
+            for (var cellIndex = 0; cellIndex < _pathBlockedCells.Length; cellIndex++)
+            {
+                if (_pathBlockedCells[cellIndex])
+                {
+                    continue;
+                }
+
+                var roomId = roomLayout.RoomIdAt(cellIndex);
+                if (roomId < 0)
+                {
+                    continue;
+                }
+
+                var roomIndex = roomLayout.IndexOfRoom(roomId);
+                if (roomIndex >= 0 && _roomRepresentativeCells[roomIndex] < 0)
+                {
+                    _roomRepresentativeCells[roomIndex] = cellIndex;
+                }
+            }
+        }
 
         // Stage 0: an initial state that has not already been given real
         // clear states (a fresh mission start, as opposed to a save/resume
@@ -2220,15 +2283,19 @@ public sealed class SandataSimulation
     /// Phase A alone already produces honestly). A Faction-0 group whose
     /// <see cref="GroupPathState.TargetRoomId"/> is <c>-1</c> (never
     /// assigned) or now names a room this same evaluation just found
-    /// <see cref="RoomClearState.Cleared"/> selects its next target as the
-    /// not-yet-cleared room with the lowest (octile heuristic distance from
-    /// the group leader's current cell to that room's own <see cref="RoomClearState.RoomId"/>
-    /// cell, <see cref="RoomClearState.RoomId"/>) pair — decision 4's argmin,
-    /// with a Stage-0 simplification: a room's representative point is its
-    /// <c>RoomId</c> cell itself (always open floor, by <see cref="Navigation.RoomLayout"/>'s
-    /// own construction) rather than decision 4's "nearest doorway cell",
-    /// because doorway identification is corner-adjacent geometry Stage 0
-    /// does not build. Design decision 5's freeze applies first: a group with
+    /// <see cref="RoomClearState.Cleared"/> takes a new target. A group that
+    /// has never held one takes the room its seeded destination already lies
+    /// in — see <see cref="TryAdoptSeededTargetRoom"/> for why the objective
+    /// outranks the sweep for a squad's opening move. Every later target is
+    /// the not-yet-cleared room with the lowest (octile heuristic distance from
+    /// the group leader's current cell to that room's representative cell,
+    /// <see cref="RoomClearState.RoomId"/>) pair — decision 4's argmin,
+    /// with a Stage-0 simplification: a room's representative point is the
+    /// lowest-<c>nodeIndex</c> unblocked cell it owns (see
+    /// <see cref="_roomRepresentativeCells"/>) rather than decision 4's
+    /// "nearest doorway cell", because doorway identification is
+    /// corner-adjacent geometry Stage 0 does not build. Design decision 5's
+    /// freeze applies first: a group with
     /// any living member whose best <see cref="ContactTier"/> this tick is
     /// <see cref="ContactTier.Identified"/> is skipped entirely, using the
     /// same per-operator scan <see cref="SelectIntents"/> already performs
@@ -2372,7 +2439,17 @@ public sealed class SandataSimulation
                 var leaderCellX = NavGrid.WorldToCellCoordinate(view.PositionXWu(leaderIndex));
                 var leaderCellY = NavGrid.WorldToCellCoordinate(view.PositionYWu(leaderIndex));
 
-                if (_navGrid.TryGetCellIndex(leaderCellX, leaderCellY, out var leaderCellIndex)
+                if (updatedGroup.TargetRoomId == -1
+                    && TryAdoptSeededTargetRoom(roomClearStates, updatedGroup.GoalCellIndex, out var seededRoomId))
+                {
+                    // Assault first, sweep after: the destination this group
+                    // arrived with wins its first target, and only the room
+                    // id is recorded. Nothing else on the group is touched,
+                    // so the request the caller already made stands exactly
+                    // as it made it.
+                    updatedGroup = updatedGroup with { TargetRoomId = seededRoomId };
+                }
+                else if (_navGrid.TryGetCellIndex(leaderCellX, leaderCellY, out var leaderCellIndex)
                     && TrySelectNextRoom(roomClearStates, leaderCellIndex, out var nextRoomId, out var nextRoomCellIndex))
                 {
                     updatedGroup = updatedGroup with
@@ -2390,6 +2467,67 @@ public sealed class SandataSimulation
         }
 
         return updatedGroups.MoveToImmutable();
+    }
+
+    /// <summary>
+    /// The ordering correction of 2026-08-15: a group that has never held a
+    /// target adopts the room its <em>existing</em> destination already lies
+    /// in, instead of immediately running <see cref="TrySelectNextRoom"/>'s
+    /// nearest-room argmin.
+    /// <para>
+    /// The design's Phase A alone answers "which room is nearest", which on
+    /// the shipped map is a side closet, and a squad that walks to the
+    /// nearest closet before the room it was sent to assault is a correct
+    /// sweep and a useless assault. Assault first, sweep after: whatever
+    /// destination the caller seeded a group with — the mission objective,
+    /// for every caller that exists — is that group's first target room, and
+    /// Phase A takes over only once that room is
+    /// <see cref="RoomClearState.Cleared"/>. This preserves exactly the
+    /// behaviour the mission had before any room sweeping existed and adds
+    /// the sweep behind it, so the sweep cannot regress what already worked.
+    /// </para>
+    /// <para>
+    /// <see cref="Sandata.Core"/> has no concept of an objective and does not
+    /// gain one here: an objective reaches this method only as the cell index
+    /// a caller already put in <see cref="GroupPathState.GoalCellIndex"/>.
+    /// Returns <see langword="false"/> — falling through to the argmin — when
+    /// that cell is out of range, is blocked, belongs to no room, or names a
+    /// room already cleared, so a group seeded with nothing meaningful sweeps
+    /// from its first tick exactly as it did before.
+    /// </para>
+    /// </summary>
+    private bool TryAdoptSeededTargetRoom(
+        ImmutableArray<RoomClearState> roomClearStates,
+        int goalCellIndex,
+        out int roomId)
+    {
+        roomId = -1;
+
+        if (goalCellIndex < 0 || goalCellIndex >= _pathBlockedCells.Length || _pathBlockedCells[goalCellIndex])
+        {
+            return false;
+        }
+
+        var seededRoomId = _roomLayout!.RoomIdAt(goalCellIndex);
+        if (seededRoomId < 0 || IsRoomCleared(roomClearStates, seededRoomId))
+        {
+            return false;
+        }
+
+        // A room the layout knows but this mission's clear states do not is
+        // not adoptable: IsRoomCleared reports an unknown room as uncleared,
+        // which would otherwise let a group hold a target no later tick could
+        // ever clear.
+        foreach (var roomClearState in roomClearStates)
+        {
+            if (roomClearState.RoomId == seededRoomId)
+            {
+                roomId = seededRoomId;
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /// <summary>
@@ -2423,14 +2561,24 @@ public sealed class SandataSimulation
     /// construction — and keeps the first not-yet-<see cref="RoomClearState.Cleared"/>
     /// room whose integer octile heuristic distance
     /// (<c>10 * (max - min) + 14 * min</c>, design section 7's pinned form,
-    /// no epsilon) from <paramref name="fromCellIndex"/> to that room's own
-    /// <c>RoomId</c> cell is strictly lower than every room already seen.
+    /// no epsilon) from <paramref name="fromCellIndex"/> to that room's
+    /// representative cell is strictly lower than every room already seen.
     /// Because the scan itself is already ascending by <c>RoomId</c>, keeping
     /// strictly-lower (never less-than-or-equal) matches decision 4's stated
     /// tie-break, <c>RoomId</c>, with no separate comparison needed. Returns
     /// <see langword="false"/> when every room is already
     /// <see cref="RoomClearState.Cleared"/> — Phase A exhausted, and Phase B
     /// is not implemented in Stage 0 (this method's own caller's remarks).
+    /// <para>
+    /// The measured distance and the returned goal are both the room's
+    /// <see cref="_roomRepresentativeCells"/> entry, never its <c>RoomId</c>
+    /// cell: see that field's own remarks for why naming the id cell as a
+    /// goal made every search in the sweep fail. A room with no unblocked
+    /// cell at all is skipped rather than returned, because a goal no search
+    /// can reach is indistinguishable, from the squad's point of view, from
+    /// having no destination — and unlike having none, it would keep winning
+    /// the argmin forever.
+    /// </para>
     /// </summary>
     private bool TrySelectNextRoom(
         ImmutableArray<RoomClearState> roomClearStates,
@@ -2452,7 +2600,18 @@ public sealed class SandataSimulation
                 continue;
             }
 
-            var candidateCellIndex = roomClearState.RoomId;
+            var roomIndex = _roomLayout!.IndexOfRoom(roomClearState.RoomId);
+            if (roomIndex < 0 || roomIndex >= _roomRepresentativeCells.Length)
+            {
+                continue;
+            }
+
+            var candidateCellIndex = _roomRepresentativeCells[roomIndex];
+            if (candidateCellIndex < 0)
+            {
+                continue;
+            }
+
             var candidateX = _navGrid.CellX(candidateCellIndex);
             var candidateY = _navGrid.CellY(candidateCellIndex);
 
