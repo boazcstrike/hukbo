@@ -1417,6 +1417,62 @@ travel or lift. Confirmed directly:
 `DefaultFitStation_LandsInMediumTier`, and
 `MaximumZoomStation_LandsInHighTier`.
 
+## Canonical gate result — Hukbo, 2026-08-14 (isolated receipt at `8ee5a51`)
+
+This is the receipt the lethal blow legibility package's task table asked for
+and never obtained. That plan required one isolated green gate proving the
+change alone left the gate green. The attempt made on the day failed at the
+build stage on unrelated concurrent work, and the only green run available
+afterwards bundled the lethal blow change together with cohort lateral spread
+and other uncommitted work, which is strong evidence but is not the receipt the
+plan asked for.
+
+The run recorded here was made in a dedicated worktree checked out detached at
+`8ee5a51`, confirmed clean beforehand — `git status --porcelain` produced no
+output and `git rev-parse HEAD` returned
+`8ee5a51843073fc5f1c3e1555e1cbdb7ee6e8beb`. No task from the pawn visual
+fidelity package had run yet, so nothing in the tree was newer than the lethal
+blow work. The command was `./scripts/verify.ps1` with no flags, so all five
+stages ran, including the locked restore that `-SkipBootstrap` would have
+skipped. It exited with code 0.
+
+```
+[PASS] Platform: Windows x64
+[PASS] PowerShell: 7.6.4
+[PASS] git version 2.55.0.windows.3
+[PASS] Git LFS: installed (optional; no tracked LFS assets are currently required)
+[PASS] .NET SDK: 10.0.302
+[PASS] packages.lock.json present for all 21 projects.
+[PASS] MonoGame packages are centrally pinned: MonoGame.Content.Builder.Task 3.8.5, MonoGame.Framework.DesktopGL 3.8.5
+[PASS] Required prerequisites and repository configuration are present.
+[PASS] Locked package restore completed.
+[PASS] Formatting verification completed.
+[PASS] Release solution build completed.
+[PASS] Release repository tests completed.
+[PASS] Headless workload completed: agents=200 ticks=10000 seed=1.
+[PASS] Headless workload completed: agents=200 ticks=10000 seed=1.
+[PASS] Headless workload completed: agents=200 ticks=10000 seed=1.
+[PASS] Headless workload completed: agents=200 ticks=10000 seed=1.
+[PASS] Headless workload completed: agents=200 ticks=10000 seed=1.
+[PASS] Canonical repository verification completed.
+```
+
+**Stage five runs five headless workloads, not one.** Each is 200 agents,
+10,000 ticks, and seed 1, and each reported `deterministic: true` with a
+`firstMismatchTick` of `null`. They differ by preset pair, and a later claim
+that "the hashes are unchanged" has to name which of the five it means.
+
+| Combat preset | Movement preset | Outcome | State hash | Event hash |
+| --- | --- | --- | --- | --- |
+| 6 | 4 | `Faction0Victory` | `5460D13E3F7FD3E5` | `8E18ED1437B2924B` |
+| 5 | 8 | `Faction1Victory` | `C8023D3B5BEB005E` | `F709A345E2F7370E` |
+| 5 | 10 | `Faction0Victory` | `7C145A9E05916E4C` | `77626E104234206C` |
+| 5 | 11 | `Faction0Victory` | `6225182B4A470F91` | `C4DABE6AF98B6BEC` |
+| 5 | 13 | `Faction1Victory` | `4A0723BC9A1B924B` | `E0CE32CF8830A864` |
+
+The final row is the pair the recorded seed-1 baseline elsewhere in this
+document refers to.
+
 ## The interactive smoke checklist
 
 Moved to [smoke-checklist.md](smoke-checklist.md) on 2026-08-11.
