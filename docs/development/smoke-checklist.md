@@ -24,23 +24,22 @@ The gate, the current gate results, and the recorded baselines live in
 
 ## Where the checklist stands, 2026-08-14
 
-21 rows across 4 subsections: **5 `PASS`, 1 `BLOCKED`, and 15 `PENDING`, with
-no `FAIL` or `DECLINED` row** — recounted from the status column of this file
+16 rows across 4 subsections: **16 `PENDING`, and no `PASS`, `FAIL`,
+`BLOCKED`, or `DECLINED` row** — recounted from the status column of this file
 on 2026-08-14, after ten families closed in full that day and their subsections
 were deleted whole, after the death-collapse family added ten new `PENDING`
-rows in a subsection of its own later the same day, after the UI chrome
-nine-slice family added six more at the end of it and a person ran all six the
-same evening, and after the calibrated army composition added three more in a
-subsection of its own.
+rows in a subsection of its own later the same day, and after the calibrated
+army composition added three more in a subsection of its own.
 
-Five of those six passed. The sixth, `CH-4`, is the only `BLOCKED` row in this
-file, and it is blocked on hardware rather than on code: it asks a tester to
-step through four interface-scale tiers, and `UiScalePolicy.Resolve` caps the
-reachable tier by viewport, so a 1080p display can only reach two of them. The
-sampler question that row exists to settle — whether a bleed halo appears at
-the joins between corner and edge cells — is therefore still unanswered, and
-the design's decision to leave it to a tester rather than assert it still
-stands open. The contingent shape selector family both joined this file
+The UI chrome nine-slice family joined this file and all but emptied it on the
+same day. Six rows were written ahead of the code deliberately; a person ran
+all six that evening and five passed, so those five were removed rather than
+left sitting green. The survivor is `CH-4`, which was rewritten rather than
+closed: as first written it asked for four interface-scale tiers, and
+`UiScalePolicy.Resolve` caps the reachable tier by viewport, so a 1080p display
+can only ever reach two of them. It now asks only for the tiers a tester can
+actually reach, and the sampler question it exists to settle is still
+unanswered. The contingent shape selector family both joined this file
 and left it on that day: `CS-1` and `CS-2` were written as two new `PENDING`
 rows in a subsection of their own, then run and passed before the day was out.
 
@@ -145,7 +144,7 @@ The families below are grouped by what a single launch can actually
 show, because the subsections are ordered by the change that created them
 rather than by what is on screen at once, and a person working down the file in
 order relaunches the game far more often than they need to. The batch rows below
-cover 5 of this file's 21 rows and no longer sum to its total. The Sandata batch
+cover 5 of this file's 16 rows and no longer sum to its total. The Sandata batch
 left the table on 2026-08-14 when its last three rows closed, and the
 composition batch joined it the same day; the death-collapse family's ten rows
 and the UI chrome family's six have never been given a batch row at all, which
@@ -316,40 +315,34 @@ honestly.
 
 ## UI chrome nine-slice (the 2026-08-14 UI chrome nine-slice design)
 
-**Six new rows, all `PENDING`, written on 2026-08-14 when the package was
-planned.** They are written ahead of the code deliberately, because the design
-leaves two questions for a tester to settle rather than for an author to
-assert, and both need to be on the checklist before anyone is tempted to decide
-them from a screenshot.
+**One row, `PENDING`.** Six were written on 2026-08-14 and a person ran all six
+the same evening. Five passed and left this file: the selector appears and
+defaults to `Procedural`, both wired panels switch live and switch back, chrome
+recolours with every theme, and the choice survives a restart. Only the row
+below is unresolved, and it is the only one that decides anything.
 
-What a tester is looking at. A new `PANEL STYLE` selector in the settings menu
-switches panel chrome between `Procedural` — the flat rectangles the game has
-always drawn — and `NineSlice`, which draws the same panels from a texture
-atlas with chamfered corners and an inner accent line. The first cut wires two
-panels only, the settings menu panel itself and the confirmation prompt.
-Everything else on screen keeps the flat look under both settings, and that is
-expected rather than an unfinished edge.
+Panel chrome draws inside the interface batch, which uses
+`SamplerState.LinearClamp`. Linear filtering on a pixel-authored atlas can
+bleed neighbouring texels across the joins between corner and edge cells.
+Whether that artefact is actually visible is a question for eyes, and the
+answer decides whether the implementation needs a nested `PointClamp` batch
+around chrome draws. The design deliberately declined to assert an answer; find
+it by its title, "UI chrome nine-slice sprite skin — design", section 8.
 
-`CH-4` is the one row that decides something. Panel chrome draws inside the
-interface batch, which uses `SamplerState.LinearClamp`, and linear filtering on
-a pixel-authored atlas can bleed neighbouring texels across the joins between
-corner and edge cells. Whether that artefact is visible at any interface scale
-is a question for eyes, not for a test, and the answer decides whether the
-implementation needs a nested `PointClamp` batch.
+The original row asked for all four interface-scale tiers. That was
+unrunnable: `UiScalePolicy.Resolve` caps the reachable tier by viewport, so 125
+per cent needs 1920x1080, 150 per cent needs 2560x1440, and 200 per cent needs
+3840x2160. On a 1080p display 150 and 200 both resolve back to 125, which is
+pre-existing behaviour and not a chrome defect. The row is rescoped below to
+the tiers a tester can actually reach.
 
-The atlas in this first cut is placeholder programmer art. It is not a proposed
-visual identity, it makes no historical claim, and "it looks crude" is not a
-finding worth recording against these rows.
+The atlas is placeholder programmer art. It makes no historical claim, and "it
+looks crude" is not a finding against this row.
 
 Only a human running `./scripts/run.ps1` on an interactive Windows desktop may
-flip one of these rows. Compilation, unit tests, and a window-opening probe do
-not make a row pass. Leave untouched rows `PENDING`; report `BLOCKED` honestly.
+flip this row. Compilation, unit tests, and a window-opening probe do not.
+Leave it `PENDING` if untouched; report `BLOCKED` honestly.
 
 | # | Step | Expected | Actual | Status |
 | --- | --- | --- | --- | --- |
-| CH-1 | Launch and open the settings menu | A `PANEL STYLE` selector is present, reads `Procedural`, and every panel looks exactly as it did before this package | Selector present and reading `Procedural`; panels unchanged | PASS |
-| CH-2 | With the menu open, cycle `PANEL STYLE` to `NineSlice` | The menu panel and the confirmation prompt switch to the sprite skin immediately — no restart, no flicker, no crash — and the chamfered corners are visibly different from the flat border | Both panels switched live and the chamfered corners read as clearly different | PASS |
-| CH-3 | Cycle `PANEL STYLE` back to `Procedural` | Both panels revert to the flat-rectangle look, identical to what `CH-1` recorded | Reverted to the flat look | PASS |
-| CH-4 | With `NineSlice` active, cycle interface scale through all four tiers and look closely at the joins between corner and edge cells | Corners and margins grow with the interface. Record in the Actual column whether a bleed halo appears at any tier, and at which — this row decides whether a nested `PointClamp` batch is needed | Only two of the four tiers are reachable on the tester's display. `UiScalePolicy.Resolve` caps the configured scale at a ceiling set by the viewport — 125 per cent needs 1920x1080, 150 per cent needs 2560x1440, and 200 per cent needs 3840x2160 — so on a 1080p display 150 and 200 both resolve back to 125. That is pre-existing behaviour and not a chrome defect. Of the reachable tiers the tester reported 125 per cent as ideal and 100 per cent as slightly small, which is a sizing preference rather than the seam observation this row asks for. **The halo question is still unanswered at every tier.** | BLOCKED |
-| CH-5 | With `NineSlice` active, cycle through every theme | Chrome recolours with each theme, and no theme leaves the border invisible or illegible against its own panel surface | Recoloured correctly across every theme | PASS |
-| CH-6 | Set `NineSlice`, quit, and relaunch | The setting persisted and the sprite skin is active on launch | Persisted across a restart | PASS |
+| CH-4 | With `NineSlice` active, set interface scale to 100 per cent and then to 125 per cent. At each, look closely at the four points where a rounded corner meets the straight edge of the menu panel | No pale seam, halo, or one-pixel smear at any of those joins. Record which tiers were actually reachable on the display used, and whether a seam appeared at either | | PENDING |
