@@ -7,7 +7,7 @@ namespace Hukbo.Client.Tests;
 /// <summary>
 /// Proves the acceptance criterion for plan task 47
 /// (docs/plans/2026-08-07-sandata-scaffold.md), the RU-29 extension
-/// (docs/plans/2026-08-07-ranged-units.md), and task 14 of the archived
+/// (the ranged units plan), and task 14 of the archived
 /// "Battlefield realism" plan (archived once its build merged):
 /// scripts/verify.ps1 gains
 /// a -Game parameter and passes it through to test.ps1 and benchmark.ps1,
@@ -26,11 +26,10 @@ namespace Hukbo.Client.Tests;
 /// section 9.2 (docs/plans/2026-08-11-battlefield-realism-design.md) records
 /// why the V10 workload is a third block rather than a repointed V8 one: the
 /// V8 block and its frozen digest stay the leak detector proving V10's
-/// changes never reached V8. The last-stand engagement plan
-/// (docs/plans/2026-08-13-last-stand-engagement.md, task 11) added the fourth
+/// changes never reached V8. The last-stand engagement plan, task 11,
+/// added the fourth
 /// under that same precedent, when V11 rather than V10 became what the client
-/// selects. The cohort lateral spread plan
-/// (docs/plans/2026-08-14-cohort-lateral-spread.md, task 13) added the fifth
+/// selects. The cohort lateral spread plan, task 13, added the fifth
 /// on 2026-08-14, when CohortLateralSpreadV13 in turn became what the client
 /// selects; the V11 block stays as the leak detector for it.
 /// </summary>

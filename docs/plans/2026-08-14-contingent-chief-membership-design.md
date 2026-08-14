@@ -4,7 +4,7 @@ Date: 2026-08-14
 Status: **design only. This document does not authorize implementation**, under
 `CLAUDE.md` section 6. It exists to make one decision decidable, not to take it.
 
-The decision it serves is section 6b of `docs/plans/2026-08-13-contingent-shape.md`
+The decision it serves is section 6b of the archived contingent shape task plan
 — task 7 of that plan, "chief present in every contingent", which is not
 delivered and which that section says needs a person. Three options were
 recorded there. This document establishes what each one actually costs against
@@ -200,7 +200,7 @@ every chief scores `ShieldRank(false) = 1` and sorts behind every shield bearer
 in its contingent. A chief added to a contingent is appended after that
 contingent's shield block, never inserted into it.
 
-This is also exactly what section 0 of `docs/plans/2026-08-13-contingent-shape.md`
+This is also exactly what section 0 of the archived contingent shape task plan
 already decided — the chief is present but not privileged in placement — so
 option 2 does not have to reopen that decision as long as it confines itself to
 pass 1 (membership) and leaves pass 2 (depth) alone. The plan's section 6b says
@@ -236,7 +236,7 @@ If a faction fields fewer chiefs than it has contingents, some contingent gets
 no chief regardless. Under V12 that is nearly impossible by construction —
 contingent count *is* chief count, floored at one and capped at eight
 (`FormationPlanner.cs:293-296`) — with one exception: a faction fielding zero
-chiefs gets one contingent and no chief in it. `docs/plans/2026-08-13-contingent-shape.md`
+chiefs gets one contingent and no chief in it. the archived contingent shape task plan
 section 3.2 establishes that a spectator can legally field a chiefless faction
 through the client's own composition sliders, so this case is reachable and any
 option-2 implementation must handle it without throwing.
@@ -279,7 +279,7 @@ goes red with no legitimate way to re-pin it.
 - V10 and V11 now **do** have pinned full-battle trajectories, added by this
   package: `ContingentShapeV12Tests.cs:250-261` and `:270-281`, pinning tick
   count, outcome, state hash and event fold as C# literals. The claim in
-  `docs/plans/2026-08-13-contingent-shape.md` section 4 that they have no frozen
+  the archived contingent shape task plan section 4 that they have no frozen
   digest at all was true when that plan was written and is now stale.
 
 ### 4.2 The proof that V1–V11 cannot move
@@ -298,7 +298,7 @@ every new branch is gated on preset identity**:
 - `CohortDeploymentAssignment` never draws from the SplitMix64 stream — stated
   at `CohortDeploymentAssignment.cs:12-14` and at the call site,
   `BattleSimulation.cs:690-692` — so no option that edits it can shift the draw
-  count that `docs/plans/2026-08-13-contingent-shape.md` section 1.1 identifies
+  count that the archived contingent shape task plan section 1.1 identifies
   as the real determinism hazard.
 
 | Option | V1–V11 digests | V10/V11 pinned trajectories | V12's own pinned assertions |
@@ -449,7 +449,7 @@ is split.
    importantly, no new draw: `CohortDeploymentAssignment` never consults the
    stream (`CohortDeploymentAssignment.cs:12-14`, `BattleSimulation.cs:690-692`),
    so no option can shift the draw count that
-   `docs/plans/2026-08-13-contingent-shape.md` section 1.1 identifies as the
+   the archived contingent shape task plan section 1.1 identifies as the
    hazard. Option 2 needs one new total order — which chief founds which
    contingent — and it should reuse the tie-break already decided in that plan's
    section 0: faction-local index ascending, then `EntityId` ascending, matching
@@ -547,7 +547,7 @@ has already produced two missed call sites in this package.
 
 If option 2 is nonetheless wanted later, section 7.1's work is still the right
 first step, and the reservation must be confined to pass 1. Confining it there
-is what keeps section 0 of `docs/plans/2026-08-13-contingent-shape.md` — chief
+is what keeps section 0 of the archived contingent shape task plan — chief
 present but not privileged — intact rather than reopened.
 
 ---
@@ -574,7 +574,7 @@ or imprecise.
 | "`CohortDeploymentAssignment.AssignForFaction` (…:47)" | `:47` is the `internal static class` declaration. `AssignForFaction` is declared at `:69`. |
 | "The canonical gate's headless workloads report `movementPreset: 11`" | Only the fourth of four does. `verify.ps1:37-43` passes no preset and runs `PrecolonialPhilippinesV6` / `PersistentContingentsV4`; `:54-63` and `:70-79` run V8 and V10. The conclusion — that no workload runs V12 — holds. |
 | "NOTHING selects V12 … a preset selector / default flip is the real blocking prerequisite" | A player-facing preset selector already exists and works (`ArmyCompositionPanel.cs:105-145`); V12 is simply absent from its two lists. The headless runner already selects V12 by name or number today, and a real run under it is recorded in section 5.2. The prerequisite is two list entries, not a selector. |
-| "V10 and V11 have no frozen trajectory digest" (carried from `docs/plans/2026-08-13-contingent-shape.md` section 4) | True when that plan was written, stale now: `ContingentShapeV12Tests.cs:250-261` and `:270-281` pin V10's and V11's full-battle tick count, outcome, state hash and event fold as C# literals. |
+| "V10 and V11 have no frozen trajectory digest" (carried from the archived contingent shape task plan section 4) | True when that plan was written, stale now: `ContingentShapeV12Tests.cs:250-261` and `:270-281` pin V10's and V11's full-battle tick count, outcome, state hash and event fold as C# literals. |
 
 Two briefing claims were checked and found **correct**: `CohortDeploymentAssignment`
 does reassign membership downstream of the planner and undo the chief spread,

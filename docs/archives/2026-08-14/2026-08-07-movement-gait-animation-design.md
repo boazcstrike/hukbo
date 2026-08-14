@@ -1,8 +1,21 @@
 # Movement gait animation — design
 
-Status: design only. This document does not authorize implementation. The
-ordered task list lived in the movement gait animation plan, now archived out
-of `docs/plans/`.
+**Archived: reference only.** This is a finished design. The feature shipped at
+`c107539`, and all fourteen `GA-*` smoke rows were run by a person and closed
+`PASS` on 2026-08-14, after which the family's section left
+`docs/development/smoke-checklist.md` whole. Never execute it, never treat it as
+a live task list, and never cite it as the reason to make a change. The live
+contract for this project remains `CLAUDE.md` and
+`docs/development/smoke-checklist.md`; nothing in this file overrides either of
+those. Archived 2026-08-14. It was held in `docs/plans/` after shipping under
+the rule that a source-cited design stays live; by the time of this sweep no
+file under `src/` or `tests/` cited it by path, so nothing kept it there. The
+constants the client's pawn geometry depends on — the stride phase, the tier
+gating, the leg and foot proportions — are documented in the comments at those
+call sites and do not depend on this document surviving.
+
+Status: design only. This document did not authorize implementation. The
+ordered task list lived in the movement gait animation plan, archived earlier.
 
 ## 1. What the spectator asked for
 

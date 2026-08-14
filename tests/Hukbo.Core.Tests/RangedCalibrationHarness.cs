@@ -22,7 +22,7 @@ namespace Hukbo.Core.Tests;
 /// <c>PressureInterruptCalibrationHarness</c>: every threshold in
 /// <see cref="PhilippineCombatPresetV5"/> is owned there, and this file only
 /// produces a block of text a person reads and pastes into
-/// <c>docs/plans/2026-08-07-ranged-units.md</c> section 9. Nothing here is a
+/// the ranged units plan, section 9. Nothing here is a
 /// second gate — <c>PhilippineCombatIntegrationTests.cs</c> and the future
 /// <c>RangedTerminationTests.cs</c> (RU-29) own the pinned assertions.
 /// </para>
@@ -360,7 +360,7 @@ internal static class RangedCalibrationHarness
 
         // Two different bars appear on every row, and they are not the same
         // thing. `criterion(>1x)` is the plan's acceptance test verbatim —
-        // docs/plans/2026-08-07-ranged-units.md band (b): "shielded roster
+        // the ranged units plan band (b): "shielded roster
         // entries still absorbing more blows than shieldless". The verdict
         // line below is computed from this column only. `observation(>1.15x)`
         // is a stricter margin RU-45 added on top, never stated by the plan;

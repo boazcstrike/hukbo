@@ -5,7 +5,7 @@ Status: design only. This document does not authorize implementation. It is
 Phase C of the sequence set out in the warrior standing design
 §9, and it is explicitly **not** implemented in the same pass as Phase A or
 Phase B. The task-planning pass this document required was run on 2026-08-13 and
-is [`2026-08-13-contingent-shape.md`](2026-08-13-contingent-shape.md). That
+is the contingent shape task plan, now archived. That
 document, not this one, is where the ordered task list and the current blocking
 decisions live.
 
@@ -440,6 +440,6 @@ under time pressure during an implementation pass is exactly the failure mode
 `CLAUDE.md`'s "a task that finds itself guessing has hit a missing decision and
 must stop" rule exists to prevent. The task-planning pass this section
 originally called for has now been written — it is
-[`2026-08-13-contingent-shape.md`](2026-08-13-contingent-shape.md) — and it
+the contingent shape task plan, now archived — and it
 carries the ordered task list, the blast radius across the test surface, and
 the two decisions that still block implementation.

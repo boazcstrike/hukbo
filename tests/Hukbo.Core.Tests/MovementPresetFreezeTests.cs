@@ -283,7 +283,7 @@ public sealed class MovementPresetFreezeTests
     /// <see cref="AgentView.ContingentId"/> and
     /// <see cref="AgentView.ContingentState"/> values this preset populates
     /// -- match the fixture exactly. See RU-27,
-    /// docs/plans/2026-08-07-ranged-units.md: this fixture freezes the
+    /// the ranged units plan: this fixture freezes the
     /// ranged-standoff preset's trajectory in the same shape every earlier
     /// preset in this file already uses, with the control run selecting
     /// <c>CombatPresetId.PrecolonialPhilippinesV2</c> explicitly, the same

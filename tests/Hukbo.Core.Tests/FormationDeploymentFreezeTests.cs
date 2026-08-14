@@ -10,7 +10,7 @@ namespace Hukbo.Core.Tests;
 /// <summary>
 /// Freezes the current, unmodified output of
 /// <see cref="FormationPlanner.PlanFactionDeployment"/> before the
-/// contingent-shape workstream (docs/plans/2026-08-13-contingent-shape.md)
+/// contingent-shape workstream (the contingent shape task plan)
 /// touches it. This file is not itself part of that workstream; it is the
 /// oracle every task in it must reproduce byte-identically unless a task's
 /// own remit is deployment geometry.

@@ -92,7 +92,7 @@ internal static class FormationPlanner
     /// only under <see cref="MovementPresetId.ContingentShapeV12"/> with no
     /// authored <see cref="Scenario.ContingentSizes"/>, where it decides the
     /// contingent count (tasks 6 and 7 of
-    /// docs/plans/2026-08-13-contingent-shape.md). Every earlier preset, and
+    /// the contingent shape task plan). Every earlier preset, and
     /// every V12 scenario that authors its own sizes, ignores this parameter
     /// entirely, so a caller planning one of those may pass any value,
     /// including zero.
@@ -224,7 +224,7 @@ internal static class FormationPlanner
     /// a scenario built for <see cref="MovementPresetId.LastStandEngagementV11"/>
     /// that populates either field -- so this method, and therefore every
     /// preset from V1 through V11, stays byte-identical to its behaviour
-    /// before tasks 6 and 7 of docs/plans/2026-08-13-contingent-shape.md.
+    /// before tasks 6 and 7 of the contingent shape task plan.
     /// Only once the preset is V12 does the authored array, then the
     /// chief-derived count, come into play.
     /// </remarks>

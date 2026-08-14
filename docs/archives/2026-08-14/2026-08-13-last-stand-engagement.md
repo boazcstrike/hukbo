@@ -1,7 +1,17 @@
 # Last-stand engagement — plan
 
+**Archived: reference only.** Executed and merged at `d17c8a3`:
+`MovementPresetId.LastStandEngagementV11` ships, the client selects it, the gate
+carries the fourth stage-5 block this plan added, and `LS-1` — the one row of its
+family — was re-run by a person and closed `PASS` on 2026-08-14, closing the
+family whole. Never execute it, never treat it as a live task list, and never
+cite it as the reason to make a change. The live contract for this project
+remains `CLAUDE.md`, `docs/development/testing.md`, and
+`docs/development/smoke-checklist.md`; nothing in this file overrides any of
+them. Archived 2026-08-14.
+
 Written 2026-08-13, out of smoke row `LS-1` and
-`docs/plans/2026-08-13-last-stand-engagement-design.md`. The design document's
+`docs/plans/2026-08-13-last-stand-engagement-design.md`, which is still live. The design document's
 section 6 open question is answered: **the endgame is meant to read as two small
 bands colliding**, and the remedy adopted is the design's **remedy C**, the
 state-dependent trail. Remedies A and B are rejected and are not revisited here.

@@ -223,7 +223,7 @@ public enum MovementPresetId
     /// than an opt-in: it exists because the shipped build is where the defect
     /// was observed. See
     /// docs/plans/2026-08-13-last-stand-engagement-design.md remedy C and
-    /// docs/plans/2026-08-13-last-stand-engagement.md.
+    /// the last-stand engagement plan.
     /// </para>
     /// </remarks>
     LastStandEngagementV11 = 11,
@@ -252,7 +252,7 @@ public enum MovementPresetId
     /// identity with a closed <c>is BattlefieldRealismV10 or
     /// LastStandEngagementV11</c> pattern rather than a monotone "V10 or
     /// later" test, and this value falls outside that gate too. See
-    /// docs/plans/2026-08-13-contingent-shape.md and
+    /// the contingent shape task plan and
     /// docs/plans/2026-07-29-contingent-shape-design.md.
     /// </summary>
     ContingentShapeV12 = 12,
@@ -277,7 +277,7 @@ public enum MovementPresetId
     /// <see cref="Simulation.FormationPlanner.ResolveContingentSizes"/>, so
     /// it takes the square-root sizing path V11 does. See
     /// docs/plans/2026-08-14-cohort-lateral-spread-design.md and
-    /// docs/plans/2026-08-14-cohort-lateral-spread.md.
+    /// the cohort lateral spread plan.
     /// </summary>
     CohortLateralSpreadV13 = 13,
 }

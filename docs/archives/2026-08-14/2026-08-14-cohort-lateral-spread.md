@@ -1,5 +1,16 @@
 # Cohort lateral spread — plan
 
+**Archived: reference only.** All fourteen tasks are executed and merged:
+`MovementPresetId.CohortLateralSpreadV13` ships as the client's default, the gate
+is green on `main` at `33de5cd` with the four pre-existing seed-1 digests
+unmoved, and the two rows this plan existed to close, 58 and 59, were re-run by a
+person and closed `PASS` on 2026-08-14 — the starting deployment family left the
+checklist whole. Never execute it, never treat it as a live task list, and never
+cite it as the reason to make a change. The live contract for this project
+remains `CLAUDE.md`, `docs/development/testing.md`, and
+`docs/development/smoke-checklist.md`; nothing in this file overrides any of
+them. Archived 2026-08-14.
+
 Date: 2026-08-14
 Design: `docs/plans/2026-08-14-cohort-lateral-spread-design.md` (that document
 wins on any disagreement with this one)

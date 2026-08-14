@@ -4,6 +4,17 @@
 
 **Date:** 2026-07-31
 
+**Archived: reference only.** This is the finished 2026-07-31 UI and UX package
+— the audit, the visual direction, the plan, and the implementation report. It
+was implemented and merged, its automated verification was complete, and the
+manual smoke rows it was waiting on were run by a person and closed on
+2026-08-13, after which their sections left `docs/development/smoke-checklist.md`
+whole. Never execute anything in this folder, never treat any of it as a live
+task list, and never cite it as the reason to make a change. The live contract
+for this project remains `CLAUDE.md` and `docs/development/smoke-checklist.md`.
+Archived 2026-08-14. `UI-33`, live fullscreen switching, was deferred by the
+plan itself rather than left unfinished by it.
+
 **Implementation authorization:** Approved by the user on 2026-07-31
 
 **Implementation record:** [implementation-report.md](implementation-report.md)

@@ -2238,8 +2238,9 @@ internal static class PawnGeometry
         // (unposed) line, and its posed line at every RangedGeometry
         // keyframe, stays inside the envelope the Kalis already sets for
         // ConservativePawnCull (24.2 units up, 19.2 right, 11 left, 1.2
-        // down at apparent scale 1) — see docs/plans/2026-08-07-ranged-units.md
-        // row RU-22. Enlarging the cull radius to fit a longer line is not an
+        // down at apparent scale 1) — see row RU-22 of the archived document
+        // titled "Ranged units — plan". Enlarging the cull radius to fit a
+        // longer line is not an
         // option; the line was sized to the radius instead.
         var start = role switch
         {

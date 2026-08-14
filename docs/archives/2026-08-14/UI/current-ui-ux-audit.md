@@ -4,6 +4,13 @@
 
 **Date:** 2026-07-31
 
+**Archived: reference only.** This is the audit half of the finished 2026-07-31
+UI and UX package. It describes the client as it stood on that date, and the
+code it points at has moved since. Never treat it as a live description, and
+never cite it as the reason to make a change. The live contract for this project
+remains `CLAUDE.md` and `docs/development/smoke-checklist.md`. Archived
+2026-08-14.
+
 ## Scope and method
 
 This audit reads the live `Hukbo.*` source as authoritative. The repository
@@ -29,13 +36,13 @@ The current font ramp is already role-based:
 | Title | 22 px |
 | Display | 38 px |
 
-[`UiFontRamp`](../../../src/Hukbo.Client/Theming/UiFontRamp.cs) requires each
-font to be drawn at `1.0` scale. [`UiButton`](../../../src/Hukbo.Client/UI/UiButton.cs)
+[`UiFontRamp`](../../../../src/Hukbo.Client/Theming/UiFontRamp.cs) requires each
+font to be drawn at `1.0` scale. [`UiButton`](../../../../src/Hukbo.Client/UI/UiButton.cs)
 uses the shared text primitives at that scale, and
-[`UiTextGeometry`](../../../src/Hukbo.Client/UI/UiTextGeometry.cs) snaps text to
+[`UiTextGeometry`](../../../../src/Hukbo.Client/UI/UiTextGeometry.cs) snaps text to
 whole pixels.
 
-[`ArenaGame.Rendering`](../../../src/Hukbo.Client/ArenaGame.Rendering.cs)
+[`ArenaGame.Rendering`](../../../../src/Hukbo.Client/ArenaGame.Rendering.cs)
 uses `PointClamp` for the arena and `LinearClamp` for UI. This is the correct
 separation for pixel-art units and anti-aliased UI glyphs.
 
@@ -56,7 +63,7 @@ borderless. Several UI regions still use fixed pixel dimensions:
 - menu panel: `360x912` px.
 
 The theme standard defines the `912` px menu panel, and
-[`MenuOverlay`](../../../src/Hukbo.Client/MenuOverlay.cs) centers it without
+[`MenuOverlay`](../../../../src/Hukbo.Client/MenuOverlay.cs) centers it without
 clamping it to the viewport. At `720` px client height, the panel begins at
 `-96` and ends at `816`. Lower controls and help text can therefore be outside
 the default window.
@@ -69,12 +76,12 @@ mode or UI scale selector.
 
 ### Window state and fullscreen
 
-[`ArenaGame`](../../../src/Hukbo.Client/ArenaGame.cs) currently implements
+[`ArenaGame`](../../../../src/Hukbo.Client/ArenaGame.cs) currently implements
 maximize and restore through the SDL window. Repository searches found no
 fullscreen state, `ToggleFullScreen`, `HardwareModeSwitch`, or persisted
 display-mode setting. "Max" must therefore not be described as fullscreen.
 
-[`ClientSettings`](../../../src/Hukbo.Client/Settings/ClientSettings.cs)
+[`ClientSettings`](../../../../src/Hukbo.Client/Settings/ClientSettings.cs)
 persists theme, composition, gore, motion, and auto-camera values. Settings are
 loaded before the graphics manager is configured, which provides a clean seam
 for a startup display choice.
@@ -98,7 +105,7 @@ Authoritative API references:
 
 ### Theme system
 
-[`ui-theme-standards.json`](../../../src/Hukbo.Client/Content/Themes/ui-theme-standards.json)
+[`ui-theme-standards.json`](../../../../src/Hukbo.Client/Content/Themes/ui-theme-standards.json)
 contains five themes:
 
 - `command`;
@@ -172,7 +179,7 @@ For each case record:
 - input hit-testing alignment.
 
 The existing typography rows in
-[`docs/development/testing.md`](../../development/testing.md) remain `PENDING`.
+[`docs/development/testing.md`](../../../development/testing.md) remain `PENDING`.
 Their prior expectation that text stays at a constant pixel size should be
 revised only after an approved scaling design.
 

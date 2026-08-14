@@ -1,5 +1,16 @@
 # Contingent shape — task plan (Phase C)
 
+**Archived: reference only.** The package is finished: tasks 1 through 6 and 8
+and 9 shipped, `MovementPresetId.ContingentShapeV12` is registered and selectable
+in the client, task 7 is closed as accepted rather than delivered per section
+6b.1, and the canonical gate ran green with all four stage-5 baselines recorded
+in section 5's output block. The two smoke rows that stood beside it, `CS-1` and
+`CS-2`, were run by a person and closed `PASS` on 2026-08-14. Never execute it,
+never treat it as a live task list, and never cite it as the reason to make a
+change. The live contract for this project remains `CLAUDE.md`,
+`docs/development/testing.md`, and `docs/development/smoke-checklist.md`; nothing
+in this file overrides any of them. Archived 2026-08-14.
+
 Date: 2026-08-13
 Status: plan document. This is the task-planning pass that
 `docs/plans/2026-07-29-contingent-shape-design.md` asks for in its closing

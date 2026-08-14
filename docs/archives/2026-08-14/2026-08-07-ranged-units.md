@@ -1,6 +1,21 @@
 # Ranged units — plan
 
-Design: [`2026-08-07-ranged-units-design.md`](2026-08-07-ranged-units-design.md).
+**Archived: reference only.** Every one of the forty-seven tasks `RU-01` through
+`RU-47` is executed, the package merged to `main` at `9daa271` on 2026-08-09 with
+the canonical gate green in full across both determinism workloads, and all
+eleven `RG-*` smoke rows were run by a person and closed `PASS` on 2026-08-14.
+Never execute it, never treat it as a live task list, and never cite it as the
+reason to make a change. The live contract for this project remains `CLAUDE.md`,
+`docs/development/testing.md`, and `docs/development/smoke-checklist.md`; nothing
+in this file overrides any of them. Archived 2026-08-14. Four things this package
+left open are carried forward in the live document "Ranged units — session
+handoff, 2026-08-09" and not here: `RG-11`'s unanswered question about a
+projectile passing through a friendly warrior, the V9 termination gap at 14 of 20
+decisive seeds against a bar of 19, the ten-cell matrix `RU-30` reported blocked,
+and whether the default army composition moves from a 14 per cent ranged share
+onto the calibrated 25.
+
+Design: `docs/plans/2026-08-07-ranged-units-design.md`, which is still live.
 Branch: `ranged-units`, in `.claude/worktrees/ranged-units`, based on `main` at
 `ae7bf04`.
 
@@ -1811,8 +1826,9 @@ reaches a simulation.
 **The battle then ran.** That is the first time in this package a ranged battle
 has been played to a working state by a person, and it is what the eleven RG rows
 were waiting on. It also produced the first genuine feature request against the
-ranged visuals, which is parked in `docs/plans/TODO.md` and designed in
-`docs/plans/2026-08-09-projectile-props-design.md`.
+ranged visuals, which was parked in `docs/plans/TODO.md` at the time and has
+since been built: the projectile props design and its plan both shipped at
+`3ec5523` on 2026-08-11, and both documents are now archived.
 
 ### 2026-08-13: the ranged battle was run to a decisive state, and the two things that made the smoke rows un-attemptable are gone
 

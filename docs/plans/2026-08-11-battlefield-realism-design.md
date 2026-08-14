@@ -753,7 +753,7 @@ only where the sides genuinely differ in which entity id stands where.
 
 `docs/plans/2026-08-07-ranged-units-design.md` lines 1237 to 1239 name a ranged
 fall-back rule as "the single most likely thing to break the termination bar",
-and `docs/plans/2026-08-07-ranged-units.md` lines 475 to 477 demand measured
+and the archived ranged units plan lines 475 to 477 demand measured
 termination numbers rather than a green gate. A shooter that retreats faster
 than a melee warrior advances is never caught; two armies of them never meet;
 the battle runs to the tick cap and ends in a draw that looks like a bug because

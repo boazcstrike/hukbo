@@ -458,7 +458,8 @@ internal static class AgentInspectorContent
     /// preferred engagement distance must read as visibly distinct from
     /// <see cref="FormatMovementLine"/>'s "Blocked", the V6/V7 standoff bug
     /// this feature would otherwise look like
-    /// (docs/plans/2026-08-07-ranged-units.md, RU-16). Movement and intent
+    /// (row RU-16 of the archived document titled "Ranged units — plan").
+    /// Movement and intent
     /// are independent fields on <see cref="AgentView"/>, so this row and
     /// the movement row below it always render side by side rather than one
     /// suppressing the other.

@@ -590,7 +590,8 @@ internal static class RenderBudgetEstimate
     // 1,444. The gated figure is the likely one and the ungated figure is the
     // one budgeted for, which is the correct way round.
     //
-    // gait-default-visibility (docs/plans/2026-08-13-gait-default-visibility.md)
+    // The gait default visibility work, planned in the archived document titled
+    // "Gait default visibility — plan",
     // raises the client's default window from 1280 x 720 to 1600 x 900, which
     // raises the default camera fit's apparent scale above MediumDetailScale.
     // Every term above assumed the default view resolved PawnDetailTier.Low —

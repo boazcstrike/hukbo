@@ -134,7 +134,7 @@ public sealed class ContingentShapeV12Tests
     /// <c>BattleSimulation.UsesBattlefieldRealism</c>, which runs
     /// <c>CohortDeploymentAssignment</c> -- V10's weapon-cohort deployment
     /// permutation, deliberately unmodified by tasks 6 and 7 of
-    /// docs/plans/2026-08-13-contingent-shape.md -- downstream of that
+    /// the contingent shape task plan -- downstream of that
     /// planning step. That pass reassigns membership purely by weapon-cohort
     /// rank and has no knowledge of <see cref="RankId"/>, so it can undo the
     /// planner's per-chief spread whenever the chiefs' weapon cohort is not

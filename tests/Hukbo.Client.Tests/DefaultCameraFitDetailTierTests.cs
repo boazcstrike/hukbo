@@ -8,7 +8,7 @@ namespace Hukbo.Client.Tests;
 
 /// <summary>
 /// Pins the default-window detail-tier fix from
-/// docs/plans/2026-08-13-gait-default-visibility.md section 2. The arena
+/// the gait default visibility plan section 2. The arena
 /// panel dimensions below are literals rather than a call into
 /// <c>ArenaGame.ComputeLayout</c>, because that method is <c>private</c> and
 /// not reachable from this test project. They are the same numbers the plan

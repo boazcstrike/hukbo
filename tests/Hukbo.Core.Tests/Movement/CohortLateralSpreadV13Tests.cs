@@ -10,7 +10,7 @@ namespace Hukbo.Core.Tests.Movement;
 /// <summary>
 /// Coverage for <see cref="MovementPresetId.CohortLateralSpreadV13"/>,
 /// plan tasks 6 through 9
-/// (docs/plans/2026-08-14-cohort-lateral-spread.md). Registry facts mirror
+/// (the cohort lateral spread plan). Registry facts mirror
 /// <c>ContingentShapeV12Tests.cs:25-45</c>; the traversal-order, split-bound,
 /// and mirror properties are new, exercising
 /// <see cref="CohortDeploymentAssignment.AssignForFaction"/>'s

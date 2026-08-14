@@ -4,6 +4,12 @@
 
 **Date:** 2026-07-31
 
+**Archived: reference only.** This is the implementation record of the finished
+2026-07-31 UI and UX package. Never execute it, never treat it as a live task
+list, and never cite it as the reason to make a change. The live contract for
+this project remains `CLAUDE.md` and `docs/development/testing.md`; the recorded
+baselines and gate results live in the latter, not here. Archived 2026-08-14.
+
 **Branch:** `codex/ui-ux-completion`
 
 ## Implemented
@@ -131,7 +137,7 @@ corrections.
 No interactive row was marked `PASS`. The typography, responsive menu, startup
 display, UI-scale, motion-comfort, and historical-theme observations are
 recorded as `PENDING` in
-[testing.md](../../development/testing.md). Per the repository testing
+[testing.md](../../../development/testing.md). Per the repository testing
 contract, compilation, tests, or a window-opening probe cannot substitute for
 a human observation on an interactive Windows desktop.
 

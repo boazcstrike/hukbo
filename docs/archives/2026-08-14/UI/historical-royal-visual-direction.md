@@ -4,6 +4,14 @@
 
 **Date:** 2026-07-31
 
+**Archived: reference only.** This is the visual-direction half of the finished
+2026-07-31 UI and UX package. Direction A was selected and shipped as a
+provisional reconstruction. Never execute it, never treat it as a live task
+list, and never cite it as the reason to make a change. The live contract for
+this project remains `CLAUDE.md`, and the binding historical rules are section 7
+of that file and `docs/research/HISTORICAL_1500s_WEAPONS.md`. Archived
+2026-08-14.
+
 ## Terminology and evidence boundary
 
 "Filipino royal design" is too broad for a single historically defensible
@@ -54,8 +62,8 @@ Primary and institutional references:
 
 Repository research that constrains interpretation:
 
-- [`HISTORICAL_1500s_RANKS.md`](../../research/HISTORICAL_1500s_RANKS.md)
-- [`warrior-appearance-historical-research.md`](../../research/improve-visuals/warrior-appearance-historical-research.md)
+- [`HISTORICAL_1500s_RANKS.md`](../../../research/HISTORICAL_1500s_RANKS.md)
+- [`warrior-appearance-historical-research.md`](../../../research/improve-visuals/warrior-appearance-historical-research.md)
 
 ## Direction A — Cebu 1521 chiefly court
 

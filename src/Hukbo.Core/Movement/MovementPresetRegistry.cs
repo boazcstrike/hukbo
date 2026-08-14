@@ -568,7 +568,7 @@ public static class MovementPresetRegistry
     /// <c>id</c>, for the same reason V10 restates V8's: its two regroup
     /// yields are gated on preset identity at their own call site, so it
     /// carries no new field of its own. See
-    /// docs/plans/2026-08-13-last-stand-engagement.md.
+    /// the last-stand engagement plan.
     /// </summary>
     private static readonly MovementRuleset LastStandEngagementV11Ruleset = new(
         id: MovementPresetId.LastStandEngagementV11,
@@ -598,7 +598,7 @@ public static class MovementPresetRegistry
     /// <see cref="LastStandEngagementV11Ruleset"/>'s field values under its
     /// own <c>id</c>, for the same reason V11 restates V10's: it is gated on
     /// preset identity at its own call site, so it carries no new field of
-    /// its own. See docs/plans/2026-08-13-contingent-shape.md.
+    /// its own. See the contingent shape task plan.
     /// </summary>
     private static readonly MovementRuleset ContingentShapeV12Ruleset = new(
         id: MovementPresetId.ContingentShapeV12,

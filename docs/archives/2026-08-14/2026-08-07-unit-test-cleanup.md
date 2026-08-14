@@ -1,9 +1,20 @@
 # Unit test cleanup — what can be removed, and what must not be
 
-Status: **T1 through T5 executed on 2026-08-07**, on branch
-`test-cleanup-matrix-consolidation`. T6 and T7 are not done and are a separate
-scope; see section 6. The outcome, and the corrections to the estimates made
-before the work started, are recorded in section 11.
+**Archived: reference only.** Every task this plan carried is executed: T1
+through T5 on 2026-08-07, and T6 and T7 on 2026-08-14 with the canonical gate
+green on the branch rebased onto `bb7d229`. Never execute it, never treat it as
+a live task list, and never cite it as the reason to make a change. The live
+contract for this project remains `CLAUDE.md` and
+`docs/development/testing.md`; nothing in this file overrides either of those.
+Archived 2026-08-14. One finding it opened outlived it and was carried forward
+to `docs/plans/TODO.md` rather than left here: `MotionIntensityManager`,
+`GoreIntensityManager`, and `AutoCameraModeManager` are still three
+independently copied classes with no shared type behind them, so their twenty
+test methods stay where they are.
+
+Status: **T1 through T7 all executed.** The outcome, and the corrections to the
+estimates made before the work started, are recorded in section 11; section 12
+records T6 and T7.
 
 ## 1. Baseline
 

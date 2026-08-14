@@ -480,7 +480,7 @@ presentation-only), `game-ui-ux` (HUD anchoring, controller focus),
   any stock-and-consumption model for a projectile), persistence migrations,
   multiplayer, or mod APIs before the gate that authorizes them. Projectiles
   and projectile flight time were authorized on 2026-08-07 for the
-  ranged-units package (`docs/plans/2026-08-07-ranged-units.md`) alone;
+  ranged-units package (archived under the title "Ranged units — plan") alone;
   ammunition was not authorized and stays deferred. Sandata's own navigation
   and pathfinding are authorized by its design document and are not covered by
   that bar; Hukbo's are not.

@@ -29,7 +29,7 @@ worlds, multiplayer, and mods are deferred. Section 11 preserves the future path
 bar.
 
 Projectiles and projectile flight time were lifted from this deferred list on 2026-08-07,
-authorized for the ranged-units package (`docs/plans/2026-08-07-ranged-units.md`) alone.
+authorized for the ranged-units package (archived under the title "Ranged units — plan") alone.
 Ammunition — quiver sizes, resupply, and any other stock-and-consumption model for a projectile —
 was not lifted and stays deferred.
 

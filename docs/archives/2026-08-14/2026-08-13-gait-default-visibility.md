@@ -1,5 +1,19 @@
 # Gait default visibility — plan
 
+**Archived: reference only.** All eight tasks are executed and on `main`: the
+default window is 1600 × 900 (`ArenaGame.cs`), the windowed back buffer is
+clamped to the display, `GaitGeometry.CrawlThresholdRawPerTick` is 60, the
+detail-tier and composed-stride tests exist, the render-budget commentary was
+refreshed, and T8's amendment to the strike-while-moving legibility design is
+recorded in that document's section 6. **One debt is unpaid and is recorded here
+rather than hidden:** section 5 asked for the canonical gate's real output to be
+pasted into this document and it never was, so treat the task table as verified
+by the suites only. Never execute this plan, never treat it as a live task list,
+and never cite it as the reason to make a change. The live contract for this
+project remains `CLAUDE.md`, `docs/development/testing.md`, and
+`docs/development/smoke-checklist.md`; nothing in this file overrides any of
+them. Archived 2026-08-14.
+
 Date: 2026-08-13
 Base commit: `c15ca63`
 Branch: `gait-default-visibility`

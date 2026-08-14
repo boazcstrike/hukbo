@@ -4,6 +4,15 @@
 
 **Date:** 2026-07-31
 
+**Archived: reference only.** This is the plan half of the finished 2026-07-31
+UI and UX package. Every task it authorized landed, and the manual smoke rows it
+was waiting on closed on 2026-08-13. Never execute it, never treat it as a live
+task list, and never cite it as the reason to make a change. The live contract
+for this project remains `CLAUDE.md` and `docs/development/smoke-checklist.md`.
+Archived 2026-08-14. `UI-33`, live fullscreen switching, was deferred by this
+plan deliberately, and reviving it needs its own design document rather than
+this section.
+
 **Implementation authorization:** Approved by the user on 2026-07-31
 
 **Completion evidence:** [implementation-report.md](implementation-report.md)

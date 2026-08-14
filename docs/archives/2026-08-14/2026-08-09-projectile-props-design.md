@@ -1,5 +1,16 @@
 # Projectile props and embedded projectiles — design
 
+**Archived: reference only.** This is a finished design. It shipped at
+`3ec5523` on 2026-08-11, its plan answered all five of the open decisions in
+section 8 and corrected this document's own quad arithmetic, and all eight of
+its smoke rows closed `PASS`, the last of them `PP-3` on 2026-08-13. Never
+execute it, never treat it as a live task list, and never cite it as the reason
+to make a change. The live contract for this project remains `CLAUDE.md` and
+`docs/development/smoke-checklist.md`; nothing in this file overrides either of
+those. Archived 2026-08-14. **The status line below is the state this document
+was written in and is no longer true** — read section 8's decisions as questions
+that have since been answered elsewhere, not as open ones.
+
 Status: **design only.** A design document does not authorize implementation
 (`CLAUDE.md` section 6). Nothing here has been built, and the open decisions in
 section 8 need answers before a plan document is written.

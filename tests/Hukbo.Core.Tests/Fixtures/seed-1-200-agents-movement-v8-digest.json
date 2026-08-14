@@ -1,6 +1,6 @@
 {
   "provenance": {
-    "task": "RU-27, docs/plans/2026-08-07-ranged-units.md",
+    "task": "RU-27, the ranged units plan",
     "capturedFromCommit": "19870ff",
     "purpose": "Per-tick trajectory digest for seed 1 at 200 agents under RangedStandoffV8, captured from the src/ tree at commit 19870ff, unmodified by RU-27 (a tests-only task). This freezes the ranged-standoff preset's trajectory at RU-27's own commit: any later change that moves it -- a projectile-flight edit, a standoff-distance edit, a pipeline reorder -- reproduces this fixture byte-identically or ships a new preset version with new golden expectations.",
     "eventFoldSpecification": "Per tick, start at the canonical FNV-1a 64-bit offset basis 14695981039346656037 and fold, for each event of that tick in emission order, the twelve words HeadlessRunner.AddEventToHash folds: (ulong)Sequence, (ulong)Tick, (ulong)Kind, SourceEntityId, TargetEntityId ?? 0, (ulong)(uint)Value, FactionId is int f ? (ulong)(uint)f : ulong.MaxValue, Weapon is WeaponId w ? (ulong)(uint)(int)w : ulong.MaxValue, Shield is ShieldId s ? (ulong)(uint)(int)s : ulong.MaxValue, HitLocation is BodyPart h ? (ulong)(uint)(int)h : ulong.MaxValue, Resolution is AttackResolution r ? (ulong)(uint)(int)r : ulong.MaxValue, ComboPosition is int p ? (ulong)(uint)p : ulong.MaxValue. This is the same fold the headless runner and the benchmark script use to report eventHash, so this fixture's per-tick eventFold column is directly comparable to that output at the same tick.",

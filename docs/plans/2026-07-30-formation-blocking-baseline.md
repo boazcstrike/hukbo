@@ -117,8 +117,9 @@ bodies overlap. This is a blocking problem, not a separation failure.
 
 The related work still in `docs/plans/` is
 `2026-07-28-follower-trailing-deadlock-design.md` and
-`2026-07-29-contingent-shape-design.md`, whose own planning pass is
-`2026-08-13-contingent-shape.md`. A plan for this backlog entry should say which
+`2026-07-29-contingent-shape-design.md`, whose own planning pass is the
+archived document titled "Contingent shape — task plan (Phase C)". A plan for
+this backlog entry should say which
 of those it extends rather than opening a third parallel account of the same
 crush. Two documents this section used to name,
 `2026-07-28-collision-resolution-scaling-design.md` and

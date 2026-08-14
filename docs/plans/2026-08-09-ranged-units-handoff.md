@@ -24,9 +24,10 @@ in it still holds.
 | `055ff84` | Fixed the blood-spray crash, and swept for its siblings |
 | `78fc9ed` | Design document for projectile props and embedded projectiles |
 
-The full narrative, with the measurements, is in section 9 of
-[`2026-08-07-ranged-units.md`](2026-08-07-ranged-units.md) under the 2026-08-09
-heading. It is the record; this document is the index to it.
+The full narrative, with the measurements, is in section 9 of the ranged units
+plan — archived on 2026-08-14 under the title "Ranged units — plan" — beneath
+that section's 2026-08-09 heading. It is the record; this document is the index
+to it.
 
 ## 2. Verified state, re-established from scratch this session
 
@@ -133,12 +134,14 @@ was written. What follows is what remains open, and none of it is code.
   decision and is still unanswered. If it is taken, the rank counts are 250 x
   `[19, 19, 44, 18] / 100`, roughly Datu 48, Maharlika 47, Timawa 110, Aliping
   Namamahay 45 — and note the 44, not the 54 this plan used to say.
-- **Projectile props and embedded projectiles.** Parked in
-  [`TODO.md`](TODO.md), designed in
-  [`2026-08-09-projectile-props-design.md`](2026-08-09-projectile-props-design.md).
-  The in-flight prop is the small half and fixes the reported complaint on its
-  own. The embedded half needs five open decisions answered and a render-probe
-  measurement, because it is the feature `SubmissionCount.cs` warns about by name.
+- **Projectile props and embedded projectiles — no longer open.** This was
+  parked in [`TODO.md`](TODO.md) when this handoff was written. Both halves
+  shipped at `3ec5523` on 2026-08-11, the five open decisions were answered by
+  the plan, and all eight `PP-*` smoke rows have since closed `PASS`. The design
+  and plan are archived under the titles "Projectile props and embedded
+  projectiles — design" and "Projectile props and embedded projectiles — plan".
+  The quad budget `SubmissionCount.cs` warns about by name is still the live
+  constraint on the next feature wanting a per-pawn quad.
 
 ## 6. Still unsolved, and still worth solving
 

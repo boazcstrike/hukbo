@@ -629,7 +629,7 @@ public sealed class BattleSimulation
         // planned so FormationPlanner can size
         // MovementPresetId.ContingentShapeV12's contingents off it without
         // ever learning what a Datu is (tasks 6 and 7 of
-        // docs/plans/2026-08-13-contingent-shape.md). One deployment is
+        // the contingent shape task plan). One deployment is
         // planned once and mirrored onto both factions below, so faction 0's
         // chief count is the one value the planner needs; every preset
         // before V12 ignores it entirely.

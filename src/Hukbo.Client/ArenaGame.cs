@@ -1463,8 +1463,8 @@ public sealed partial class ArenaGame : Game
     // whose rally agent is already fighting, or who has an enemy inside its own
     // weapon reach, now closes on that enemy rather than parking 51 world units
     // behind its leader. Every preset from V1 to V10 stays registered and
-    // byte-identical for a replay that names one of them. See
-    // docs/plans/2026-08-13-last-stand-engagement.md.
+    // byte-identical for a replay that names one of them. See the archived
+    // document titled "Last-stand engagement — plan".
     private static Scenario BuildScenario(
         ulong seed,
         Settings.ArmyComposition composition,
