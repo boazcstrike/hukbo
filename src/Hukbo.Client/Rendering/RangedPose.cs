@@ -12,9 +12,8 @@ namespace Hukbo.Client.Rendering;
 /// <remarks>
 /// <see cref="WeaponAngleRadians"/> and <see cref="ExtensionRatio"/> are named
 /// and scaled identically to the same two fields on <c>SwingPose</c>
-/// deliberately: design section 8.3 of
-/// <c>docs/plans/2026-08-07-ranged-units-design.md</c> is explicit that both
-/// poses write "the same two channels... into the same <c>ApplySwing</c>
+/// deliberately: section 8.3 of the ranged-units design document is explicit
+/// that both poses write "the same two channels... into the same <c>ApplySwing</c>
 /// call", because there is only one weapon line per pawn and a ranged pose
 /// suppresses the swing pose for that pawn on that frame rather than the two
 /// being summed.

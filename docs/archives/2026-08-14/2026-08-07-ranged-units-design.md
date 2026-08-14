@@ -1,5 +1,15 @@
 # Ranged units — design
 
+**Archived: reference only.** This document designed the ranged-units package.
+The package's plan document, archived under the title "Ranged units — plan",
+records that every one of its forty-seven tasks executed, the package merged
+to `main` on 2026-08-09 with the canonical gate green in full, and all eleven
+smoke rows closed `PASS` on 2026-08-14. Never execute this document, never
+treat its diagrams or task references as current, and never cite it as the
+reason for a change. The live contract for this project remains `CLAUDE.md`,
+`SIMULATION-GAME-STANDARDS.md`, and `docs/development/testing.md`; nothing in
+this file overrides any of them. Archived 2026-08-14.
+
 Status: design only. This document does not authorize implementation. Under
 `CLAUDE.md` section 6 an ordered plan document has to follow it before any code
 is written, and this document deliberately does not contain a task list.

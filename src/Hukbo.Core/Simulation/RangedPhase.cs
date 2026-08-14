@@ -5,9 +5,9 @@ namespace Hukbo.Core.Simulation;
 /// <summary>
 /// A ranged weapon's readable draw-and-loose cycle, projected each tick from
 /// the same attack cooldown every weapon already counts down — never stored,
-/// never hashed, never snapshotted. Design section 8.1 of
-/// <c>docs/plans/2026-08-07-ranged-units-design.md</c> is explicit that this
-/// is a deliberate divergence from the pose research's recommendation of new
+/// never hashed, never snapshotted. Section 8.1 of the ranged-units design
+/// document is explicit that this is a deliberate divergence from the pose
+/// research's recommendation of new
 /// per-agent authoritative state: the cooldown is treated as a good-enough
 /// proxy for a draw cycle, which is a bet risk item 2 of section 12 records.
 /// If the phases ever read as arbitrary on screen, that bet was wrong and the

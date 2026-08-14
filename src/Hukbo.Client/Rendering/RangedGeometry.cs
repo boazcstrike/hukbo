@@ -13,8 +13,8 @@ namespace Hukbo.Client.Rendering;
 /// <remarks>
 /// <para>
 /// Every constant here is a keyframe chosen for gameplay legibility, per
-/// design section 8.4 of <c>docs/plans/2026-08-07-ranged-units-design.md</c>,
-/// and is commented PROVISIONAL RECONSTRUCTION per CLAUDE.md section 7 — none
+/// section 8.4 of the ranged-units design document, and is commented
+/// PROVISIONAL RECONSTRUCTION per CLAUDE.md section 7 — none
 /// of it is a historical measurement.
 /// </para>
 /// <para>
