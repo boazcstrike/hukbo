@@ -93,14 +93,28 @@ spectator sees a defender whose weapon twitches indefinitely at a corpse.
 the 96-unit identify range, with a line of sight its dead squadmate demonstrably
 had one tick earlier from nine units away.
 
-**Why it does not identify is the one thing this document could not settle from
-outside**, because the sensing outcome is `internal` to `Sandata.Core` and the
-harness ran in the client's test project. The two candidates are the vision cone
-— entity 2's facing may not have been updated when its walk ended, so the hostile
-sits outside its cone — and a contact-memory update that is skipped for an
-operator with no live path. Settling this is the first task of the plan, in
-`tests/Sandata.Core.Tests` where the sensing types are visible, and it is settled
-before anything is changed.
+**Settled 2026-08-14, and both candidates were wrong.** The two offered
+explanations were a stale facing and a skipped contact update. It is neither, and
+the sensing layer is behaving correctly: there is a wall in the way. The map
+carries `WALL 420 60 420 120`, running down to exactly `y = 120`, and
+`WALL 420 160 420 200` resuming below it — the gap between them is the entrance
+to the objective room. Entity 2 stands at `(412, 119)`: **one world unit north of
+that opening, on the far side of the wall.** Entity 1 fell at `(421, 120)`, one
+unit east of the same wall line and inside the aperture, which is exactly why it
+was visible and was shot. The two operators are nine world units apart with a
+wall between them.
+
+`tests/Sandata.Core.Tests/ContactAfterHaltTests.cs` pins all of it: no line of
+sight from the survivor's position, line of sight from the squadmate's, both
+positions far inside identify range so range is not the difference, and the
+aperture's own coordinates so a later fixture edit that closes it is caught here.
+
+**This collapses 2.3 into 2.4.** Nothing needs fixing in
+`src/Sandata.Core/Sensing`. What is wrong is that the survivor stands behind that
+wall for 2,300 ticks and never steps through the opening its squadmate died in,
+because its group's path was consumed and no path is ever re-requested. The fix
+is decision D3, and the plan's task 4 — a fix for whichever sensing candidate
+this turned out to be — is therefore dropped rather than done.
 
 ### 2.4 The squad stops for good when its leader dies
 
