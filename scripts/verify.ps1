@@ -113,4 +113,42 @@ if ($Game -eq 'Hukbo') {
     }
 }
 
+
+# Both games, when the caller named neither. Sandata is not part of the
+# Hukbo workload above and never has been: -Game selects one game's test
+# suite and benchmark, and until 2026-08-14 a bare ./scripts/verify.ps1
+# exercised Hukbo alone, so a completely broken Sandata could leave this
+# gate green. That was deliberate while Sandata had no stable baseline,
+# because a red Sandata workload must never be mistakable for a red Hukbo
+# one. It now has one: stateHash A644B7F8A394885D and eventHash
+# AEDE4D16B5E6FAAF held unchanged across four gate runs on 2026-08-14,
+# through a pathfinding change, an inspector change, an audio change and a
+# combat-rule change.
+#
+# An explicit -Game still runs exactly one game, byte-identically to
+# before, which is what every existing scripted caller and both script
+# tests depend on. Only the bare invocation gained a second half.
+#
+# The two results are two results. This block prints its own banner so
+# that nobody reading the output can mistake one game's green for the
+# other's, which is the rule CLAUDE.md section 4 states and the reason the
+# stages are not interleaved.
+if (-not $PSBoundParameters.ContainsKey('Game')) {
+    Write-Host ''
+    Write-Host '[INFO] Hukbo stages complete. Running the Sandata workload; the two are separate results.'
+
+    Invoke-RepositoryScript -Name 'test.ps1' -Parameters @{
+        Configuration = 'Release'
+        NoBuild = $true
+        Game = 'Sandata'
+    }
+    Invoke-RepositoryScript -Name 'benchmark.ps1' -Parameters @{
+        Agents = 200
+        Ticks = 10000
+        Seed = 1
+        NoBuild = $true
+        Game = 'Sandata'
+    }
+}
+
 Write-Host '[PASS] Canonical repository verification completed.'

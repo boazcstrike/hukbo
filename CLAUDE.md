@@ -165,12 +165,23 @@ both halves of that. `build.ps1`, `format.ps1`, and `bootstrap.ps1` take no
 `-Game` because they operate on the whole solution, and `doctor.ps1` takes none
 because it checks every project's lock file rather than one game's.
 
-**`./scripts/verify.ps1` with no flag runs Hukbo only.** A green default gate is
-no evidence at all about Sandata, and the two must never be reported as one
-result. Sandata is not part of the default gate yet: design section 14 keeps the
-default on the Hukbo workload until Sandata has a recorded, stable seed-1
-baseline, so that a red Sandata workload can never be mistaken for a red Hukbo
-one.
+**`./scripts/verify.ps1` with no flag runs both games, since 2026-08-14.** It
+runs the five Hukbo workloads, then Sandata's test suite and its seed-1
+benchmark, and prints a banner between them. **The two are still two results and
+must never be reported as one.**
+
+An explicit `-Game` still runs exactly one game, byte-identically to before, and
+that is what every scripted caller depends on. The guard is on whether the
+caller bound the parameter at all, not on its value, because `-Game Hukbo` and
+no `-Game` resolve to the same value and must not resolve to the same behaviour.
+`ScriptDefaultsTests` pins both halves.
+
+The default was Hukbo alone until 2026-08-14. Design section 14 held it there
+until Sandata had a recorded, stable seed-1 baseline, so that a red Sandata
+workload could never be mistaken for a red Hukbo one. It now has one:
+`stateHash A644B7F8A394885D` and `eventHash AEDE4D16B5E6FAAF` held unchanged
+across four gate runs that day, through a pathfinding change, an inspector
+change, an audio change, and a combat-rule change.
 
 Sandata's core suite runs 1,113 tests in about **4.5 seconds** inside the gate.
 It was 38 seconds until task 91, and 36 of those were a single `InlineData`
@@ -484,12 +495,19 @@ presentation-only), `game-ui-ux` (HUD anchoring, controller focus),
   ammunition was not authorized and stays deferred. Sandata's own navigation
   and pathfinding are authorized by its design document and are not covered by
   that bar; Hukbo's are not.
+  **Sandata's magazine and reload were authorised on 2026-08-14**, in the
+  narrow form its own design recommends: a round is consumed per shot, a
+  reload costs the firearm's authored `ReloadMs` converted by the one pinned
+  rule, and **spare magazines are infinite**. A finite spare count is a
+  stock-and-consumption economy and is the thing this bullet exists to stop;
+  it stays unauthorised. Hukbo's ammunition remains deferred entirely.
 - Let either game reach into the other. No `Sandata.*` project may reference a
   `Hukbo.Core` or `Hukbo.Client` type, and no `Hukbo.*` project may reference a
   `Sandata.*` type. Move code into `Hukbo.Shared.Core` only under section 3's
   tier-1 rule, and never as a shortcut around this one.
-- Report a green `./scripts/verify.ps1` as evidence about Sandata. Without
-  `-Game Sandata` the gate never built or ran a line of it.
+- Report one game's green as the other's. A bare `./scripts/verify.ps1` has run
+  both since 2026-08-14, but they remain two workloads with two results, and
+  `-Game Hukbo` still runs Hukbo alone.
 - Run `./scripts/sfx.ps1` for Sandata beyond the slice authorized on
   2026-08-11 and extended on 2026-08-12. That slice now covers forty files —
   ten variants each of `gun-762x39-single-close`, `gun-762x39-single-indoor`,
