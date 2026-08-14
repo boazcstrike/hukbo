@@ -160,9 +160,9 @@ public sealed class EvasiveFootworkV14Tests
     /// The completeness proof for the three closed identity gates of design
     /// section 3. V14 is admitted to <c>UsesBattlefieldRealism</c>,
     /// <c>YieldsLastStandEngagement</c>, and the single-value
-    /// <c>spreadCohortsLaterally</c> test, and it carries no behaviour of its
-    /// own yet, so it must reproduce V13 exactly: same positions, same event
-    /// fold, same terminal tick.
+    /// <c>spreadCohortsLaterally</c> test, and nothing else distinguishes its
+    /// ruleset from V13's, so the two simulations must agree tick for tick
+    /// right up to the moment the evasive stage first resolves an action.
     /// </summary>
     /// <remarks>
     /// <para>
@@ -176,41 +176,91 @@ public sealed class EvasiveFootworkV14Tests
     /// going missing moves a position, which moves this assertion.
     /// </para>
     /// <para>
-    /// <b>This test has a known expiry.</b> It holds only while V14 has no
-    /// evasive rung of its own. When the first rung lands, V14 begins to
-    /// diverge from V13 deliberately, and this test must be superseded by the
-    /// one-faction control described in the plan's amendment to task 9 — never
-    /// weakened or deleted outright, because deleting it removes the only proof
-    /// that the gating is complete.
+    /// <b>This test was superseded once the first evasive rung landed.</b> Its
+    /// original form asserted that a whole V14 battle reproduced a whole V13
+    /// battle, which held only while V14 carried no behaviour. The lockstep
+    /// form below proves the same thing about the gating without asserting
+    /// something the feature is designed to falsify, and it additionally proves
+    /// that the divergence, when it comes, is caused by the evasive stage and
+    /// by nothing else.
     /// </para>
     /// </remarks>
     [Fact]
-    public void EvasiveFootworkV14ReproducesCohortLateralSpreadV13Exactly()
+    public void EvasiveFootworkV14MatchesCohortLateralSpreadV13UntilTheFirstEvasiveStep()
     {
-        var v13 = RunToTermination(MovementPresetId.CohortLateralSpreadV13);
-        var v14 = RunToTermination(MovementPresetId.EvasiveFootworkV14);
+        var v13 = CreateRun(MovementPresetId.CohortLateralSpreadV13);
+        var v14 = CreateRun(MovementPresetId.EvasiveFootworkV14);
 
-        Assert.Equal(v13.TerminalTick, v14.TerminalTick);
-        Assert.Equal(v13.Outcome, v14.Outcome);
-        Assert.Equal(v13.EventFold, v14.EventFold);
-        Assert.Equal(v13.Positions, v14.Positions);
+        var firstEvasiveTick = -1L;
+        while (v14.Outcome == BattleOutcome.Ongoing &&
+            v13.Outcome == BattleOutcome.Ongoing)
+        {
+            v13.AdvanceOneTick();
+            v14.AdvanceOneTick();
 
-        // The state hash must differ even though every position matches,
-        // because StateHasher folds the movement preset identity itself. If
-        // these were equal, the two presets would be indistinguishable in a
-        // replay and the identity gating would have no hash to hang on.
-        Assert.NotEqual(v13.StateHash, v14.StateHash);
+            var anyEvasion = false;
+            foreach (var agent in v14.Agents)
+            {
+                if (agent.EvasiveAction != EvasiveAction.None)
+                {
+                    anyEvasion = true;
+                    break;
+                }
+            }
+
+            if (anyEvasion)
+            {
+                firstEvasiveTick = v14.Tick;
+                break;
+            }
+
+            // Until an evasive action is resolved, the two presets are the same
+            // simulation. Any difference here means V14 lost one of the three
+            // identity-gated behaviours of design section 3 — the failure
+            // commit 3163fbf exists to prevent — because nothing else
+            // distinguishes the two rulesets.
+            Assert.Equal(v13.Tick, v14.Tick);
+            for (var index = 0; index < v14.Agents.Count; index++)
+            {
+                var expected = v13.Agents[index];
+                var actual = v14.Agents[index];
+
+                Assert.Equal(expected.EntityId, actual.EntityId);
+                Assert.Equal(expected.XRaw, actual.XRaw);
+                Assert.Equal(expected.YRaw, actual.YRaw);
+                Assert.Equal(expected.HitPoints, actual.HitPoints);
+            }
+        }
+
+        // The feature must actually fire. A run in which no warrior ever
+        // evades would satisfy every equality above and prove nothing at all,
+        // which is the degenerate reading this assertion exists to reject.
+        Assert.True(
+            firstEvasiveTick > 0,
+            "No warrior resolved an evasive action in the whole battle, so " +
+            "the comparison above proved nothing.");
     }
 
     /// <summary>
-    /// Runs one preset to its own termination, folding the ordered event stream
-    /// exactly the way <c>HeadlessRunner</c> folds it for the determinism
-    /// workload — the same helper shape
-    /// <c>CohortLateralSpreadV13Tests.RunToCompletion</c> uses, restated here
-    /// because this project's test classes do not share private helpers across
-    /// files.
+    /// The state hash must distinguish the two presets even where their
+    /// behaviour agrees, because <c>StateHasher</c> folds the movement preset
+    /// identity itself. If these were ever equal, the two presets would be
+    /// indistinguishable in a replay and the identity gating would have no hash
+    /// to hang on.
     /// </summary>
-    private static RunSummary RunToTermination(MovementPresetId movementPreset)
+    [Fact]
+    public void EvasiveFootworkV14HashesDifferentlyFromCohortLateralSpreadV13()
+    {
+        var v13 = CreateRun(MovementPresetId.CohortLateralSpreadV13);
+        var v14 = CreateRun(MovementPresetId.EvasiveFootworkV14);
+
+        v13.AdvanceOneTick();
+        v14.AdvanceOneTick();
+
+        Assert.NotEqual(v13.ComputeStateHash(), v14.ComputeStateHash());
+    }
+
+    private static BattleSimulation CreateRun(MovementPresetId movementPreset)
     {
         var scenario = Scenario.CreateDefault(seed: 1, totalAgents: 200) with
         {
@@ -218,38 +268,6 @@ public sealed class EvasiveFootworkV14Tests
             CombatPreset = CombatPresetId.PrecolonialPhilippinesV5,
         };
         scenario.Validate();
-
-        var simulation = BattleSimulation.Create(scenario);
-        var fold = Fnv1a.OffsetBasis;
-        while (simulation.Outcome == BattleOutcome.Ongoing)
-        {
-            simulation.AdvanceOneTick();
-
-            foreach (var battleEvent in simulation.LastEvents)
-            {
-                HeadlessRunner.AddEventToHash(ref fold, battleEvent);
-            }
-        }
-
-        var positions = new List<(ulong Id, int XRaw, int YRaw, bool IsAlive)>(
-            simulation.Agents.Count);
-        foreach (var agent in simulation.Agents)
-        {
-            positions.Add((agent.EntityId, agent.XRaw, agent.YRaw, agent.IsAlive));
-        }
-
-        return new RunSummary(
-            simulation.Tick,
-            simulation.Outcome,
-            simulation.ComputeStateHash(),
-            fold,
-            positions);
+        return BattleSimulation.Create(scenario);
     }
-
-    private sealed record RunSummary(
-        long TerminalTick,
-        BattleOutcome Outcome,
-        ulong StateHash,
-        ulong EventFold,
-        IReadOnlyList<(ulong Id, int XRaw, int YRaw, bool IsAlive)> Positions);
 }
