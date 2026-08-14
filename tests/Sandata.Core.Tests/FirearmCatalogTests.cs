@@ -3,7 +3,7 @@ using Sandata.Core.Weapons;
 namespace Sandata.Core.Tests;
 
 /// <summary>
-/// Task 22 of docs/plans/2026-08-07-sandata-scaffold.md: the 38-row firearm
+/// Task 22 of Sandata's scaffold plan: the 38-row firearm
 /// catalog, the two name sets, and <see cref="FirearmRuleset.ContentHash"/>.
 /// </summary>
 public sealed class FirearmCatalogTests

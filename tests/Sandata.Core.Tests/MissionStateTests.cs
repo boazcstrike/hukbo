@@ -11,7 +11,7 @@ using Sandata.Core.Weapons;
 namespace Sandata.Core.Tests;
 
 /// <summary>
-/// Task 17 of docs/plans/2026-08-07-sandata-scaffold.md: <see cref="Mission"/>
+/// Task 17 of Sandata's scaffold plan: <see cref="Mission"/>
 /// validation, the <see cref="MissionState"/>/<see cref="MissionSnapshot"/>
 /// round trip, <see cref="SandataStateHasher"/> stability, and a reflection
 /// check that design section 4's derived list never reaches
@@ -428,7 +428,7 @@ public sealed class MissionStateTests
     // -- Task 64's 2026-08-07 correction: the slot index is derived, never stored. --
 
     /// <summary>
-    /// Task 64 of docs/plans/2026-08-07-sandata-scaffold.md removes
+    /// Task 64 of Sandata's scaffold plan removes
     /// <c>OperatorState.SquadSlotIndex</c>: design section 8 states plainly
     /// that group id, leader, membership, and slot index are all derived
     /// each tick, and design section 4 is corrected in place to agree. This
@@ -508,8 +508,8 @@ public sealed class MissionStateTests
         Assert.Equal(typeof(int), property!.PropertyType);
     }
 
-    // -- Task 79c (docs/plans/2026-08-07-sandata-scaffold.md, the wave-12 --
-    // -- audit's corrected obligation): OperatorState.Firearm folds last ---
+    // -- Task 79c (Sandata's scaffold plan, the wave-12 audit's corrected --
+    // -- obligation): OperatorState.Firearm folds last -----------------
     // -- inside FoldOperator, after the contact-memory block. -------------
 
     /// <summary>
@@ -526,7 +526,7 @@ public sealed class MissionStateTests
     /// value carried forward.
     /// </summary>
     /// <remarks>
-    /// Task 85 (docs/plans/2026-08-07-sandata-scaffold.md, wave-12 audit's
+    /// Task 85 (Sandata's scaffold plan, wave-12 audit's
     /// "Task 52's golden baseline against task 85's single-pin rule"): this
     /// is now the <b>only</b> absolute state-hash literal in a <c>.cs</c>
     /// file under <c>tests/Sandata.Core.Tests/</c> — the deliberate canary

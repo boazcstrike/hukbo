@@ -10,7 +10,7 @@ namespace Sandata.Client;
 /// <summary>
 /// Sandata's process entry point. Mirrors
 /// <c>Sandata.Headless.Program</c>'s argument-parsing shape and exit-code
-/// contract (plan task 14 of docs/plans/2026-08-07-sandata-scaffold.md),
+/// contract (plan task 14 of Sandata's scaffold plan),
 /// which itself mirrors <c>Hukbo.Headless.HeadlessRunner</c>.
 /// </summary>
 /// <remarks>

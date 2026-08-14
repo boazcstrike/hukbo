@@ -19,7 +19,7 @@ using Sandata.Core.Weapons;
 namespace Sandata.Headless;
 
 /// <summary>
-/// Task 51 of docs/plans/2026-08-07-sandata-scaffold.md: builds a seeded
+/// Task 51 of Sandata's scaffold plan: builds a seeded
 /// mission fixture, runs it to completion on two independent
 /// <see cref="SandataSimulation"/> instances in lockstep, and reports whether
 /// they ever disagreed — Sandata's analogue of
@@ -258,7 +258,7 @@ public static class HeadlessRunner
 
     /// <summary>
     /// The body diameter, in whole world units, the fixture's placement must
-    /// clear: task 86 (docs/plans/2026-08-07-sandata-scaffold.md, "wave-12
+    /// clear: task 86 (Sandata's scaffold plan, "wave-12
     /// audit") set <see cref="SandataSimulation.CollisionBodyRadiusRaw"/> to
     /// 4,352 raw — design section 4's 4.25 wu — so the diameter is 8.5 wu,
     /// rounded up to a whole unit because this fixture's placement arithmetic

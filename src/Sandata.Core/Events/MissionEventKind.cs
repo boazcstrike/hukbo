@@ -2,7 +2,7 @@ namespace Sandata.Core.Events;
 
 /// <summary>
 /// Every kind of authoritative Sandata mission event. Task 76 of
-/// docs/plans/2026-08-07-sandata-scaffold.md adds the one member this wave's
+/// Sandata's scaffold plan adds the one member this wave's
 /// own criterion requires — design section 16's rejected-order event. A
 /// later task appends more members as other stages grow real event
 /// emission (design section 5, stage 14: "Emit ordered events").
@@ -29,7 +29,7 @@ public enum MissionEventKind
     OrderRejected = 0,
 
     /// <summary>
-    /// Task 79d-1 of docs/plans/2026-08-07-sandata-scaffold.md (the wave-12
+    /// Task 79d-1 of Sandata's scaffold plan (the wave-12
     /// audit's corrected obligation): stage 12's weapon chain completed a
     /// shot this tick, before hit resolution decides whether it connects.
     /// Emitted by <see cref="Simulation.SandataSimulation.ProposeFire"/> for

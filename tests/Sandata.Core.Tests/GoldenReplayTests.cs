@@ -16,7 +16,7 @@ using Sandata.Headless;
 namespace Sandata.Core.Tests;
 
 /// <summary>
-/// Task 52b of docs/plans/2026-08-07-sandata-scaffold.md: the golden replay.
+/// Task 52b of Sandata's scaffold plan: the golden replay.
 /// Design section 16, verbatim: "The golden replay needs two baselines, not
 /// one: a mission with an empty order stream, which is the pure autonomous
 /// case, and a mission with a recorded non-empty one. A single empty-stream

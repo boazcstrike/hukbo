@@ -6,7 +6,7 @@ using Sandata.Core.Orders;
 namespace Sandata.Core.Tests;
 
 /// <summary>
-/// Task 57 of docs/plans/2026-08-07-sandata-scaffold.md: <c>Order</c>,
+/// Task 57 of Sandata's scaffold plan: <c>Order</c>,
 /// <c>OrderKind</c>, and <c>OrderQueue</c> against design section 16, "Order
 /// records and the queue," and design section 5's stage 1, "Apply orders,
 /// ordered by <c>(targetTick, orderSequence)</c>."

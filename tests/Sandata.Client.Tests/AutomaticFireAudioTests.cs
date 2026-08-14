@@ -5,8 +5,8 @@ using Sandata.Core.Weapons;
 namespace Sandata.Client.Tests;
 
 /// <summary>
-/// The client half of the 2026-08-12 smoke package
-/// (docs/plans/2026-08-12-sandata-order-and-combat-legibility.md), smoke row
+/// The client half of the 2026-08-12 smoke package (the Sandata order
+/// and combat legibility plan of that date), smoke row
 /// <c>SD-5</c>: the fire mode the simulation chose has to reach the sound
 /// catalog, and a burst whose loop sample does not exist on disk has to stay
 /// audible rather than falling silent.

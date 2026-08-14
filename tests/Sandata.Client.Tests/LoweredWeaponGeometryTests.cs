@@ -6,8 +6,8 @@ using Sandata.Core.Weapons;
 namespace Sandata.Client.Tests;
 
 /// <summary>
-/// Smoke row <c>SD-4</c>'s rendering half, from the 2026-08-12 package
-/// (docs/plans/2026-08-12-sandata-order-and-combat-legibility.md): a lowered
+/// Smoke row <c>SD-4</c>'s rendering half, from the 2026-08-12 Sandata
+/// order and combat legibility plan: a lowered
 /// weapon has to look different from a raised one. Design section 9 makes the
 /// weapon-lowered rule the mechanical core of the product — a pistol beats a
 /// rifle in a doorway because the rifle has to come back up — and until this

@@ -4,7 +4,7 @@ namespace Sandata.Core.Tests;
 
 /// <summary>
 /// Pins every numeric value declared on the five enumerations task 12 of
-/// docs/plans/2026-08-07-sandata-scaffold.md introduces, and proves the
+/// Sandata's scaffold plan introduces, and proves the
 /// structural invariants the task table requires: <see cref="FirearmId"/> is
 /// dense from zero with exactly 38 members, <see cref="CaliberFamily"/> has
 /// exactly eight members, <see cref="MechanismGroup"/> has exactly four

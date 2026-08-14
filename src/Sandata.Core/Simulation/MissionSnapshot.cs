@@ -20,7 +20,7 @@ namespace Sandata.Core.Simulation;
 /// </summary>
 /// <remarks>
 /// <see cref="OrderQueue"/> and <see cref="OrderAssignments"/> (task 61 of
-/// docs/plans/2026-08-07-sandata-scaffold.md) follow that same rule in the
+/// Sandata's scaffold plan) follow that same rule in the
 /// direction design section 16 states for the order layer specifically: "An
 /// authored polyline is player input. It is stored verbatim in the snapshot
 /// and folds into the state hash. It is never recomputed, never re-smoothed,

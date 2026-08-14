@@ -17,7 +17,7 @@ using Sandata.Headless;
 namespace Sandata.Core.Tests;
 
 /// <summary>
-/// Task 52a of docs/plans/2026-08-07-sandata-scaffold.md, design section 13's
+/// Task 52a of Sandata's scaffold plan, design section 13's
 /// determinism equivalence suite: proves the four properties that "same
 /// seed, same build" is actually built out of, each as a relational
 /// comparison between two computed results rather than a comparison against

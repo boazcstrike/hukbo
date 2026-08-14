@@ -404,7 +404,7 @@ public static class NavBenchmark
     /// including cells no door in the fixture would ever touch — on every
     /// single tick, which random-walks the map toward a roughly
     /// half-blocked noise field within a few hundred ticks (measured: the
-    /// density sweep in <c>docs/plans/2026-08-07-sandata-scaffold.md</c>
+    /// density sweep in Sandata's scaffold plan
     /// puts the disconnection threshold between 30 and 40 percent blocked).
     /// Design doc section 5 stage 4: "Doors are the only runtime nav
     /// mutation in v0.1. Rebake is local, not global." — a door has a fixed

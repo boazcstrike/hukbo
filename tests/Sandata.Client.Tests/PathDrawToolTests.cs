@@ -14,7 +14,7 @@ using Sandata.Core.Simulation;
 namespace Sandata.Client.Tests;
 
 /// <summary>
-/// Task 62 of docs/plans/2026-08-07-sandata-scaffold.md: the hand-drawn path
+/// Task 62 of Sandata's scaffold plan: the hand-drawn path
 /// tool (<see cref="PathDrawTool"/>), the go-code panel
 /// (<see cref="GoCodePanel"/>), and the order queue view
 /// (<see cref="OrderQueueView"/>). Design section 16's "Undo, multi-select,

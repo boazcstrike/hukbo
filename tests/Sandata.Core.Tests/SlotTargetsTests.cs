@@ -6,7 +6,7 @@ using Sandata.Core.Squads;
 namespace Sandata.Core.Tests;
 
 /// <summary>
-/// Task 34 of docs/plans/2026-08-07-sandata-scaffold.md: arclength slot
+/// Task 34 of Sandata's scaffold plan: arclength slot
 /// targeting. Design section 8, "Arclength slot offsets", is the contract
 /// under test — a follower's target is a pure function of its slot's trail
 /// offset and lateral offset along the shared polyline's precomputed

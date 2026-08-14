@@ -10,7 +10,7 @@ using Sandata.Core.Simulation;
 namespace Sandata.Core.Tests;
 
 /// <summary>
-/// Task 61 of docs/plans/2026-08-07-sandata-scaffold.md: <see cref="MissionState.OrderQueue"/>
+/// Task 61 of Sandata's scaffold plan: <see cref="MissionState.OrderQueue"/>
 /// and <see cref="MissionState.OrderAssignments"/> against design section 16,
 /// "Order records and the queue," "An authored polyline is authoritative, not
 /// derived," and "What this does to the determinism contract." The four
@@ -111,7 +111,7 @@ public sealed class OrderStateHashTests
         Orders = ImmutableArray.Create(orders),
     };
 
-    // -- Task 85 (docs/plans/2026-08-07-sandata-scaffold.md, wave-12 audit's
+    // -- Task 85 (Sandata's scaffold plan, wave-12 audit's
     // -- "Task 52's golden baseline against task 85's single-pin rule"):
     // -- the two tests below used to pin an absolute literal
     // -- (PreTask61BaselineHash) to guard a relational property — "an empty

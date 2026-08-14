@@ -6,7 +6,7 @@ namespace Sandata.Core.Tests;
 /// <summary>
 /// The argument-parsing, <c>--help</c>, and exit-code contract of
 /// <c>Sandata.Headless.Program</c> (plan task 14 of
-/// docs/plans/2026-08-07-sandata-scaffold.md), which mirrors
+/// Sandata's scaffold plan), which mirrors
 /// <c>Hukbo.Headless.HeadlessRunner</c>'s shape.
 /// </summary>
 public sealed class HeadlessArgumentTests

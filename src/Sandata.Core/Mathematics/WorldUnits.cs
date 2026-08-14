@@ -11,7 +11,7 @@ namespace Sandata.Core.Mathematics;
 /// a <see cref="FixedPoint"/> raw value at <see cref="FixedPoint.Scale"/>
 /// 1024 — one world unit (wu) is one <see cref="FixedPoint"/> whole unit,
 /// 1,024 raw. No conversion between the two existed before task 64 of
-/// <c>docs/plans/2026-08-07-sandata-scaffold.md</c>; task 32 (the
+/// Sandata's scaffold plan; task 32 (the
 /// weapon-lowered rule) needed exactly this bridge and reported that it did
 /// not exist rather than inventing one out of scope. This type is that
 /// bridge.

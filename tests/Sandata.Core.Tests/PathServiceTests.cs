@@ -201,8 +201,8 @@ public sealed class PathServiceTests
     }
 
     /// <summary>
-    /// Plan task 65's restated acceptance criterion (docs/plans/2026-08-07-sandata-scaffold.md,
-    /// "What task 26 proved about the funnel, and what that means for task
+    /// Plan task 65's restated acceptance criterion (Sandata's scaffold
+    /// plan, "What task 26 proved about the funnel, and what that means for task
     /// 65"): a single-file, one-cell-wide corridor cannot generally collapse
     /// to a straight segment, so this fixture is a fully open 10-by-4-cell
     /// region with no walls at all — every one of its 40 cells is passable —

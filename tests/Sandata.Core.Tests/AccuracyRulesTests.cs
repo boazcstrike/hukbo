@@ -3,7 +3,7 @@ using Sandata.Core.Combat;
 namespace Sandata.Core.Tests;
 
 /// <summary>
-/// Task 31 of docs/plans/2026-08-07-sandata-scaffold.md: pins
+/// Task 31 of Sandata's scaffold plan: pins
 /// <see cref="AccuracyRules.Dispersion"/> against design section 9's linear
 /// integer interpolation formula by hand computation, and proves
 /// <see cref="AccuracyRules.DrawAngularErrorBam"/> is a reproducible,

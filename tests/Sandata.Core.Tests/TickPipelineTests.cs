@@ -21,7 +21,7 @@ using Sandata.Headless;
 namespace Sandata.Core.Tests;
 
 /// <summary>
-/// Task 49c of docs/plans/2026-08-07-sandata-scaffold.md: proves the
+/// Task 49c of Sandata's scaffold plan: proves the
 /// fourteen-stage tick pipeline (<see cref="SandataSimulation.RunTick"/>,
 /// <see cref="TickStage"/>, <see cref="TickStartView"/>) behaves the way its
 /// own doc comments claim, using only the observable surface — <see
@@ -958,7 +958,7 @@ public sealed class TickPipelineTests
     }
 
     /// <summary>
-    /// Task 79c (docs/plans/2026-08-07-sandata-scaffold.md, the wave-12
+    /// Task 79c (Sandata's scaffold plan, the wave-12
     /// audit's corrected obligation): <see cref="OperatorState.Firearm"/>
     /// genuinely drives stage 11 through <see
     /// cref="SandataSimulation.RunTick"/> — not by calling <see

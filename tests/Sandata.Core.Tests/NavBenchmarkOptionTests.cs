@@ -456,7 +456,7 @@ public sealed class NavBenchmarkOptionTests
     /// <summary>
     /// The floor task 83's brief requires named: the fraction of probe
     /// queries that find a path, at the "stress-connected" matrix row from
-    /// <c>docs/plans/2026-08-07-sandata-scaffold.md</c>'s VERIFY section
+    /// Sandata's scaffold plan's VERIFY section
     /// (density 10, changed cells 50, 32 seekers, 2,048-wu queries, 25
     /// percent replanning). Before task 83's fix, that exact row measured
     /// 8.1 percent found (1,293 of 16,011) because <c>ApplyChangedCells</c>
@@ -520,8 +520,8 @@ public sealed class NavBenchmarkOptionTests
     /// <summary>
     /// Task 83's acceptance criterion on connectivity: the successful-search
     /// fraction of a changed-cell run inside the usable density range (0 to
-    /// 20 percent per the density sweep in
-    /// <c>docs/plans/2026-08-07-sandata-scaffold.md</c>) must stay above
+    /// 20 percent per the density sweep in Sandata's scaffold plan) must
+    /// stay above
     /// <see cref="SuccessfulSearchFloorFraction"/> for the whole run, not
     /// only at its end. Each sampled tick count below is a fresh, independent
     /// <see cref="NavBenchmark.Run"/> call with identical options and seed,

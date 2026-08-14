@@ -15,8 +15,8 @@ using Sandata.Core.Weapons;
 namespace Sandata.Core.Tests;
 
 /// <summary>
-/// The 2026-08-12 smoke package
-/// (docs/plans/2026-08-12-sandata-order-and-combat-legibility.md): the three
+/// The 2026-08-12 smoke package (the Sandata order and combat legibility
+/// plan of that date): the three
 /// simulation defects the second Sandata smoke session surfaced. Each one was
 /// a fully implemented, fully unit-tested rule with no production caller, so
 /// every test here exercises <see cref="SandataSimulation.RunTick"/> end to

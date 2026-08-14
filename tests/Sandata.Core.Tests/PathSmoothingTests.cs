@@ -3,7 +3,7 @@ using Sandata.Core.Navigation;
 namespace Sandata.Core.Tests;
 
 /// <summary>
-/// Plan task 67's restated acceptance bar (docs/plans/2026-08-07-sandata-scaffold.md,
+/// Plan task 67's restated acceptance bar (Sandata's scaffold plan,
 /// "The funnel does not deliver the straight line, and task 67 does"): across
 /// open ground the smoothed path is exactly two points and equals the taut
 /// straight line, asserted as literal coordinates rather than as a

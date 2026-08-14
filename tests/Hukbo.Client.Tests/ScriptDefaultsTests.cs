@@ -5,8 +5,8 @@ using Hukbo.Diagnostics;
 namespace Hukbo.Client.Tests;
 
 /// <summary>
-/// Proves the acceptance criterion for plan task 47
-/// (docs/plans/2026-08-07-sandata-scaffold.md), the RU-29 extension
+/// Proves the acceptance criterion for plan task 47 of Sandata's
+/// scaffold plan, the RU-29 extension
 /// (the ranged units plan), and task 14 of the archived
 /// "Battlefield realism" plan (archived once its build merged):
 /// scripts/verify.ps1 gains

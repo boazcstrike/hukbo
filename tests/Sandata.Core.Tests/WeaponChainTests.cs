@@ -4,7 +4,7 @@ using Sandata.Core.Weapons;
 namespace Sandata.Core.Tests;
 
 /// <summary>
-/// Task 23 of docs/plans/2026-08-07-sandata-scaffold.md: pins
+/// Task 23 of Sandata's scaffold plan: pins
 /// <see cref="TickConversion.ToTicks"/> for the seven millisecond figures
 /// design section 9 publishes, exercises every zero-tick transition of
 /// <see cref="WeaponChain.Advance"/> to show none swallows or double-advances

@@ -6,7 +6,7 @@ using Sandata.Core.Orders;
 namespace Sandata.Core.Tests;
 
 /// <summary>
-/// Task 60 of docs/plans/2026-08-07-sandata-scaffold.md: <c>GoCodeRules</c>
+/// Task 60 of Sandata's scaffold plan: <c>GoCodeRules</c>
 /// against design section 16, "Sync sets and go-codes" — "releasing that
 /// letter is itself an order... A keypress therefore enters the same queue
 /// as everything else and gets the same determinism guarantee for free. No

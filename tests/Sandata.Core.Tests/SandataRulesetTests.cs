@@ -7,7 +7,7 @@ namespace Sandata.Core.Tests;
 /// <see cref="SandataRuleset.ContentHash"/>'s recorded value, and proves the
 /// hash is meaningful by showing that changing any single ruleset field
 /// moves it. This is task 9 of
-/// docs/plans/2026-08-07-sandata-scaffold.md — the root of Sandata's
+/// Sandata's scaffold plan — the root of Sandata's
 /// determinism contract that every later hash folds through.
 /// </summary>
 public sealed class SandataRulesetTests

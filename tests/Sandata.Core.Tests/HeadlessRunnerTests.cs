@@ -6,8 +6,8 @@ using Sandata.Headless;
 namespace Sandata.Core.Tests;
 
 /// <summary>
-/// The seeded determinism workload added by task 51 of
-/// docs/plans/2026-08-07-sandata-scaffold.md: <see cref="HeadlessRunner.Execute"/>
+/// The seeded determinism workload added by task 51 of Sandata's scaffold
+/// plan: <see cref="HeadlessRunner.Execute"/>
 /// and its dispatch through <c>Program</c>.
 /// </summary>
 /// <remarks>

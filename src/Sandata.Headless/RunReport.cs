@@ -27,13 +27,13 @@ public sealed record TickPercentiles(
 /// <summary>
 /// The complete report <see cref="HeadlessRunner.Execute"/> hands back to
 /// <c>Program</c> for one seeded determinism workload — task 51 of
-/// docs/plans/2026-08-07-sandata-scaffold.md. Serialized to indented,
+/// Sandata's scaffold plan. Serialized to indented,
 /// camelCase JSON on stdout, and optionally to <c>--output</c>.
 /// </summary>
 /// <remarks>
 /// <para>
 /// <b>No expected-hash literal belongs here or anywhere near it.</b> The
-/// wave-11 audit (docs/plans/2026-08-07-sandata-scaffold.md) forbids this
+/// wave-11 audit (Sandata's scaffold plan) forbids this
 /// task from pinning a golden Sandata hash: task 77, landing in the same
 /// batch, moves <c>SandataRuleset.ContentHash</c>, which moves every mission
 /// hash with it. Every assertion this report feeds is a self-consistency

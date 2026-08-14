@@ -8,7 +8,7 @@ using Sandata.Core.Squads;
 namespace Sandata.Core.Tests;
 
 /// <summary>
-/// Task 59 of docs/plans/2026-08-07-sandata-scaffold.md: <see cref="OrderAssignment"/>
+/// Task 59 of Sandata's scaffold plan: <see cref="OrderAssignment"/>
 /// and <see cref="MovementSource"/> against design section 16's per-tick
 /// movement-source rule — "Every operator's movement, on every tick, comes
 /// from exactly one of two sources... There is no third case and no blend of

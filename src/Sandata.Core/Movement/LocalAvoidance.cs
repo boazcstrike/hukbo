@@ -76,7 +76,7 @@ namespace Sandata.Core.Movement;
 /// </para>
 /// <para>
 /// <b>"Waits a tick" becomes "waits forever" when the blocker never moves.</b>
-/// Task 89 of <c>docs/plans/2026-08-07-sandata-scaffold.md</c> measured this,
+/// Task 89 of Sandata's scaffold plan measured this,
 /// and it is a property of the composition rather than a defect in any one
 /// piece. Both candidates this type offers are pure functions of the
 /// proposal: the desired point stage 9 computed, and

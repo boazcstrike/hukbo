@@ -4,7 +4,7 @@ using Sandata.Core.Weapons;
 namespace Sandata.Core.Tests;
 
 /// <summary>
-/// Task 31 of docs/plans/2026-08-07-sandata-scaffold.md: pins
+/// Task 31 of Sandata's scaffold plan: pins
 /// <see cref="FireModeSelection.SelectMode"/> against design section 9's
 /// ordered, total fire-mode band-selection rule, by hand-computed expected
 /// values rather than by reading the implementation back. Every expected

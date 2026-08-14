@@ -3,7 +3,7 @@ using Sandata.Core.Orders;
 namespace Sandata.Core.Tests;
 
 /// <summary>
-/// Task 60 of docs/plans/2026-08-07-sandata-scaffold.md: <c>SyncRules</c>
+/// Task 60 of Sandata's scaffold plan: <c>SyncRules</c>
 /// against design section 16, "Sync sets and go-codes" — "Sync pace-matches
 /// a set of operators... When every living member of the set is holding, all
 /// of them release on the same tick," keyed by the lowest entity id.

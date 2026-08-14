@@ -6,7 +6,7 @@ namespace Sandata.Core.Tests;
 /// <summary>
 /// Golden vectors for the directional cover model (design section 9 of
 /// docs/plans/2026-08-07-sandata-scaffold-design.md, task 30 of
-/// docs/plans/2026-08-07-sandata-scaffold.md): arc-boundary exactness reusing
+/// Sandata's scaffold plan): arc-boundary exactness reusing
 /// <see cref="Geometry.VisionCone"/>'s already-pinned boundary vectors, two
 /// operators behind one object diverging, the flank-and-rear bypass, the
 /// 32,768 all-directions object, the crouched near-immune case, and the

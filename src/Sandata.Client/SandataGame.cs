@@ -26,7 +26,7 @@ namespace Sandata.Client;
 /// <summary>
 /// Sandata's MonoGame window: the game loop, the spectator camera, the world
 /// renderer for walls, doors, cover, and objectives (plan task 33 of
-/// docs/plans/2026-08-07-sandata-scaffold.md), and — task 69 — the composed
+/// Sandata's scaffold plan), and — task 69 — the composed
 /// HUD, the operator pawns, and every overlay design section 11 names.
 /// </summary>
 /// <remarks>

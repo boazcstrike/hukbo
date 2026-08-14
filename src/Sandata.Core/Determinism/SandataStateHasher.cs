@@ -38,8 +38,8 @@ namespace Sandata.Core.Determinism;
 /// <c>SuppressionCounter</c>, then that operator's
 /// <c>ContactMemory</c>'s count and, for each entry, in the array's stored
 /// order, <c>EnemyEntityId</c>, <c>LastKnownCellIndex</c>, <c>ContactTier</c>,
-/// <c>LastSeenTick</c>, and finally (task 79c of
-/// docs/plans/2026-08-07-sandata-scaffold.md, the wave-12 audit's corrected
+/// <c>LastSeenTick</c>, and finally (task 79c of Sandata's scaffold plan,
+/// the wave-12 audit's corrected
 /// obligation) that operator's <c>Firearm</c>, folded last in this block —
 /// after the contact-memory entries, not interleaved among the scalar
 /// fields above. <c>SquadSlotIndex</c> is not folded: task 64's
@@ -85,7 +85,7 @@ namespace Sandata.Core.Determinism;
 /// <item><description><see cref="Mission.MissionContentHash"/></description></item>
 /// <item><description><see cref="SandataRuleset.ContentHash"/></description></item>
 /// <item><description>
-/// <b>Task 61 addition (docs/plans/2026-08-07-sandata-scaffold.md), appended
+/// <b>Task 61 addition (Sandata's scaffold plan), appended
 /// here rather than interleaved among the items above.</b>
 /// <see cref="MissionState.OrderQueue"/>, folded only when it is not equal to
 /// <see cref="Orders.OrderQueue.Empty"/>: first <c>NextOrderId</c> and
@@ -349,7 +349,7 @@ internal static class SandataStateHasher
             }
         }
 
-        // Task 79c (docs/plans/2026-08-07-sandata-scaffold.md, the wave-12
+        // Task 79c (Sandata's scaffold plan, the wave-12
         // audit's corrected obligation): the operator's loadout, folded last
         // inside this block -- after every field this hasher already
         // covered, including the nested contact-memory entries above. This

@@ -10,7 +10,7 @@ using Sandata.Core.Squads;
 namespace Sandata.Core.Tests;
 
 /// <summary>
-/// Task 42 of docs/plans/2026-08-07-sandata-scaffold.md: single-file
+/// Task 42 of Sandata's scaffold plan: single-file
 /// collapse. Design section 8, "Doorway collapse falls out of the clearance
 /// field", is the contract under test — when the <see cref="ClearanceField"/>
 /// value at the leader's cell drops below the formation half-width, every

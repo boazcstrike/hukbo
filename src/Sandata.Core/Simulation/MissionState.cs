@@ -174,7 +174,7 @@ public sealed record OperatorState(
 
     /// <summary>
     /// The firearm this operator carries. Task 79c
-    /// (docs/plans/2026-08-07-sandata-scaffold.md, the wave-12 audit's
+    /// (Sandata's scaffold plan, the wave-12 audit's
     /// corrected obligation) adds this field so <see
     /// cref="Simulation.SandataSimulation.AdvanceWeaponChain"/> can read a
     /// real per-operator loadout instead of a hardcoded constant. Stage 12
@@ -292,7 +292,7 @@ public sealed record OperatorState(
 /// <para>
 /// This type holds five <see cref="ImmutableArray{T}"/> collections plus
 /// <see cref="OrderAssignments"/> below (task 61 of
-/// docs/plans/2026-08-07-sandata-scaffold.md) and <see cref="EventFeed"/>
+/// Sandata's scaffold plan) and <see cref="EventFeed"/>
 /// below (task 76 of the same plan), so — exactly like
 /// <c>Hukbo.Core.Simulation.Scenario</c> and <see cref="OperatorState"/>
 /// above — it overrides <c>Equals</c>/<c>GetHashCode</c> rather than relying
@@ -329,7 +329,7 @@ public sealed record MissionState(
     /// <summary>
     /// Design section 16's "Order records and the queue": "The queue is
     /// authoritative state. It is snapshotted and it folds into the state
-    /// hash." Task 61 (docs/plans/2026-08-07-sandata-scaffold.md) adds this
+    /// hash." Task 61 (Sandata's scaffold plan) adds this
     /// property; <see cref="Determinism.SandataStateHasher"/> folds it after
     /// every field that predates this task, and only when it differs from
     /// <see cref="Orders.OrderQueue.Empty"/> — see that type's own remarks
@@ -351,7 +351,7 @@ public sealed record MissionState(
         ImmutableArray<OrderAssignment>.Empty;
 
     /// <summary>
-    /// Task 76 (docs/plans/2026-08-07-sandata-scaffold.md, the wave-11
+    /// Task 76 (Sandata's scaffold plan, the wave-11
     /// 2026-08-08 audit): the ordered mission event feed and its running
     /// event hash. The audit corrected an earlier row that would have folded
     /// this into the state hash; instead it is deliberately excluded from

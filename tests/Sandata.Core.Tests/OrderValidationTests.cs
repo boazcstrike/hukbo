@@ -7,7 +7,7 @@ using Sandata.Core.Orders;
 namespace Sandata.Core.Tests;
 
 /// <summary>
-/// Task 58 of docs/plans/2026-08-07-sandata-scaffold.md:
+/// Task 58 of Sandata's scaffold plan:
 /// <see cref="OrderValidation.ValidateMoveAlongPath"/> against design
 /// section 16's four rejection rules — "Validation happens at submission,
 /// and rejection is observable." One fixture per rule, isolated so each

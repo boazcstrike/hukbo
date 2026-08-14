@@ -13,7 +13,7 @@ using Sandata.Core.Simulation;
 namespace Sandata.Core.Tests;
 
 /// <summary>
-/// Task 76 of docs/plans/2026-08-07-sandata-scaffold.md, as corrected by the
+/// Task 76 of Sandata's scaffold plan, as corrected by the
 /// plan's own 2026-08-08 wave-11 audit: <see cref="MissionEventFeed"/>,
 /// <see cref="MissionEvent"/>, and <see cref="SandataSimulation.SubmitOrder"/>'s
 /// rejected-order emission, exercised only through the production call
@@ -201,7 +201,7 @@ public sealed class MissionEventFeedTests
             new RngStreamState(1, 1, 111UL, 222UL)),
     };
 
-    // Task 85 (docs/plans/2026-08-07-sandata-scaffold.md, wave-12 audit's
+    // Task 85 (Sandata's scaffold plan, wave-12 audit's
     // "Task 52's golden baseline against task 85's single-pin rule"): this
     // file used to pin an absolute literal (PreTask76BaselineHash, identical
     // to OrderStateHashTests' former PreTask61BaselineHash for the identical

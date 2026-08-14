@@ -3,8 +3,8 @@ using Hukbo.Diagnostics;
 namespace Hukbo.Client.Tests;
 
 /// <summary>
-/// Proves the acceptance criterion for plan task 41
-/// (docs/plans/2026-08-07-sandata-scaffold.md): the four game-specific
+/// Proves the acceptance criterion for plan task 41 of Sandata's
+/// scaffold plan: the four game-specific
 /// scripts no longer hardcode a project path, and the Hukbo branch of the
 /// new shared table carries the exact literals those scripts hardcoded
 /// before this change, so a caller that never passes -Game resolves to

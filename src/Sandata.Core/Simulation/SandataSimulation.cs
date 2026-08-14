@@ -371,7 +371,7 @@ public sealed class SandataSimulation
     /// is next called for a tick equal to <paramref name="targetTick"/>.
     /// </summary>
     /// <remarks>
-    /// Task 76 (docs/plans/2026-08-07-sandata-scaffold.md): when
+    /// Task 76 (Sandata's scaffold plan): when
     /// <see cref="OrderQueue.SubmitValidated"/> reports a rejection, this
     /// method emits a <see cref="MissionEventKind.OrderRejected"/> event
     /// through <see cref="EmitOrderRejectedEvent"/> before returning — design
@@ -657,7 +657,7 @@ public sealed class SandataSimulation
     /// </para>
     /// <para>
     /// <b>Per-operator loadout.</b> Task 79c
-    /// (docs/plans/2026-08-07-sandata-scaffold.md, the wave-12 audit's
+    /// (Sandata's scaffold plan, the wave-12 audit's
     /// corrected obligation): each operator's own
     /// <see cref="OperatorState.Firearm"/> selects its
     /// <see cref="FirearmCatalog"/> row, looked up once per operator inside
@@ -1003,7 +1003,7 @@ public sealed class SandataSimulation
     /// <see cref="AccuracyRules.DrawAngularErrorBam"/> are both called with
     /// real arguments, from the real <c>Accuracy</c> RNG stream keyed on
     /// <see cref="Mission.Seed"/> and the shooter's entity id. Task 79d-1
-    /// (docs/plans/2026-08-07-sandata-scaffold.md, the wave-12 audit's
+    /// (Sandata's scaffold plan, the wave-12 audit's
     /// corrected obligation) makes that draw decide hit or miss: it is
     /// compared against the target's subtended half-angle at the measured
     /// range, computed by <see cref="SubtendedHalfAngleBam"/> from
@@ -1014,7 +1014,7 @@ public sealed class SandataSimulation
     /// <see cref="CoverRules.ApplyToDamage"/> is called for real, against the
     /// target's real <see cref="CoverState"/> resolved by
     /// <see cref="ResolveCoverState"/> (see next), only for a hit. Task
-    /// 79d-2a (docs/plans/2026-08-07-sandata-scaffold.md) resolves
+    /// 79d-2a (Sandata's scaffold plan) resolves
     /// <see cref="FirearmDefinition"/> from each shot's own shooter's
     /// <see cref="OperatorState.Firearm"/>, inside this loop, the same shape
     /// stage 11's <see cref="AdvanceWeaponChain"/> already used — before that
@@ -1399,7 +1399,7 @@ public sealed class SandataSimulation
     /// </summary>
     /// <remarks>
     /// <b>Event emission does not happen here.</b> Task 76
-    /// (docs/plans/2026-08-07-sandata-scaffold.md) adds
+    /// (Sandata's scaffold plan) adds
     /// <see cref="Events.MissionEventFeed"/> and its first producer, a
     /// rejected-order event emitted by <see cref="SubmitOrder"/> at
     /// submission time — design section 16: "An order is validated when it

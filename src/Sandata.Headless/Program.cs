@@ -9,8 +9,8 @@ namespace Sandata.Headless;
 /// <summary>
 /// Sandata's process entry point. Mirrors
 /// <c>Hukbo.Headless.HeadlessRunner</c>'s argument-parsing shape and
-/// exit-code contract (plan task 14 of
-/// docs/plans/2026-08-07-sandata-scaffold.md), collapsed into this one file
+/// exit-code contract (plan task 14 of Sandata's scaffold plan),
+/// collapsed into this one file
 /// because that task's file list did not include a separate runner class.
 /// Task 51 adds that runner (<see cref="HeadlessRunner"/>) and this file's
 /// dispatch to it: when <c>--agents</c>, <c>--ticks</c>, and <c>--seed</c>
@@ -333,7 +333,7 @@ internal static class Program
         standardOutput.WriteLine(
             "Sandata.Headless: argument parsing and logging only; no " +
             "--agents/--ticks/--seed supplied, so no mission ran " +
-            "(docs/plans/2026-08-07-sandata-scaffold.md task 51).");
+            "(task 51 of Sandata's scaffold plan).");
         return ExitSuccess;
     }
 

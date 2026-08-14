@@ -30,8 +30,8 @@ public static class LogEvents
     // which. See the display DPI awareness design.
     public const string BootDpiAwareness = "boot.dpi.awareness";
 
-    // Sandata's own boot lifecycle events (plan task 14 of
-    // docs/plans/2026-08-07-sandata-scaffold.md). Named with a "sandata"
+    // Sandata's own boot lifecycle events (plan task 14 of Sandata's
+    // scaffold plan). Named with a "sandata"
     // middle segment rather than a "sandata." leading prefix, because
     // LogEventCatalogTests.EveryIdentifierPrefixNamesADeclaredChannel
     // requires the leading segment to be a declared LogChannel wire name —

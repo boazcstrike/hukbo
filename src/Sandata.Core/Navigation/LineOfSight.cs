@@ -30,7 +30,7 @@ namespace Sandata.Core.Navigation;
 /// </para>
 /// <para>
 /// <b>Every query needs a cell buffer, and a hot caller must own it.</b> Task
-/// 88 of <c>docs/plans/2026-08-07-sandata-scaffold.md</c> measured this method
+/// 88 of Sandata's scaffold plan measured this method
 /// allocating a fresh <c>int[grid.Width + grid.Height + 1]</c> on every call
 /// at roughly 4,684 calls per tick — by a wide margin the largest allocator in
 /// the whole tick. The overloads taking a <see cref="Span{T}"/> exist for that

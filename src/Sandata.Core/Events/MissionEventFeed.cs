@@ -5,7 +5,7 @@ namespace Sandata.Core.Events;
 
 /// <summary>
 /// Sandata's authoritative, ordered mission event feed and its running event
-/// hash. Task 76 of docs/plans/2026-08-07-sandata-scaffold.md, corrected by
+/// hash. Task 76 of Sandata's scaffold plan, corrected by
 /// this plan's own 2026-08-08 wave-11 audit: "The event hash is FNV-1a over
 /// the ordered event stream, accumulated as events are emitted, so that the
 /// 200-event retention cap cannot truncate it," and "A bounded feed and a

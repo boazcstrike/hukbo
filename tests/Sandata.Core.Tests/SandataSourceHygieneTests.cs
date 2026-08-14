@@ -22,7 +22,7 @@ namespace Sandata.Core.Tests;
 /// technique those two files already use — enumerate <c>*.cs</c> under a
 /// directory excluding <c>bin</c>/<c>obj</c>, skip a line whose trimmed text
 /// starts with <c>//</c> before testing it — rather than inventing a second
-/// one, exactly as docs/plans/2026-08-07-sandata-scaffold.md task 7 requires.
+/// one, exactly as task 7 of Sandata's scaffold plan requires.
 /// </remarks>
 public sealed class SandataSourceHygieneTests
 {

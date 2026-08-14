@@ -23,7 +23,7 @@ namespace Sandata.Core.Sensing;
 /// <see cref="ContactTier.QuestionMark"/> or <see cref="ContactTier.Identified"/>,
 /// a heard sound, a death scream pulling in investigators — is deliberately
 /// left to whichever future task wires alert into the tick pipeline. No task
-/// in docs/plans/2026-08-07-sandata-scaffold.md's table names a numeric
+/// in Sandata's scaffold plan's table names a numeric
 /// trigger or a decay rule for any transition among these three states, and
 /// this task's own remit is the sensing primitives — contact tiers, ghosts,
 /// and hearing radii — not the alert state machine those primitives will

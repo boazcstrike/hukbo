@@ -8,7 +8,7 @@ using Sandata.Core.Simulation;
 namespace Sandata.Core.Tests;
 
 /// <summary>
-/// Task 36 of docs/plans/2026-08-07-sandata-scaffold.md: simultaneous damage
+/// Task 36 of Sandata's scaffold plan: simultaneous damage
 /// application, instant death with no downed state, and mission outcome
 /// resolution, per design section 5 stage 13 of
 /// docs/plans/2026-08-07-sandata-scaffold-design.md.

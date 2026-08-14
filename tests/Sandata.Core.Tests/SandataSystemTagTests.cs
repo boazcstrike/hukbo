@@ -3,7 +3,7 @@ using Sandata.Core.Determinism;
 namespace Sandata.Core.Tests;
 
 /// <summary>
-/// Task 66 of docs/plans/2026-08-07-sandata-scaffold.md: pins
+/// Task 66 of Sandata's scaffold plan: pins
 /// <see cref="SandataSystemTag"/>'s membership and every member's numeric
 /// value. This is the declaration design section 4 named but never assigned
 /// to a task — see the plan's "A fourth unowned declaration: the RNG system

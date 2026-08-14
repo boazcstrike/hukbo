@@ -4,7 +4,7 @@ using Sandata.Core.Mathematics;
 namespace Sandata.Core.Tests;
 
 /// <summary>
-/// Task 64 of docs/plans/2026-08-07-sandata-scaffold.md: pins
+/// Task 64 of Sandata's scaffold plan: pins
 /// <see cref="WorldUnits.FromFixedPoint"/>'s rounding rule — floor toward
 /// negative infinity, agreeing with <c>NavGrid.WorldToCellCoordinate</c>'s
 /// arithmetic right shift — at zero, at an exact world unit, at a fractional
