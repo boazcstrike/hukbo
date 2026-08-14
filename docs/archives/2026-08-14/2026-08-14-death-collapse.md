@@ -1,7 +1,21 @@
 # Death collapse and the prone body — plan
 
-Date: 2026-08-14. Design: `docs/plans/2026-08-14-death-collapse-design.md`, which
-outranks this document wherever the two disagree.
+**Archived: reference only.** This is a finished plan. All nine `DC` tasks were
+built, tested, and merged to `main` in the feature commit `0d4b34e`, which the
+canonical gate passed on 2026-08-14. Never execute it, never treat it as a live
+task list, and never cite it as the reason to make a change. The live contract
+for this project remains `CLAUDE.md`, `SIMULATION-GAME-STANDARDS.md`,
+`docs/development/testing.md`, and `docs/development/smoke-checklist.md`.
+
+The ten `DC` smoke rows this plan created are still `PENDING` in
+`docs/development/smoke-checklist.md` and stay there: nobody has yet watched a
+body fall over, and only a person at an interactive desktop may close them. Read
+"How this closed, 2026-08-14" at the foot of this document before assuming
+anything here is still accurate.
+
+Date: 2026-08-14. Design: `2026-08-14-death-collapse-design.md`, alongside this
+file in the same archive folder, which outranks this document wherever the two
+disagree.
 
 Task prefix `DC`. Every task names the files it owns; no two tasks own the same
 file.
@@ -209,3 +223,53 @@ DLLs open throughout, which made `dotnet build Hukbo.slnx --no-incremental` fail
 on file copies (MSB3027) rather than on compilation. That process was left alone.
 The gate builds `Release`, writes to a different output path, and was unaffected;
 the copy failures never touched a Hukbo project.
+
+## How this closed, 2026-08-14
+
+The work was merged to `main` in the feature commit `0d4b34e`, "feat: collapse a
+slain warrior onto the ground instead of removing it", which carries all twelve
+source files and all eight test files this plan names — 2,525 insertions across
+twenty files. It reached `main` through the merge `7e6dc2d`. An earlier session
+note that recorded this work as landing uncommitted was stale; it is committed.
+
+Before archiving, each task was re-read against the shipped code rather than
+against the plan's own claim of completion. Eight of the nine are complete as
+written. The findings worth keeping:
+
+- **DC-3 inlines its salt rather than referencing it.** `CollapsePose`
+  hardcodes `0x7F2B95E0C4A16D38UL` instead of reading
+  `PresentationSalts.DeathFallJitterSalt`. This is deliberate and matches the
+  established convention — `PawnAppearanceFactory` inlines its own three salts
+  the same way, and the registry exists so the pairwise-distinctness test can
+  see every salt beside every other, not so consumers take a dependency on it.
+  DC-3 as written only required the salt be distinct and listed in `All`, and
+  both hold.
+- **The salt-pinning test is weaker than it looks.**
+  `DeathFallJitterSaltMatchesTheCollapsePoseValue` asserts that the registry
+  constant equals its own literal, which cannot fail if `CollapsePose`'s inlined
+  copy drifts away from it. The test does not compare the two. This is a small
+  standing gap, not a defect in shipped behaviour, and it is recorded here
+  rather than fixed because fixing it is a change to a test that is currently
+  green for the wrong reason and deserves its own scoped work.
+- **DC-5 did not thread the collapse through `CompletePosedLayout`.** The plan
+  asked for the optional rotation on `Create`, `CompletePosedLayout`, and
+  `CompleteAttackPosedLayout`; it shipped on the first and third. This has no
+  observable effect. `CompletePosedLayout` is reached only through
+  `CreateWithPoseBlindBounds`, which has no production caller at all — the live
+  renderer draws through `PawnGeometry.Create` and `CompleteAttackPosedLayout`,
+  both of which carry the parameter. No corpse is ever drawn through the
+  untouched path, and DC-5's own stated verification criterion, that every
+  existing construction path still returns `PawnTransform.Identity`, is
+  satisfied exactly by its not threading. The parameter was deliberately not
+  added during archiving: an unused parameter on a dead path is worse than the
+  gap it closes.
+
+Naming drifted from this document in two places, both harmless. The plan writes
+`TryGetPose`; the code ships `TryGetCollapse`. The plan writes
+`ResolveFinalRotation(fallSign, entityId)`; the code ships
+`ResolveFinalRotation(fallsRight, entityId)`.
+
+Everything in section 2, "What this is not", remains deliberately out of scope
+and unbuilt. Corpse decay, pooling blood, a dropped weapon, a distinct read for
+a fallen leader, corpse stacking, and any change to how the simulation decides a
+warrior is dead each still need their own design before anyone builds them.

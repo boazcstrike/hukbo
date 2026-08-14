@@ -1,5 +1,18 @@
 # Death collapse and the prone body — design
 
+**Archived: reference only.** The design this document describes was built and
+merged to `main` in the feature commit `0d4b34e` on 2026-08-14. Never execute it,
+never treat it as a live design, and never cite it as the reason to make a
+change. The live contract for this project remains `CLAUDE.md`,
+`SIMULATION-GAME-STANDARDS.md`, `docs/development/testing.md`, and
+`docs/development/smoke-checklist.md`.
+
+Its plan document, "Death collapse and the prone body — plan", sits beside this
+file in the same archive folder and records what shipped, what drifted, and the
+one item that did not land. Section 2 here, "What this is not", lists work that
+was deliberately excluded and is still unbuilt: each of those needs its own
+design before anyone starts it.
+
 Date: 2026-08-14. Scope: `Hukbo.Client` presentation and rendering only. No
 simulation type, no tick stage, no event, and no state or event hash is touched
 by anything in this document.
