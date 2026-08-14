@@ -55,6 +55,32 @@ parallel agents would be a merge conflict created on purpose.
 | 8 | Run both gates once each and record the real output. The seed-1 baseline is unchanged, so nothing moves to measurement history | `docs/development/testing.md` | Real gate output pasted, not summarised | 1, 2, 3, 4, 5 | `./scripts/verify.ps1 -Game Sandata` and `./scripts/verify.ps1`, both run once, both pasted |
 | 9 | Record the fixture gap the design's section 6 found: every Sandata determinism fixture and the gate's own headless workload run on a wall-free grid, so no pinned digest has ever executed against a real map | `docs/plans/TODO.md` | The gap is written down as parked work with the decision that parked it | 1 | The entry names the design document that found it |
 
+## Wave 4 — added after the rows were re-run, 2026-08-14
+
+`SD-4` passed against waves 1 to 3. `SD-5` failed again, and a driven `Debug` run
+with the audio channel at `trc` measured the cause: seven shot cues in the whole
+run, every one the defending pistol firing single shots, and neither attacker
+firing once.
+
+| # | Task | Files | Done when | Depends on | Verified by |
+| --- | --- | --- | --- | --- | --- |
+| 10 | D6. An operator engaging a hostile it identified this tick is not forced lowered. `IsForcedLowered` takes the new condition and early-outs on it beside the exempt-weapon flag; `AdvanceWeaponChain` runs target acquisition before computing `forceLowered` so the condition is known. `raiseRequested` alone is not sufficient — an operator with no identified contact still lowers | `src/Sandata.Core/Combat/WeaponLoweredRules.cs`, `src/Sandata.Core/Simulation/SandataSimulation.cs` | A rifleman in a corridor with an identified hostile fires; the same rifleman with no contact stays lowered | 1 | `WeaponLoweredRulesTests` extended for the wall branch and the door branch separately; new `WeaponLoweredEngagementTests` at simulation level; `SandataRuleset.ContentHash` unmoved |
+| 11 | D7. The placeholder roster's health goes from 100 to 300, as a named constant whose doc comment records that it is provisional tuning rather than a measurement, and why it was raised | `src/Sandata.Client/SandataGame.cs` | A burst runs long enough to hear as a burst | 10 | A driven `Debug` run at `trc` on the audio channel, with the round timings read out of the log |
+
+Neither task moved a hash. Task 10 changes behaviour only where an operator has
+an identified contact, and every pinned fixture runs on a wall-free grid where
+`forceLowered` was already always false. Task 11 touches a client scenario value
+that reaches no hash at all.
+
+**Measured result**, from the driven run after both: eleven reports from the AK
+attacker at `ms` 14106, 14205, 14304, 14421, 14521, 14621, 14721, 14838, 14938,
+15038, and 15138 — eleven rounds over 1.03 seconds, about 100 milliseconds apart,
+which is the AK's 600 rounds per minute. The same operator fired nothing at all
+in the run before these two tasks.
+
+That is measurement, not a smoke row. `SD-5` stays `FAIL` until a person listens
+to it.
+
 ## What was run, 2026-08-14
 
 Every task above is done and integrated on branch `sandata-sd4-sd5`, which is

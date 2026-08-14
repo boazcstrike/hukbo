@@ -208,21 +208,57 @@ automatic rows for every caliber family the catalog knows, not to soften `Find`
 into returning a miss: a slot the resolver cannot name is a content bug, and it
 should be impossible to construct rather than survivable at runtime.
 
+## 3a. Two decisions added on 2026-08-14, after the rows were re-run
+
+`SD-4` passed against D1 through D4. `SD-5` failed again, and a driven `Debug`
+run with the audio channel at `trc` measured why. The whole run produced seven
+shot cues and **every one of them was the defending pistol firing single shots.
+Neither attacker fired once.** The log line at the same tick reads
+`{"ev":"sim.sandata.weaponState","entityId":1,"lowered":true}`.
+
+**D6 — an operator engaging an identified hostile is not forced lowered.**
+`LoweredWallDistanceWu` is 24 world units and `angle-house`'s corridors are about
+32 wide, so a rifleman indoors is inside the threshold for his entire approach
+and is forced lowered at the moment of contact. In a room-clearing game the rifle
+could not shoot indoors at all, and no automatic round had ever been produced on
+this map. A lowered muzzle is a movement discipline; an operator engaging a
+target it can see raises. A moving operator with no identified contact still
+lowers, at a wall and in a door cell, which is exactly the behaviour `SD-4`
+confirms.
+
+The obvious alternative — shrinking `LoweredWallDistanceWu` — is wrong twice
+over. The doorway aperture is 40 world units, so its centre is 20 from each jamb,
+and any threshold below 20 stops a doorway lowering the weapon and silently
+un-passes `SD-4`. That constant also folds into `SandataRuleset.ContentHash`, so
+moving it costs a new preset version. D6 costs neither.
+
+**D7 — the placeholder roster's health goes from 100 to 300.** This is the
+question section 4 below was written to hand back, and the answer turned out to
+be cheap enough to take here. At 100 health against 7.62x39's 25 damage the
+fourth round killed, so the longest burst the game could physically produce was
+four rounds over 0.30 seconds, and `SD-5` asks a person to judge *sustained*
+automatic fire by ear. The value is a client-side scenario placeholder whose own
+comment records that no `SpawnRecord` and no design document fixes it; it is not
+a ruleset constant, it does not reach `SandataRuleset.ContentHash`, and it costs
+no preset version. Its cost is that every engagement on the placeholder map takes
+proportionally longer to resolve.
+
+Measured after both, by the same driven run: eleven rounds from the AK attacker
+spaced about 100 milliseconds apart, spanning 1.03 seconds — 600 rounds per
+minute sustained for a full second, where the same operator had previously fired
+nothing at all.
+
 ## 4. What this design does not decide, and why
 
-**Whether a burst should be able to last longer than four rounds.** Making
-automatic fire *sustained* rather than merely *automatic* requires the target to
-survive longer than 0.30 seconds, which means changing operator health or
-per-caliber damage. Both are placeholder values — the health constant's own
-comment says it has no source — and both are gameplay balance rather than defect
-repair. Changing either moves the state hash a second time and would fold a
-tuning decision into a bug fix where a later reader could not separate them.
-
-This is left open deliberately and is the one question this package hands back
-rather than answering. With D4 in place a four-round burst plays four reports in
-three tenths of a second, which is audibly a burst and not a single shot, and
-that may well be enough for `SD-5`'s ear test. If it is not, the follow-up is a
-tuning decision taken on its own terms.
+**Whether a burst should last longer than four rounds — decided in D7 above,
+after this section was written.** It is left here rather than deleted because the
+reasoning still applies to the next tuning value somebody wants to move: health
+and per-caliber damage are placeholders rather than measurements, and changing
+one to make a smoke row pass is the kind of decision that has to be visible as a
+decision rather than buried in a bug fix. What made D7 takeable was that the
+health placeholder lives in the client's scenario builder and reaches no hash, so
+it could be changed, measured, and reverted without spending a preset version. A
+change to per-caliber damage would not have that property.
 
 **Whether `SD-5`'s wording still describes anything the game can do.** The row
 asks for "sustained automatic fire from the maximum operator count". The shipped
