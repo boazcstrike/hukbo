@@ -60,6 +60,17 @@ internal sealed record ClientSettings(
 /// grounds as both earlier resets: a handful of settings re-entered in
 /// seconds, and no shipped installs.
 /// </para>
+/// <para>
+/// A fourth deliberate reset followed when the default moved off an even
+/// four-way split onto the calibrated per-rank proportions recorded on
+/// <see cref="ArmyComposition.Default"/>. The shape did not change and an
+/// old file would still parse, but as with the second reset a saved
+/// composition always wins over <see cref="Default"/>, so an existing file
+/// would have pinned the army at the old even split forever. The schema
+/// version bump discards it, on the same grounds as all three earlier
+/// resets: a handful of settings re-entered in seconds, and no shipped
+/// installs.
+/// </para>
 /// </remarks>
 internal sealed record ArmyComposition(
     int UnitsPerTeam,
@@ -89,21 +100,31 @@ internal sealed record ArmyComposition(
     private const int DefaultUnitsPerTeam = 250;
 
     /// <summary>
-    /// 250 does not divide evenly by <see cref="CategoryCount"/>: 250 / 4 is
-    /// 62 with a remainder of 2, so the first two roster entries carry one
-    /// extra unit each. This matches the remainder-to-lowest-index rule in
-    /// <see cref="UI.ArmyCompositionStepper.DistributeEvenly"/>, so Reset to
-    /// Default and Distribute Evenly agree on the same total.
+    /// Calibrated per-rank shares taken on 2026-08-14 — roughly 19% Datu,
+    /// 19% Maharlika, 44% Timawa, 18% Aliping Namamahay — applied to a
+    /// 250-unit team as 48 / 47 / 110 / 45, which sums to 250. This replaces
+    /// an even four-way split: the previous default of 63 / 63 / 62 / 62 was
+    /// chosen only so the four counts summed to 250 under the
+    /// remainder-to-lowest-index rule in
+    /// <see cref="UI.ArmyCompositionStepper.DistributeEvenly"/>, not because
+    /// an even split was judged representative of anything, so Reset to
+    /// Default and Distribute Evenly no longer agree on distribution, only
+    /// on total. These counts are a gameplay tuning value with no
+    /// evidentiary confidence behind them: PROVISIONAL under CLAUDE.md
+    /// section 7, and never to be presented as a historical measurement of
+    /// pre-colonial Philippine army composition.
     /// </summary>
-    private const int DefaultLargerCategoryCount = 63;
-    private const int DefaultSmallerCategoryCount = 62;
+    private const int DefaultDatuCount = 48;
+    private const int DefaultMaharlikaCount = 47;
+    private const int DefaultTimawaCount = 110;
+    private const int DefaultAlipingNamamahayCount = 45;
 
     public static ArmyComposition Default { get; } = new(
         DefaultUnitsPerTeam,
-        DefaultLargerCategoryCount,
-        DefaultLargerCategoryCount,
-        DefaultSmallerCategoryCount,
-        DefaultSmallerCategoryCount);
+        DefaultDatuCount,
+        DefaultMaharlikaCount,
+        DefaultTimawaCount,
+        DefaultAlipingNamamahayCount);
 
     /// <summary>
     /// True when every count is non-negative and the four category counts sum
