@@ -23,12 +23,14 @@ The gate, the current gate results, and the recorded baselines live in
 
 ## Where the checklist stands, 2026-08-14
 
-5 rows across 2 subsections: **5 `PENDING`, and no `PASS`, `BLOCKED`,
+8 rows across 3 subsections: **8 `PENDING`, and no `PASS`, `BLOCKED`,
 `FAIL`, or `DECLINED` row** — recounted from the status column of this file on
 2026-08-14, after ten families closed in full that day and their subsections
-were deleted whole. The contingent shape selector family both joined this file
-and left it on that day: `CS-1` and `CS-2` were written as two new `PENDING`
-rows in a subsection of their own, then run and passed before the day was out.
+were deleted whole, and after the calibrated army composition added three new
+`PENDING` rows in a subsection of its own later the same day. The contingent
+shape selector family both joined this file and left it on that day: `CS-1` and
+`CS-2` were written as two new `PENDING` rows in a subsection of their own,
+then run and passed before the day was out.
 
 The count before this one said thirteen rows, all `PENDING`. Eight of those
 thirteen closed on 2026-08-14: battlefield realism's last five rows, `BR-1`
@@ -123,7 +125,7 @@ The families below are grouped by what a single launch can actually
 show, because the subsections are ordered by the change that created them
 rather than by what is on screen at once, and a person working down the file in
 order relaunches the game far more often than they need to. The batch rows below
-sum to this file's own total of 5. They summed to 67 before 2026-08-14, because
+sum to this file's own total of 8. They summed to 67 before 2026-08-14, because
 two sections had never been given a row here at all; nine more batches left the
 table later that day when their families closed in full — the battlefield
 realism batch last, and the contingent shape selector batch, which had joined
@@ -134,6 +136,7 @@ shrank rather than leaving.
 | --- | --- | --- | --- |
 | Render | `GR` 2 of 5 | 2 `PENDING` | Launch-time render behaviour at the largest battle the panel allows. `GR-1`, `GR-2` and `GR-4` passed on 2026-08-14 and were lifted out. Both rows left were attempted that day and not run; the section preamble records why, and why the stated reason does not hold |
 | Sandata | `SD` 3 of 9 | 3 `PENDING` | `./scripts/run.ps1 -Game Sandata`. The other 6 passed and were lifted out. All three open rows are re-runs rather than fresh checks: `SD-4` and `SD-5` were each attempted twice and failed on causes fixed on 2026-08-12, and `SD-7b` was blocked from the day it was written until the same day. Read each row's `Actual` column before starting |
+| Composition | `AC` 3 of 3 | 3 `PENDING` | One launch shows all three. `AC-1` and `AC-2` are read off the Army Composition panel before any battle starts, and `AC-2` needs a settings file written by a build from before this change, so save one aside first or the row cannot be attempted. `AC-3` is the battle itself and carries a second question with no pass/fail criterion |
 
 **No row in this file is blocked by the build, and this paragraph used to say
 the opposite.** Every `SD` row that was once blocked has stopped being so — four
@@ -348,3 +351,37 @@ do not. Leave untouched rows `PENDING`; report `BLOCKED` honestly.
 
 Phase 3's rows GR-6 through GR-10 are deliberately absent. They covered the
 instanced backend, which the NO-GO verdict closed and which does not exist.
+
+## Calibrated army composition (the 2026-08-14 default-composition decision)
+
+The client's default army composition moved off an even four-way split of 250
+per team and onto the calibrated rank proportions — Datu 48, Maharlika 47,
+Timawa 110, Aliping Namamahay 45. Those four counts are a gameplay tuning value
+with no evidentiary confidence behind them and they are marked `PROVISIONAL` in
+source; they are never to be read as a measurement of pre-colonial Philippine
+army composition.
+
+The change is visible for exactly one reason. All three ranged weapons sit under
+Timawa, and the ranged rows carry 25 of that rank's 44 weight, so raising Timawa
+from 62 to 110 raises the ranged share of a 250-unit team from 14.1 per cent to
+25.0 per cent — from roughly 35 missile-armed warriors per side to roughly 63.
+That arithmetic is derived from the shipped weight table in
+`ArenaGame.CalibratedRosterEntryWeights` and was confirmed against the roster
+expansion the client actually performs; it has not been confirmed by anyone
+watching a battle, which is what these two rows are for.
+
+`ClientSettingsStore.SupportedSchemaVersion` moved from 9 to 10 and the store
+now accepts version 10 alone, on the precedent of the 5-to-6 bump: a saved
+composition always wins over the default, so an existing settings file would
+have pinned the old even split forever. That discard is deliberate, and `AC-2`
+is the row that proves it happens rather than assuming it.
+
+Only a human running `./scripts/run.ps1` on an interactive Windows desktop may
+flip one of these rows. Compilation, unit tests, and a window-opening probe run
+do not. Leave untouched rows `PENDING`; report `BLOCKED` honestly.
+
+| # | Step | Expected | Actual | Status |
+| --- | --- | --- | --- | --- |
+| AC-1 | Launch the game and start the default battle without touching the Army Composition panel, then open the panel and read the four rank counts | The panel reads Datu 48, Maharlika 47, Timawa 110, Aliping Namamahay 45, summing to 250 per team, rather than the old 63 / 63 / 62 / 62 | | PENDING |
+| AC-2 | With a settings file already on disk from a build before this change, launch the game and open the Army Composition panel | The old composition is discarded rather than loaded: the panel shows the calibrated counts, not whatever was saved. The theme, gore, motion, camera, UI scale, startup display, and movement preset choices saved alongside it reset too, which is the accepted cost of the discard | | PENDING |
+| AC-3 | Watch one full default battle and judge whether the larger missile contingent reads on screen | Roughly a quarter of each army is visibly missile-armed and holding at range while the melee majority closes past them, rather than the ranged warriors being a rarity a spectator has to look for. **This row has a second, harder question with no pass/fail criterion:** does the battle still read as a battle, or does a quarter of each side standing off make it read as a stalemate? Record whatever was actually observed | | PENDING |
