@@ -3291,6 +3291,34 @@ public sealed class SandataSimulation
 
             var assignment = FindAssignment(assignments, entityId);
 
+            // Hold for an outstanding autonomous path request. Until this
+            // gate, PathService.RequestPath never touched CurrentPath, so an
+            // unassigned operator kept walking the *previous* published
+            // polyline for the whole PathLatencyTicks window after its group
+            // retargeted (Navigation/PathService.cs GetCurrentPath returns
+            // the stale path until the new request's latency elapses). On
+            // the angle-house map a squad that cleared the objective room
+            // and retargeted to the closet spent that window walking east on
+            // the old route, and by the time the new path published the
+            // leader stood roughly 13 world units past the head of it — off
+            // its own route and unable to rejoin: stage 9 kept proposing a
+            // step onto the new path's start and stage 10 kept refusing it
+            // because a squadmate had settled between the leader and the
+            // path head, freezing the group for the rest of the run. Holding
+            // in place for the window instead means the leader is still
+            // standing on the StartCellIndex the request was made from when
+            // the path publishes, so it is never off its own route. An
+            // operator carrying an OrderAssignment is exempt: it follows its
+            // own authored polyline, and design section 16 allows no third
+            // case and no blend of the two order types.
+            if (assignment is null && _pathService.HasOutstandingRequest(slot.GroupId))
+            {
+                builder.Add(new MovementProposal(
+                    entityId, startXRaw, startYRaw, startXRaw, startYRaw,
+                    slot.GroupId, slot.SlotIndex ?? 0));
+                continue;
+            }
+
             int desiredXRaw;
             int desiredYRaw;
 
