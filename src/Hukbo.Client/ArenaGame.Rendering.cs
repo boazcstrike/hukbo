@@ -678,6 +678,7 @@ public sealed partial class ArenaGame
             screenBounds,
             _presentation.Playback.IsPlaying,
             _isSoundLogVisible,
+            _isEventLogVisible,
             theme);
         _inspectorPanel.Draw(
             spriteBatch,
@@ -688,13 +689,17 @@ public sealed partial class ArenaGame
             _scenario.Seed,
             theme,
             _scenario.MovementSpeedRaw);
-        _eventLogPanel.Draw(
-            spriteBatch,
-            pixel,
-            fonts,
-            _presentation.EventFeed,
-            layout.EventBounds,
-            theme);
+        if (_isEventLogVisible)
+        {
+            _eventLogPanel.Draw(
+                spriteBatch,
+                pixel,
+                fonts,
+                _presentation.EventFeed,
+                layout.EventBounds,
+                theme);
+        }
+
         if (_isSoundLogVisible)
         {
             _soundLogPanel.Draw(

@@ -227,6 +227,7 @@ public sealed partial class ArenaGame : Game
     private Settings.ArmyComposition _activeComposition;
     private MovementPresetId _activeMovementPreset;
     private bool _isSoundLogVisible;
+    private bool _isEventLogVisible;
     private bool _isBattleReportVisible;
     private bool _isArmyCompositionPanelVisible;
     private bool _isCompositionStaged;
@@ -755,10 +756,17 @@ public sealed partial class ArenaGame : Game
             screenBounds.Width,
             screenBounds.Height);
         var layout = GetLayout(screenBounds);
-        _eventLogPanel.ReleaseKeyboardFocusIfPointerLeaves(
-            _input,
-            layout.EventBounds);
+        if (_isEventLogVisible)
+        {
+            _eventLogPanel.ReleaseKeyboardFocusIfPointerLeaves(
+                _input,
+                layout.EventBounds);
+        }
+
+        // A hidden panel never held keyboard focus in the first place, so it
+        // must never claim to have consumed Escape either.
         var eventEscapeConsumed =
+            _isEventLogVisible &&
             !_menu.IsVisible &&
             _eventLogPanel.HandleEscape(
                 _input,
@@ -964,13 +972,14 @@ public sealed partial class ArenaGame : Game
                     screenBounds,
                     _presentation.Playback.IsPlaying,
                     _isSoundLogVisible,
+                    _isEventLogVisible,
                     gameTime.ElapsedGameTime,
                     _motionManager.Value);
                 pointerConsumed = interaction.PointerConsumed;
                 consumedBy = pointerConsumed ? "controlBar" : consumedBy;
             }
 
-            if (!pointerConsumed)
+            if (!pointerConsumed && _isEventLogVisible)
             {
                 interaction = _eventLogPanel.Update(
                     _input,
@@ -1232,6 +1241,11 @@ public sealed partial class ArenaGame : Game
             return LogKeyCommand("F9", ClientCommand.ToggleSoundLog);
         }
 
+        if (_input.WasPressed(Keys.F8))
+        {
+            return LogKeyCommand("F8", ClientCommand.ToggleEventLog);
+        }
+
         return ClientCommand.None;
     }
 
@@ -1346,6 +1360,9 @@ public sealed partial class ArenaGame : Game
                 return;
             case ClientCommand.ToggleSoundLog:
                 _isSoundLogVisible = !_isSoundLogVisible;
+                return;
+            case ClientCommand.ToggleEventLog:
+                _isEventLogVisible = !_isEventLogVisible;
                 return;
             case ClientCommand.ToggleBattleReport:
                 _isBattleReportVisible = !_isBattleReportVisible;
@@ -2281,7 +2298,7 @@ public sealed partial class ArenaGame : Game
     }
 
     private ClientLayout GetLayout(Rectangle screenBounds) =>
-        ComputeLayout(screenBounds, _isSoundLogVisible);
+        ComputeLayout(screenBounds, _isEventLogVisible, _isSoundLogVisible);
 
     /// <summary>
     /// Screen partitioning. The right column's split between the battle event
@@ -2290,6 +2307,7 @@ public sealed partial class ArenaGame : Game
     /// </summary>
     private static ClientLayout ComputeLayout(
         Rectangle screenBounds,
+        bool isEventLogVisible,
         bool isSoundLogVisible)
     {
         var statusBarHeight = UiScaleContext.Pixels(StatusBarHeight);
@@ -2308,14 +2326,19 @@ public sealed partial class ArenaGame : Game
         var eventWidth = Math.Min(
             eventPanelWidth,
             Math.Max(0, screenBounds.Width / 3));
+        var columnWidth = isEventLogVisible || isSoundLogVisible
+            ? eventWidth
+            : 0;
+        var columnRect = new Rectangle(
+            Math.Max(
+                screenBounds.Left,
+                screenBounds.Right - columnWidth - layoutMargin),
+            contentTop,
+            columnWidth,
+            contentHeight);
         var column = RightColumnSplit.Split(
-            new Rectangle(
-                Math.Max(
-                    screenBounds.Left,
-                    screenBounds.Right - eventWidth - layoutMargin),
-                contentTop,
-                eventWidth,
-                contentHeight),
+            columnRect,
+            isEventLogVisible,
             isSoundLogVisible,
             soundLogMinimumHeight,
             SoundLogHeightPercent,
@@ -2324,7 +2347,9 @@ public sealed partial class ArenaGame : Game
         var soundLogBounds = column.SoundLogBounds;
         var arenaRight = Math.Max(
             screenBounds.Left + layoutMargin,
-            eventBounds.Left - layoutGap);
+            columnWidth == 0
+                ? screenBounds.Right - layoutMargin
+                : columnRect.Left - layoutGap);
         var arenaBounds = new Rectangle(
             screenBounds.Left + layoutMargin,
             contentTop,

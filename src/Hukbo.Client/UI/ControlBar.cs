@@ -33,6 +33,7 @@ internal sealed class ControlBar
         new("Play", ClientCommand.Play),
         new("Pause", ClientCommand.Pause),
         new("Menu", ClientCommand.OpenMenu),
+        new("Events", ClientCommand.ToggleEventLog),
         new("Sounds", ClientCommand.ToggleSoundLog),
         new("Min", ClientCommand.Minimize),
         new("Max", ClientCommand.ToggleMaximize),
@@ -74,16 +75,28 @@ internal sealed class ControlBar
     internal IReadOnlyList<float> ButtonHoverAmounts =>
         Array.ConvertAll(_buttons, button => button.HoverAmount);
 
+    /// <summary>
+    /// The already-computed active state of every button, in the same order
+    /// they are laid out. Exists purely for tests — asserting that a toggle
+    /// button (for example "Events") reflects its bound visibility flag
+    /// without a graphics device. <see cref="Update"/> or <see cref="Draw"/>
+    /// must have run at least once before this reflects real state.
+    /// </summary>
+    internal IReadOnlyList<bool> ButtonActiveStates =>
+        Array.ConvertAll(_buttons, button => button.IsActive);
+
     public UiInteraction Update(
         InputEdges input,
         Rectangle availableBounds,
         bool isPlaying,
-        bool isSoundLogVisible) =>
+        bool isSoundLogVisible,
+        bool isEventLogVisible) =>
         Update(
             input,
             availableBounds,
             isPlaying,
             isSoundLogVisible,
+            isEventLogVisible,
             TimeSpan.Zero,
             MotionIntensity.Off);
 
@@ -92,6 +105,7 @@ internal sealed class ControlBar
         Rectangle availableBounds,
         bool isPlaying,
         bool isSoundLogVisible,
+        bool isEventLogVisible,
         TimeSpan elapsed,
         MotionIntensity motionIntensity)
     {
@@ -102,7 +116,8 @@ internal sealed class ControlBar
             var isActive = IsButtonActive(
                 button.Command,
                 isPlaying,
-                isSoundLogVisible);
+                isSoundLogVisible,
+                isEventLogVisible);
             if (button.Update(
                     input,
                     elapsed,
@@ -125,10 +140,11 @@ internal sealed class ControlBar
         Rectangle availableBounds,
         bool isPlaying,
         bool isSoundLogVisible,
+        bool isEventLogVisible,
         UiTheme theme)
     {
         Layout(availableBounds);
-        SynchronizeVisualState(isPlaying, isSoundLogVisible);
+        SynchronizeVisualState(isPlaying, isSoundLogVisible, isEventLogVisible);
 
         spriteBatch.Draw(pixel, Bounds, theme.Colors.PanelSurface);
         UiPrimitives.DrawBorder(
@@ -212,7 +228,8 @@ internal sealed class ControlBar
 
     private void SynchronizeVisualState(
         bool isPlaying,
-        bool isSoundLogVisible)
+        bool isSoundLogVisible,
+        bool isEventLogVisible)
     {
         foreach (var button in _buttons)
         {
@@ -220,19 +237,22 @@ internal sealed class ControlBar
                 IsButtonActive(
                     button.Command,
                     isPlaying,
-                    isSoundLogVisible));
+                    isSoundLogVisible,
+                    isEventLogVisible));
         }
     }
 
     private static bool IsButtonActive(
         ClientCommand command,
         bool isPlaying,
-        bool isSoundLogVisible) =>
+        bool isSoundLogVisible,
+        bool isEventLogVisible) =>
         command switch
         {
             ClientCommand.Play => isPlaying,
             ClientCommand.Pause => !isPlaying,
             ClientCommand.ToggleSoundLog => isSoundLogVisible,
+            ClientCommand.ToggleEventLog => isEventLogVisible,
             _ => false,
         };
 }

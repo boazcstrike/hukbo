@@ -39,4 +39,11 @@ internal enum ClientCommand
     // boolean, because the user can maximize or restore outside the
     // application and a tracked flag would invert the button.
     ToggleMaximize,
+
+    // Appended, never inserted, for the same reason: no existing member's
+    // ordinal moves. Toggles the battle event log's own visibility, which now
+    // defaults to hidden so the arena starts at full width; bound to F8 and
+    // to the "Events" control-bar button, sitting beside ToggleSoundLog's F9
+    // and "Sounds" button.
+    ToggleEventLog,
 }

@@ -396,3 +396,24 @@ honestly.
 | --- | --- | --- | --- | --- |
 | PVF-1 | Watch warriors walking and running at each of the three camera stations in turn, and say at which station the legs stop reading as legs in motion | Leg motion is legible at the default fit, where a leg draws 10 pixels tall with 3 pixels of walk stride travel and 6 of run travel. It is still legible at maximum zoom, at 18 pixels with 6 and 11. At minimum zoom the pawn resolves `Low` and no legs are drawn at all, which is expected and is not a failure. Record which station is the last one where the walk and the run are distinguishable from each other | | PENDING |
 | PVF-2 | Cycle every ground theme with missile troops shooting, and watch arrows and shot in flight against each ground | On every theme, the projectile is visible in flight against the ground for its whole travel, and still reads as its own material — amber wood shaft, cool grey-blue metal head, pale cream fletch — rather than as an arbitrary bright marker. Record any theme where it either vanishes or looks like a glowing dot | | PENDING |
+
+## Battle event log hidden by default (the 2026-08-15 hide-event-log change)
+
+The battle event log no longer draws on launch. The right-hand column it used
+to occupy is given back to the arena, and the log returns either through the
+new `Events` button on the control bar or through F8. The sound log keeps F9
+and its own button, and the two are independent: either, both, or neither may
+be shown.
+
+None of these rows may be closed by a passing test, by a build, or by a
+screenshot probe. Only a person at an interactive Windows desktop, watching a
+live battle, may flip one of them. Leave untouched rows `PENDING`; report
+`BLOCKED` honestly.
+
+| # | Step | Expected | Actual | Status |
+| --- | --- | --- | --- | --- |
+| HEL-1 | Launch the client and look at the right-hand side of the window before pressing anything | No event log is drawn, and the arena extends to the right margin of the window rather than stopping short of a log column. The control bar carries a new `Events` button, shown inactive | | PENDING |
+| HEL-2 | Press F8, then press F8 again | The event log appears in the right-hand column and the arena narrows to make room for it; the `Events` button reads as active while it is shown. The second press hides it again and the arena returns to full width | | PENDING |
+| HEL-3 | Click the `Events` button on the control bar twice | The button toggles the same visibility F8 toggles, and its active state tracks whether the log is shown | | PENDING |
+| HEL-4 | With the event log hidden, press F9 to show the sound log | The sound log occupies the whole right-hand column on its own rather than only its usual lower share, and the arena narrows by exactly the column width | | PENDING |
+| HEL-5 | With the event log hidden, click and scroll where the log used to be, then press Escape | Nothing in the hidden log reacts: the click reaches the arena beneath it, the wheel drives the camera rather than a log scroll, and Escape is handled by whatever would handle it with no log present | | PENDING |
