@@ -355,8 +355,13 @@ public sealed class ClientSettingsStoreTests
     /// default, and version 6's field names do not even exist on the version
     /// 7 record — so every version through 7 is discarded whole. Version 7
     /// itself moved into this theory when the 8-to-9 bump narrowed the
-    /// accepted window to <c>[8, SupportedSchemaVersion]</c>, the same
-    /// precedent the 7-to-8 bump set for version 6.
+    /// accepted window to <c>[8, 9]</c>, the same precedent the 7-to-8 bump
+    /// set for version 6. Versions 8 and 9 moved into this theory in turn
+    /// when the 9-to-10 bump — the fourth deliberate composition reset,
+    /// recorded on <see cref="ArmyComposition"/> — narrowed the accepted
+    /// window to <c>[SupportedSchemaVersion]</c> alone: a saved composition
+    /// always overrides the new calibrated default, so an old even-split
+    /// composition can no longer be allowed to survive a load.
     /// </summary>
     [Theory]
     [InlineData(2)]
@@ -365,7 +370,9 @@ public sealed class ClientSettingsStoreTests
     [InlineData(5)]
     [InlineData(6)]
     [InlineData(7)]
-    public void EverySchemaVersionBeforeEightIsDiscardedWhole(int schemaVersion)
+    [InlineData(8)]
+    [InlineData(9)]
+    public void EverySchemaVersionBeforeTenIsDiscardedWhole(int schemaVersion)
     {
         WithTemporarySettings((store, settingsPath) =>
         {
@@ -819,26 +826,37 @@ public sealed class ClientSettingsStoreTests
         });
     }
 
+    /// <summary>
+    /// Before the 9-to-10 composition reset, a version 9 file was fully
+    /// shape-compatible with the current record — every field, including
+    /// <see cref="ClientSettings.MovementPreset"/>, already existed and
+    /// would have loaded verbatim. This test pins that the reset discards
+    /// it anyway: shape compatibility alone is not enough, because a saved
+    /// composition always overrides <see cref="ArmyComposition.Default"/>,
+    /// and an old even-split composition would otherwise survive the load
+    /// and silently defeat the calibrated default.
+    /// </summary>
     [Fact]
-    public void ASchemaEightFileStillLoadsAndDefaultsTheMovementPreset()
+    public void ASchemaNineFileWithAFullMovementPresetIsStillDiscardedByTheCompositionReset()
     {
         WithTemporarySettings((store, settingsPath) =>
         {
             Directory.CreateDirectory(Path.GetDirectoryName(settingsPath)!);
             File.WriteAllText(
                 settingsPath,
-                "{\"schemaVersion\":8,\"selectedThemeId\":\"signal\"," +
+                "{\"schemaVersion\":9,\"selectedThemeId\":\"signal\"," +
                 ValidCompositionJson +
                 ",\"goreIntensity\":2,\"motionIntensity\":0," +
                 "\"autoCameraMode\":2,\"uiScale\":2," +
-                "\"startupDisplayMode\":1}");
+                "\"startupDisplayMode\":1,\"movementPreset\":11}");
 
             var settings = store.Load("command");
 
             Assert.Equal(
                 ClientSettingsStore.SupportedSchemaVersion,
                 settings.SchemaVersion);
-            Assert.Equal("signal", settings.SelectedThemeId);
+            Assert.Equal("command", settings.SelectedThemeId);
+            Assert.Equal(ArmyComposition.Default, settings.Composition);
             Assert.Equal(
                 MovementPresetId.CohortLateralSpreadV13,
                 settings.MovementPreset);
