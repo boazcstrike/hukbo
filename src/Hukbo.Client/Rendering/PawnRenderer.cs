@@ -646,7 +646,7 @@ internal static class PawnRenderer
     /// column reads as the near side of a rounded, shaded volume rather than
     /// a flat tone. All three fills go through the caller's single hit-pulse
     /// blend point (<see cref="Draw"/>) before reaching here. See
-    /// docs/plans/2026-08-11-armor-accent-trample-legibility-design.md,
+    /// the armor bulk, adornment accents, and trample legibility design,
     /// section 2.
     /// </remarks>
     private static void DrawArmor(

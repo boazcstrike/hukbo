@@ -349,7 +349,7 @@ public sealed class ArmyCompositionPanelTests
     /// <see cref="MovementPresetId.ContingentShapeV12"/> passed while being
     /// absent from both lists and therefore unselectable by any spectator —
     /// a registered preset the shipped game could not reach, with a green
-    /// suite. See docs/plans/2026-08-14-contingent-chief-membership-design.md
+    /// suite. See the contingent chief membership design
     /// section 5.4.
     /// </summary>
     [Fact]

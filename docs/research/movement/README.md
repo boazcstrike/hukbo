@@ -174,7 +174,7 @@ Examples include:
 ---
 
 **V10 gameplay divergence (2026-08-11).** `MovementPresetId.BattlefieldRealismV10`
-(`docs/plans/2026-08-11-battlefield-realism-design.md`) places shield bearers at
+(the battlefield realism design) places shield bearers at
 the forward-most slots of their own contingent, one of the items this list
 names as unsupported. The finding is unchanged: nothing above becomes source
 support for that placement. As a research claim, forward placement is none of
@@ -183,7 +183,7 @@ a gameplay model, adopted for legibility, and the list above does not support
 it as history.
 
 **V13 gameplay divergence (2026-08-14).** `MovementPresetId.CohortLateralSpreadV13`
-(`docs/plans/2026-08-14-cohort-lateral-spread-design.md`) spreads weapon-cohort
+(the cohort lateral spread design) spreads weapon-cohort
 groups laterally across a team's own frontage in place of collecting them
 toward one edge; like V10's forward placement above, this is a gameplay
 legibility choice, not a claim about a historical formation.

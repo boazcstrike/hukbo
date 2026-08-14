@@ -178,7 +178,7 @@ public enum CombatPresetId
     /// clash crosses — roughly halves. It exists to answer the CL-1, CL-3, and
     /// CL-7 legibility failures recorded in
     /// docs/development/smoke-checklist.md on 2026-08-11; the reasoning is in
-    /// docs/plans/2026-08-11-combat-cadence-v6-design.md. Descends from V4
+    /// the combat cadence V6 design. Descends from V4
     /// rather than V5, so it fields the same four melee weapons and no ranged
     /// row. V1 through V5 stay registered and unmodified so their replays
     /// remain reproducible. Every value V6 retunes is a provisional

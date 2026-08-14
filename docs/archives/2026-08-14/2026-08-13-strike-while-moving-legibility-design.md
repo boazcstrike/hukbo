@@ -1,5 +1,16 @@
 # Strike-while-moving legibility (`AA-23`) — design
 
+**Archived: reference only.** The question in section 6 was answered and both
+measured causes were fixed: the default window is 1600 × 900, so the default
+camera fit resolves `Medium` and draws legs, and
+`GaitGeometry.CrawlThresholdRawPerTick` is 60, so a crawling attacker resolves
+`Stance` rather than a stride nobody can read. The gait default visibility plan
+that carried both is archived beside this document. Never execute it, never
+treat it as a live task list, and never cite it as the reason to make a change.
+The live contract for this project remains `CLAUDE.md` and
+`docs/development/testing.md`; nothing in this file overrides either of those.
+Archived 2026-08-14.
+
 Date: 2026-08-13
 Status: **answered and implemented on 2026-08-13.** This document was design
 only, and section 6's question blocked all work until it was answered. It has

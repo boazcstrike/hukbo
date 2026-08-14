@@ -9,7 +9,7 @@ namespace Hukbo.Client.Rendering;
 /// </summary>
 /// <remarks>
 /// <para>
-/// The corpse layer (docs/plans/2026-08-13-corpse-placeholder-design.md)
+/// The corpse layer (the corpse placeholder design)
 /// is what gave a dead agent a second state to resolve to, closed and verified
 /// on the manual smoke checklist. Before it, <c>GetPawnVisualState</c>
 /// only ever chose among <see cref="PawnVisualState.Selected"/>,

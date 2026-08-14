@@ -76,7 +76,7 @@ internal static class CohortDeploymentAssignment
     /// in lateral-riffle order — even ids ascending, then odd ids
     /// ascending — so that cohort runs ranked adjacent by size land on
     /// non-adjacent lanes instead of collecting at one edge of the army's
-    /// frontage (design docs/plans/2026-08-14-cohort-lateral-spread-design.md
+    /// frontage (design the cohort lateral spread design
     /// section 3). Only <see cref="MovementPresetId.CohortLateralSpreadV13"/>
     /// passes <see langword="true"/>.
     /// </param>
@@ -199,7 +199,7 @@ internal static class CohortDeploymentAssignment
     /// ascending (design section 4.4). Under a planner-produced,
     /// non-increasing size table this makes ascending contingent id exactly
     /// ascending rank, which is the row-58 defect
-    /// docs/plans/2026-08-14-cohort-lateral-spread-design.md section 2
+    /// the cohort lateral spread design section 2
     /// traces; this order is kept, unchanged, for every preset that already
     /// shipped it.
     /// </summary>

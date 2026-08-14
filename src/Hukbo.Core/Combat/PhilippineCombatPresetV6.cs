@@ -44,7 +44,7 @@ namespace Hukbo.Core.Combat;
 /// docs/research/HISTORICAL_1500s_WEAPONS.md. Rounding at the margin — 26 rather
 /// than 25 for the Kampilan, five rather than four ticks for the Itak combo
 /// cooldown — is a judgement call recorded in sections 3.2 and 3.3 of
-/// docs/plans/2026-08-11-combat-cadence-v6-design.md. Weapon names carry
+/// the combat cadence V6 design. Weapon names carry
 /// evidence tiers recorded on <see cref="WeaponId"/> and shown in the agent
 /// inspector.
 /// </para>

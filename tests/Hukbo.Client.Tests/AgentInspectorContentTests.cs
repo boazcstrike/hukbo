@@ -259,7 +259,7 @@ public sealed class AgentInspectorContentTests
         string?[] longestRealisticRows =
         [
             // The design document's own pathological-row table
-            // (2026-08-14-inspector-row-wrapping-design.md section 2).
+            // (the agent inspector row wrapping design section 2).
             AgentInspectorContent.FormatFootworkLine(
                 FootworkPhase.Disengage,
                 ticksRemaining: 0,
@@ -393,12 +393,17 @@ public sealed class AgentInspectorContentTests
             // raised again, from 29 to 47, to reserve the wrapped worst case
             // rather than the raw row count. MaximumLowerRowCount moved from
             // 24 to 47 in total, twenty-three more rows of LineHeight 24
-            // each, so the baseline moves 953 + (23 * 24) = 1505.
+            // each, so the baseline moves 953 + (23 * 24) = 1505. On
+            // 2026-08-14 the intent row's gameplay-model note stopped
+            // printing a docs/plans path at the spectator and named the
+            // battlefield realism design in prose instead; the shorter note
+            // wraps to one line fewer, MaximumLowerRowCount fell from 47 to
+            // 46, and the baseline fell with it to 1505 - 24 = 1481.
             // The panel is sized for the worst case so it does not resize as
             // conditional rows appear, exactly as the grip row and the
             // reserved evidence and warrior-name lines already are.
             Assert.Equal(
-                1505,
+                1481,
                 AgentInspectorContent.ComputeRequiredHeight(
                     AgentInspectorContent.EvidenceReservedLineCount));
         });
@@ -710,7 +715,7 @@ public sealed class AgentInspectorContentTests
     public void ContingentGameplayModelNote_NamesNoDesignDocument_UnlikeTheIntentNote()
     {
         Assert.DoesNotContain(
-            "2026-08-11-battlefield-realism-design.md",
+            "the battlefield realism design",
             AgentInspectorContent.ContingentGameplayModelNote,
             StringComparison.Ordinal);
         Assert.DoesNotContain(
@@ -719,7 +724,7 @@ public sealed class AgentInspectorContentTests
             StringComparison.Ordinal);
 
         Assert.Contains(
-            "2026-08-11-battlefield-realism-design.md",
+            "the battlefield realism design",
             AgentInspectorContent.IntentGameplayModelNote,
             StringComparison.Ordinal);
     }
@@ -2115,7 +2120,7 @@ public sealed class AgentInspectorContentTests
             .Count();
 
         Assert.Equal(AgentInspectorContent.MaximumLowerRowCount, wrappedCount);
-        Assert.Equal(47, AgentInspectorContent.MaximumLowerRowCount);
+        Assert.Equal(46, AgentInspectorContent.MaximumLowerRowCount);
     }
 
     /// <summary>

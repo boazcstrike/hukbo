@@ -23,7 +23,7 @@ namespace Hukbo.Client.Tests;
 /// previous single-workload gate never exercised the ranged path; task 14
 /// added the third for the same reason, so a broken BackingAway retreat
 /// could not hide behind a green V8 workload that never reaches it. Design
-/// section 9.2 (docs/plans/2026-08-11-battlefield-realism-design.md) records
+/// section 9.2 (the battlefield realism design) records
 /// why the V10 workload is a third block rather than a repointed V8 one: the
 /// V8 block and its frozen digest stay the leak detector proving V10's
 /// changes never reached V8. The last-stand engagement plan, task 11,

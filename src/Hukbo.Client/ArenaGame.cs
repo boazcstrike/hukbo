@@ -1442,7 +1442,7 @@ public sealed partial class ArenaGame : Game
     // bearers placed at the forward-most slots of their own contingent, and
     // a ranged warrior backing away from closing melee. All three are a
     // labelled gameplay model, not a historical claim — see
-    // docs/plans/2026-08-11-battlefield-realism-design.md. CreateDefault
+    // the battlefield realism design. CreateDefault
     // stays V4/V4 so the headless determinism baseline and every other
     // caller are unaffected.
     //

@@ -115,9 +115,12 @@ internal static class AgentInspectorContent
     /// 29 once design decision D3 split the combo-attributes and attributes
     /// rows into one row per value group, then 47 once design decision D1
     /// required every row to be wrapped and this constant to reserve the
-    /// wrapped worst case rather than the raw row count.
+    /// wrapped worst case rather than the raw row count, and then 46 on
+    /// 2026-08-14 when <see cref="IntentGameplayModelNote"/> stopped printing
+    /// a <c>docs/plans/</c> path at the spectator and named the battlefield
+    /// realism design in prose instead, which is shorter by one wrapped line.
     /// </summary>
-    internal const int MaximumLowerRowCount = 47;
+    internal const int MaximumLowerRowCount = 46;
     internal const int PortraitBottomGap = 5;
     internal const int TopDetailBottomGap = 2;
 
@@ -502,7 +505,7 @@ internal static class AgentInspectorContent
     /// <summary>
     /// The plain-language note for the intent row's battlefield-realism V10
     /// gameplay-model badge (design section 10, "And the label";
-    /// docs/plans/2026-08-11-battlefield-realism-design.md sections 2.1,
+    /// the battlefield realism design sections 2.1,
     /// 2.2). <c>CLAUDE.md</c> section 7 draws a hard line between the three
     /// historical evidence tiers — Documented, Documented form uncertain,
     /// Provisional reconstruction — and a gameplay rule, which is none of
@@ -518,7 +521,7 @@ internal static class AgentInspectorContent
     /// </summary>
     internal const string IntentGameplayModelNote =
         "Gameplay model — not a historical formation or behavior. See " +
-        "docs/plans/2026-08-11-battlefield-realism-design.md.";
+        "the battlefield realism design.";
 
     /// <summary>
     /// The plain-language note for the contingent row's gameplay-model

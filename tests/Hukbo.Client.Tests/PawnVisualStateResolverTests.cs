@@ -5,7 +5,7 @@ namespace Hukbo.Client.Tests;
 /// <summary>
 /// Pins <see cref="PawnVisualStateResolver.Resolve"/>'s precedence over the
 /// full alive/dead x hold-active/hold-expired x selected/hovered/neither grid
-/// (corpse layer, docs/plans/2026-08-13-corpse-placeholder-design.md), which
+/// (corpse layer, the corpse placeholder design), which
 /// is the precedence this test pins.
 /// </summary>
 public sealed class PawnVisualStateResolverTests

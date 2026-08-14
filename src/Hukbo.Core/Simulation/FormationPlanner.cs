@@ -26,7 +26,7 @@ namespace Hukbo.Core.Simulation;
 /// contingents and shield bearers held to their contingent's forward-most slots —
 /// as a labelled Provisional reconstruction / gameplay model, never as a
 /// historical claim; see
-/// <c>docs/plans/2026-08-11-battlefield-realism-design.md</c> section 2.2.
+/// the battlefield realism design, section 2.2.
 /// </para>
 /// <para>
 /// The lattice below is an engineering device for guaranteeing that no two
@@ -140,7 +140,7 @@ internal static class FormationPlanner
         // which reassigns contingent membership so each contingent reads as
         // one weapon cohort - a labelled Provisional reconstruction / gameplay
         // model, not a historical claim; see
-        // docs/plans/2026-08-11-battlefield-realism-design.md section 2.2.
+        // the battlefield realism design section 2.2.
         //
         // The cursor advances one contingent per warrior and wraps, skipping
         // any contingent that has already reached its own declared size. For

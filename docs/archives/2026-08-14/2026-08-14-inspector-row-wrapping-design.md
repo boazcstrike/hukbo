@@ -1,5 +1,15 @@
 # Agent inspector row wrapping — design
 
+**Archived: reference only.** Shipped at `b566f88`; `BR-10` was re-run and
+closed `PASS` on 2026-08-14. Its plan is archived beside this document. Every
+path citation to it under `src/`, `tests/`, `scripts/`, and `docs/` was
+rewritten on the day it was archived to name this document in prose, which is
+what the rule against paths into `docs/archives/` requires. Never execute it,
+never treat it as a live task list, and never cite it as the reason to make a
+change. The live contract for this project remains `CLAUDE.md` and
+`docs/development/testing.md`; nothing in this file overrides either of those.
+Archived 2026-08-14.
+
 Status: **shipped and closed.** The six tasks below were built and merged at
 `b566f88`, and smoke row `BR-10` was re-run by a person at an interactive
 desktop on 2026-08-14 and passed. The plan document that authorized the work is

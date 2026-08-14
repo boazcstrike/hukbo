@@ -1,5 +1,16 @@
 # Cohort lateral spread — design
 
+**Archived: reference only.** Shipped at `541b8d6` as
+`MovementPresetId.CohortLateralSpreadV13`, the client's default, and smoke rows
+58 and 59 closed `PASS` on 2026-08-14. Its plan is archived beside this
+document. Every path citation to it under `src/`, `tests/`, `scripts/`, and
+`docs/` was rewritten on the day it was archived to name this document in
+prose, which is what the rule against paths into `docs/archives/` requires.
+Never execute it, never treat it as a live task list, and never cite it as the
+reason to make a change. The live contract for this project remains `CLAUDE.md`
+and `docs/development/testing.md`; nothing in this file overrides either of
+those. Archived 2026-08-14.
+
 Date: 2026-08-14
 Status: proposed
 Author: agent session working from smoke rows 58 and 59

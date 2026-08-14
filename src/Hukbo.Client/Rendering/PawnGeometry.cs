@@ -2050,7 +2050,7 @@ internal static class PawnGeometry
     /// two pixels at every zoom including the
     /// <see cref="MaximumApparentScale"/> clamp, which is what made VIS-023's
     /// maximum-zoom smoke row unreadable
-    /// (docs/plans/2026-08-11-armor-accent-trample-legibility-design.md,
+    /// (the armor bulk, adornment accents, and trample legibility design,
     /// section 3). The primary
     /// mark (I4, gold earrings) is inscribed inside
     /// <paramref name="headBounds"/>; the secondary (I5 gold necklace / C3
@@ -2084,7 +2084,7 @@ internal static class PawnGeometry
     /// <summary>
     /// The two flank bars <c>PawnRenderer.DrawArmor</c> fills for a worn armor
     /// option, in place of the single torso-covering slab it drew until
-    /// 2026-08-11 (docs/plans/2026-08-11-armor-accent-trample-legibility-design.md,
+    /// 2026-08-11 (the armor bulk, adornment accents, and trample legibility design,
     /// section 2). Each bar spans <paramref name="armorBounds"/>'s vertical
     /// extent inset by one pixel top and bottom — so its square corners sit
     /// inside the stepped capsule's rounded profile instead of poking past

@@ -1596,7 +1596,7 @@ public sealed class PawnGeometryTests
         // wording states ("at most 2 pixels each at apparent scale 1") rather
         // than as an absolute ceiling that never grew. This layout's apparent
         // scale is the 2.40 clamp maximum, so 2 x 2.40 rounds to 5. See
-        // docs/plans/2026-08-11-armor-accent-trample-legibility-design.md,
+        // the armor bulk, adornment accents, and trample legibility design,
         // section 3.
         Assert.Equal(new Rectangle(104, 50, 5, 5), layout.AdornmentAccentPrimaryBounds);
         Assert.Equal(new Rectangle(98, 63, 5, 5), layout.AdornmentAccentSecondaryBounds);
@@ -2156,7 +2156,7 @@ public sealed class PawnGeometryTests
     /// on 2026-08-11, under which an accent stayed two pixels at every zoom
     /// and the scale-relative behaviour this test pins could not be verified
     /// at any station. See
-    /// docs/plans/2026-08-11-armor-accent-trample-legibility-design.md,
+    /// the armor bulk, adornment accents, and trample legibility design,
     /// section 3.
     /// </summary>
     [Theory]

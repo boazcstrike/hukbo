@@ -275,16 +275,16 @@ holds four times as many body-slots as it has bodies
 
 ### 2.3 The contingent-shape trap, checked against the function body
 
-`docs/plans/2026-07-29-contingent-shape-design.md` proposes that a faction's
+the contingent shape design proposes that a faction's
 contingent count and sizes come from how many chiefs it fields rather than from
 its headcount. **None of it is implemented.** The design's own status line at
-`docs/plans/2026-07-29-contingent-shape-design.md:3-9` reads "design only. This
+`the contingent shape design:3-9` reads "design only. This
 document does not authorize implementation... A future task-planning pass against
 this document is required before any of the code below is touched."
 
 More decisively, the design quotes the current body of
 `FormationPlanner.ResolveContingentSizes` at
-`docs/plans/2026-07-29-contingent-shape-design.md:16-26`, and that quoted code is
+`the contingent shape design:16-26`, and that quoted code is
 byte-for-byte what is still in the file today at
 `src/Hukbo.Core/Simulation/FormationPlanner.cs:162-178`:
 
@@ -947,7 +947,7 @@ loadout.** Loadouts are resolved later, in the spawn loops at
 `src/Hukbo.Core/Simulation/BattleSimulation.cs:439-442` and `:477`. The planner
 would need a new input, and its returned tuple
 `(int XRaw, int YRaw, int ContingentId)` would probably need a fourth member.
-`docs/plans/2026-07-29-contingent-shape-design.md:33-35` calls this surface "the
+`the contingent shape design:33-35` calls this surface "the
 most heavily tested surface in the repository", quoting its own parent design,
 and gives that as the reason it designed the change rather than making it.
 

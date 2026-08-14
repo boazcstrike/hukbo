@@ -11,7 +11,7 @@ namespace Hukbo.Client.Tests;
 /// it would either fight the test host's own awareness level or leak into
 /// every other test in the assembly, and it would be asserting on Windows
 /// rather than on Hukbo. The absence is deliberate; see section 6 of
-/// docs/plans/2026-08-11-display-dpi-awareness-design.md. What is testable is
+/// the display DPI awareness design. What is testable is
 /// the platform gate and the shape of the evidence the run leaves behind, and
 /// both are below.
 /// </remarks>

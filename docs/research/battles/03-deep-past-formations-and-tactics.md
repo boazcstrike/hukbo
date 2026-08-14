@@ -81,7 +81,7 @@ synthesis must label those as simulation abstractions.
 ---
 
 **V10 gameplay divergence (2026-08-11).** `MovementPresetId.BattlefieldRealismV10`
-(`docs/plans/2026-08-11-battlefield-realism-design.md`) is exactly such a
+(the battlefield realism design) is exactly such a
 labelled simulation abstraction: it places shield bearers at the forward-most
 slots of their own contingent, one of the items the list above names as
 unattested. The finding is unchanged; V10's placement is not offered as
@@ -91,7 +91,7 @@ a gameplay model, adopted for legibility, and the list above does not support
 it as history.
 
 **V13 gameplay divergence (2026-08-14).** `MovementPresetId.CohortLateralSpreadV13`
-(`docs/plans/2026-08-14-cohort-lateral-spread-design.md`) spreads weapon-cohort
+(the cohort lateral spread design) spreads weapon-cohort
 groups laterally across a team's own frontage in place of collecting them
 toward one edge; like V10's forward placement above, this is a gameplay
 legibility choice, not a claim about a historical formation.

@@ -592,7 +592,7 @@ public sealed class DeterminismTests
         // ordered event stream from the first exchange onward. Same rationale
         // as every recapture above -- this Fact follows the shipped default
         // rather than pinning one. See
-        // docs/plans/2026-08-11-combat-cadence-v6-design.md.
+        // the combat cadence V6 design.
         //
         // Superseded values, in the order they were superseded. Against the
         // PrecolonialPhilippinesV4 combat default: "41201454CCBADC75" (state)

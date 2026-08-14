@@ -163,7 +163,7 @@ public sealed class PawnQuadCountTests
         // Selected layout also carries four non-empty leg/foot rectangles.
         // 2026-08-11: +1 more, from 44, because DrawArmor now fills two flank
         // bars in place of one torso-covering slab
-        // (docs/plans/2026-08-11-armor-accent-trample-legibility-design.md,
+        // (the armor bulk, adornment accents, and trample legibility design,
         // section 2). 2026-08-13: +4 more, from 45, because each flank bar
         // now costs three quads at this High tier — the fill plus an
         // outer-edge outline column plus an inner-edge darkened column —

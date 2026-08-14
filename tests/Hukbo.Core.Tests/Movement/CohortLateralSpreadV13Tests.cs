@@ -16,7 +16,7 @@ namespace Hukbo.Core.Tests.Movement;
 /// <see cref="CohortDeploymentAssignment.AssignForFaction"/>'s
 /// <c>spreadCohortsLaterally</c> parameter and the movement preset that is
 /// the only caller to pass <see langword="true"/> for it
-/// (docs/plans/2026-08-14-cohort-lateral-spread-design.md section 3).
+/// (the cohort lateral spread design section 3).
 /// </summary>
 public sealed class CohortLateralSpreadV13Tests
 {

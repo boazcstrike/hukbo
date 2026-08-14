@@ -701,7 +701,7 @@ public sealed class GrassGeometryTests
     /// otherwise the trampled patch has no boundary against the grass around
     /// it. That was the state until 2026-08-11, when a suppressed Large
     /// cluster drew at the same <c>0.22</c> the mark beneath it uses
-    /// (docs/plans/2026-08-11-armor-accent-trample-legibility-design.md,
+    /// (the armor bulk, adornment accents, and trample legibility design,
     /// section 4).
     /// </summary>
     [Fact]

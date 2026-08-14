@@ -871,7 +871,7 @@ Three separate patterns, all **Documented**:
 ---
 
 **V10 gameplay divergence (2026-08-11).** `MovementPresetId.BattlefieldRealismV10`
-(`docs/plans/2026-08-11-battlefield-realism-design.md`) makes a ranged warrior
+(the battlefield realism design) makes a ranged warrior
 with a melee enemy inside a threat radius step directly away and resume
 shooting once it is clear or once it is cornered. The findings above are
 unchanged: breaking and running under pressure is documented, and a protected
@@ -884,7 +884,7 @@ a gameplay model, adopted for legibility, and the evidence above does not
 support it.
 
 **V13 gameplay divergence (2026-08-14).** `MovementPresetId.CohortLateralSpreadV13`
-(`docs/plans/2026-08-14-cohort-lateral-spread-design.md`) spreads weapon-cohort
+(the cohort lateral spread design) spreads weapon-cohort
 groups laterally across a team's own frontage in place of collecting them
 toward one edge; like V10's placement above, this is a gameplay legibility
 choice, not a claim about a historical formation.
@@ -1178,7 +1178,7 @@ happen. It is, however, a hard boundary on what Hukbo may assert.
 ---
 
 **V10 gameplay divergence (2026-08-11).** `MovementPresetId.BattlefieldRealismV10`
-(`docs/plans/2026-08-11-battlefield-realism-design.md`) fills a contingent from
+(the battlefield realism design) fills a contingent from
 one weapon cohort where the arithmetic allows, so a body of warriors reads as
 a body of one weapon. The finding above at lines 1138 to 1140 is unchanged:
 this corpus draws no distinction, anywhere, between a missile specialist and a
@@ -1190,7 +1190,7 @@ reconstruction — it is a gameplay model, adopted for legibility, and the
 evidence above does not support it.
 
 **V13 gameplay divergence (2026-08-14).** `MovementPresetId.CohortLateralSpreadV13`
-(`docs/plans/2026-08-14-cohort-lateral-spread-design.md`) spreads weapon-cohort
+(the cohort lateral spread design) spreads weapon-cohort
 groups laterally across a team's own frontage in place of collecting them
 toward one edge; like V10's grouping above, this is a gameplay legibility
 choice, not a claim about a historical formation.

@@ -12,7 +12,7 @@ namespace Hukbo.Core.Simulation;
 /// from that rule by giving shield bearers the forward-most slots of their
 /// own contingent, labelled a Provisional reconstruction / gameplay model
 /// rather than a historical claim; see
-/// <c>docs/plans/2026-08-11-battlefield-realism-design.md</c> section 2.2.
+/// the battlefield realism design, section 2.2.
 /// Numeric values are pinned and this enum is append-only
 /// from the day it ships, because it enters the state hash: reordering or
 /// renumbering a value requires a new preset version and new golden

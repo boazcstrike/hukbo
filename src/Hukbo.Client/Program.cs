@@ -8,7 +8,7 @@ var startTimestamp = Stopwatch.GetTimestamp();
 // Must happen before anything touches graphics: DPI awareness is process-wide
 // state and Windows locks it in once the first window exists. ArenaGame builds
 // its GraphicsDeviceManager in its constructor, so the only place this can go
-// is above it. See docs/plans/2026-08-11-display-dpi-awareness-design.md.
+// is above it. See the display DPI awareness design.
 var dpiAwareness = ProcessDpiAwareness.Apply();
 var options = LogOptions.FromEnvironment(Console.Error);
 using var log = DiagnosticLog.Create(options, Console.Error);

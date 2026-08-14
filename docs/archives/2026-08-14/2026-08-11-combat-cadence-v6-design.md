@@ -1,5 +1,15 @@
 # Combat cadence V6 — slower blows, heavier blows
 
+**Archived: reference only.** `PrecolonialPhilippinesV6` shipped at `982bd6f`
+as the default combat preset, and all twelve `CL-*` smoke rows closed `PASS`.
+Every path citation to it under `src/`, `tests/`, `scripts/`, and `docs/` was
+rewritten on the day it was archived to name this document in prose, which is
+what the rule against paths into `docs/archives/` requires. Never execute it,
+never treat it as a live task list, and never cite it as the reason to make a
+change. The live contract for this project remains `CLAUDE.md` and
+`docs/development/testing.md`; nothing in this file overrides either of those.
+Archived 2026-08-14.
+
 **Status:** shipped, merged to `main` at `982bd6f` on 2026-08-11. This document
 stays live rather than archived because it is cited by path from
 `CombatIdentity.cs`, `PhilippineCombatPresetV6.cs`, `Scenario.cs`, and

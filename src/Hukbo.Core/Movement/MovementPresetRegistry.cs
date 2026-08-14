@@ -537,7 +537,7 @@ public static class MovementPresetRegistry
     /// preset identity rather than on anything this ruleset stores. All
     /// three behaviours are a labelled gameplay model, not a historical
     /// measurement, under CLAUDE.md section 7. See
-    /// docs/plans/2026-08-11-battlefield-realism-design.md section 3.
+    /// the battlefield realism design section 3.
     /// </summary>
     private static readonly MovementRuleset BattlefieldRealismV10Ruleset = new(
         id: MovementPresetId.BattlefieldRealismV10,
@@ -629,7 +629,7 @@ public static class MovementPresetRegistry
     /// own <c>id</c>, for the same reason <see cref="ContingentShapeV12Ruleset"/>
     /// restates it: the lateral-riffle deployment change it gates is gated
     /// on preset identity at its own call site, so it carries no new field
-    /// of its own. See docs/plans/2026-08-14-cohort-lateral-spread-design.md.
+    /// of its own. See the cohort lateral spread design.
     /// </summary>
     private static readonly MovementRuleset CohortLateralSpreadV13Ruleset = new(
         id: MovementPresetId.CohortLateralSpreadV13,

@@ -186,7 +186,7 @@ public enum MovementPresetId
     /// army, shield bearers take the forward-most slots of their own
     /// contingent, and a ranged warrior with a melee enemy inside a threat
     /// radius backs away and resumes shooting once clear or cornered. See
-    /// docs/plans/2026-08-11-battlefield-realism-design.md.
+    /// the battlefield realism design.
     /// </summary>
     BattlefieldRealismV10 = 10,
 
@@ -222,7 +222,7 @@ public enum MovementPresetId
     /// Unlike V6 through V10, this preset is the shipped client default rather
     /// than an opt-in: it exists because the shipped build is where the defect
     /// was observed. See
-    /// docs/plans/2026-08-13-last-stand-engagement-design.md remedy C and
+    /// the last-stand engagement design remedy C and
     /// the last-stand engagement plan.
     /// </para>
     /// </remarks>
@@ -253,7 +253,7 @@ public enum MovementPresetId
     /// LastStandEngagementV11</c> pattern rather than a monotone "V10 or
     /// later" test, and this value falls outside that gate too. See
     /// the contingent shape task plan and
-    /// docs/plans/2026-07-29-contingent-shape-design.md.
+    /// the contingent shape design.
     /// </summary>
     ContingentShapeV12 = 12,
 
@@ -276,7 +276,7 @@ public enum MovementPresetId
     /// <see cref="ContingentShapeV12"/> branch of
     /// <see cref="Simulation.FormationPlanner.ResolveContingentSizes"/>, so
     /// it takes the square-root sizing path V11 does. See
-    /// docs/plans/2026-08-14-cohort-lateral-spread-design.md and
+    /// the cohort lateral spread design and
     /// the cohort lateral spread plan.
     /// </summary>
     CohortLateralSpreadV13 = 13,

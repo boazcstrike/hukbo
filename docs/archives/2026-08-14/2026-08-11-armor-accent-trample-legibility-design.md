@@ -1,5 +1,15 @@
 # Armor bulk, adornment accents, and trample legibility — design
 
+**Archived: reference only.** All three fixes shipped at `f6d5641`. Smoke row
+129 closed `PASS` on 2026-08-13, and rows 128 and 131 were each answered by a
+later design that has itself since shipped. Every path citation to it under
+`src/`, `tests/`, `scripts/`, and `docs/` was rewritten on the day it was
+archived to name this document in prose, which is what the rule against paths
+into `docs/archives/` requires. Never execute it, never treat it as a live task
+list, and never cite it as the reason to make a change. The live contract for
+this project remains `CLAUDE.md` and `docs/development/testing.md`; nothing in
+this file overrides either of those. Archived 2026-08-14.
+
 Date: 2026-08-11. Scope: `Hukbo.Client` presentation only. No simulation type,
 no tick stage, and no hash is touched by anything in this document.
 

@@ -1,5 +1,16 @@
 # Contingent chief membership — design
 
+**Archived: reference only.** Its recommendation was taken on 2026-08-14:
+`ContingentShapeV12` reached the client's preset selector, and `CS-1` and
+`CS-2` were run by a person and closed `PASS` the same day. The plan that
+executed it is archived beside this document. Every path citation to it under
+`src/`, `tests/`, `scripts/`, and `docs/` was rewritten on the day it was
+archived to name this document in prose, which is what the rule against paths
+into `docs/archives/` requires. Never execute it, never treat it as a live task
+list, and never cite it as the reason to make a change. The live contract for
+this project remains `CLAUDE.md` and `docs/development/testing.md`; nothing in
+this file overrides either of those. Archived 2026-08-14.
+
 Date: 2026-08-14
 Status: **design only. This document does not authorize implementation**, under
 `CLAUDE.md` section 6. It exists to make one decision decidable, not to take it.

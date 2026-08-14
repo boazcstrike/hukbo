@@ -33,7 +33,7 @@ internal static class GrassRenderer
     /// "Trampled and sparse areas"). Raised from <c>16f</c> on 2026-08-11 so a
     /// single mark covers ground rather than a spot and adjacent marks merge
     /// into one worn area
-    /// (docs/plans/2026-08-11-armor-accent-trample-legibility-design.md,
+    /// (the armor bulk, adornment accents, and trample legibility design,
     /// section 4).
     /// </summary>
     private const float TrampleMarkBaseRadius = 28f;
@@ -52,7 +52,7 @@ internal static class GrassRenderer
     /// design.md, "Trampled and sparse areas"). Cut from <c>0.55f</c> on
     /// 2026-08-11, where a suppressed tuft kept over half its height and read
     /// as slightly shorter rather than as stubble
-    /// (docs/plans/2026-08-11-armor-accent-trample-legibility-design.md,
+    /// (the armor bulk, adornment accents, and trample legibility design,
     /// section 4).
     /// </summary>
     private const float TrampleHeightReductionFactor = 0.28f;

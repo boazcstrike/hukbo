@@ -1,5 +1,16 @@
 # Contingent shape — design (Phase C)
 
+**Archived: reference only.** Phase C's planning pass is finished:
+`MovementPresetId.ContingentShapeV12` ships and is reachable from the client's
+preset selector, tasks 1 through 6 of the plan landed, and task 7 was closed as
+accepted rather than delivered. Every path citation to it under `src/`,
+`tests/`, `scripts/`, and `docs/` was rewritten on the day it was archived to
+name this document in prose, which is what the rule against paths into
+`docs/archives/` requires. Never execute it, never treat it as a live task
+list, and never cite it as the reason to make a change. The live contract for
+this project remains `CLAUDE.md` and `docs/development/testing.md`; nothing in
+this file overrides either of those. Archived 2026-08-14.
+
 Date: 2026-07-29
 Status: design only. This document does not authorize implementation. It is
 Phase C of the sequence set out in the warrior standing design
@@ -203,7 +214,7 @@ cannot be partitioned by weapon and by rank at the same time, and weapon
 grouping is a shipped behaviour of V10 and V11 that V12 inherits.
 
 The three ways out were priced in
-[`2026-08-14-contingent-chief-membership-design.md`](2026-08-14-contingent-chief-membership-design.md),
+the contingent chief membership design,
 and on 2026-08-14 the first was taken: **accept the loss and drop the claim**.
 What V12 delivers is that contingent *count* follows the number of fielded
 chiefs, and that contingent sizes may be authored. It does not deliver a chief
@@ -322,7 +333,7 @@ guessing ahead of the task-planning pass this document exists to feed.
    sizes that a scenario may author. Both are visible the moment deployment is
    drawn; a seed-1 headless comparison measured V12's army at 22% narrower and
    27% shallower than V11's, recorded in
-   [`2026-08-14-contingent-chief-membership-design.md`](2026-08-14-contingent-chief-membership-design.md)
+   the contingent chief membership design
    section 5.2.
 2. **Tick stage and state read/written.** Resolved once, at
    `BattleSimulation.Create`, before the first tick — the same point

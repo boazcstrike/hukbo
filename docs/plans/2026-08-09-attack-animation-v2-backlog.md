@@ -36,7 +36,7 @@ What that run does to this document, section by section:
   6's framing of these as "never toggled" or "unreachable on the shipped V4
   roster" is history, not a live task list. `AA-23`'s first attempt did fail,
   and the two causes measured against it are written up in
-  `docs/plans/2026-08-13-strike-while-moving-legibility-design.md`: at the
+  the strike-while-moving legibility design: at the
   default camera fit a pawn resolves `PawnDetailTier.Low` and has no legs at
   all, and a closing attacker under the arrival taper advances its stride phase
   one cycle per 300 seconds. Neither was fixed before the row passed.

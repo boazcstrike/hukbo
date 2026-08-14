@@ -226,7 +226,7 @@ internal static class PawnQuadCount
     /// <see cref="PawnDetailTier.High"/> only, a one-pixel inner-edge
     /// darkened column per bar — two more, six total. Until 2026-08-13 this
     /// was one fill per bar with no edge columns at any tier
-    /// (docs/plans/2026-08-11-armor-accent-trample-legibility-design.md,
+    /// (the armor bulk, adornment accents, and trample legibility design,
     /// section 2); the edge columns are what let the armored silhouette's
     /// outline sit at armored width instead of unarmored torso width.
     /// </summary>

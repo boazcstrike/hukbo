@@ -105,7 +105,7 @@ public sealed record Scenario(
     /// rate is the attack rate. Twenty seeds were measured against both
     /// presets before this flip: both decide all twenty, and V6's median
     /// decision tick is 1,651 against V4's 1,668. See
-    /// docs/plans/2026-08-11-combat-cadence-v6-design.md.
+    /// the combat cadence V6 design.
     /// </para>
     /// <para>
     /// Note that the default is <em>not</em> simply the highest-numbered
@@ -171,7 +171,7 @@ public sealed record Scenario(
     /// or <c>.Length == 0</c> alone: the compiler default and an explicitly
     /// empty array are different values under <c>==</c>, and only the
     /// default check treats them the same. See
-    /// docs/plans/2026-07-29-contingent-shape-design.md section 3.
+    /// the contingent shape design section 3.
     /// </summary>
     public ImmutableArray<int> ContingentSizes { get; init; } =
         ImmutableArray<int>.Empty;

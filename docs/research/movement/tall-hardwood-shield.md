@@ -106,7 +106,7 @@ are not Philippine tall shields.
 ---
 
 **V10 gameplay divergence (2026-08-11).** `MovementPresetId.BattlefieldRealismV10`
-(`docs/plans/2026-08-11-battlefield-realism-design.md`) places shield bearers at
+(the battlefield realism design) places shield bearers at
 the forward-most slots of their own contingent. THS-08 above is unchanged by
 this: no source in this document establishes a fixed interval, a fixed rank, or
 a named shield school, and V10's forward placement is not offered as evidence
@@ -115,7 +115,7 @@ Documented (form uncertain), or Provisional reconstruction — it is a gameplay
 model, adopted for legibility, and the evidence above does not support it.
 
 **V13 gameplay divergence (2026-08-14).** `MovementPresetId.CohortLateralSpreadV13`
-(`docs/plans/2026-08-14-cohort-lateral-spread-design.md`) spreads weapon-cohort
+(the cohort lateral spread design) spreads weapon-cohort
 groups laterally across a team's own frontage in place of collecting them
 toward one edge; like V10's forward placement above, this is a gameplay
 legibility choice, not a claim about a historical formation.

@@ -399,7 +399,7 @@ internal static class GrassGeometry
     /// number of casualties. Raised from <c>40f</c> on 2026-08-11, where it
     /// thinned part of one clump and the effect read as one blot per body
     /// rather than as ground worn by fighting
-    /// (docs/plans/2026-08-11-armor-accent-trample-legibility-design.md,
+    /// (the armor bulk, adornment accents, and trample legibility design,
     /// section 4).
     /// </summary>
     public const float TrampleSuppressionRadius = 80f;
@@ -420,7 +420,7 @@ internal static class GrassGeometry
     /// bare ground than the untouched grass around it — the contrast smoke row
     /// 131 asks for, which did not exist while a suppressed tuft kept a shade
     /// as bright as <see cref="TrampleMarkShadeInterpolation"/> itself
-    /// (docs/plans/2026-08-11-armor-accent-trample-legibility-design.md,
+    /// (the armor bulk, adornment accents, and trample legibility design,
     /// section 4). Deliberately a value already on
     /// <see cref="PlainsBackdropGeometry.GroundShadeInterpolation"/>'s ladder,
     /// so this adds no new point to the shade band and no new case to the
