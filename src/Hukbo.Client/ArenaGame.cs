@@ -151,6 +151,7 @@ public sealed partial class ArenaGame : Game
     private readonly string _defaultThemeId;
     private UiScale _configuredUiScale;
     private StartupDisplayMode _startupDisplayMode;
+    private UiChromeStyle _configuredUiChromeStyle;
 
     /// <summary>
     /// Reused each frame so the draw path allocates nothing. Contacts are
@@ -220,6 +221,7 @@ public sealed partial class ArenaGame : Game
     private SpriteBatch? _spriteBatch;
     private RasterizerState? _arenaRasterizerState;
     private Texture2D? _pixel;
+    private Texture2D? _chromeAtlas;
     private UiFontSet? _fonts;
     private MonoGameSoundPlayer? _soundPlayer;
     private Settings.ArmyComposition _activeComposition;
@@ -334,6 +336,7 @@ public sealed partial class ArenaGame : Game
             value => TryPersistAutoCameraMode(catalog.DefaultThemeId, value));
         _configuredUiScale = initialSettings.UiScale;
         _startupDisplayMode = initialSettings.StartupDisplayMode;
+        _configuredUiChromeStyle = initialSettings.UiChromeStyle;
 
         // Resolved here, ahead of the coordinator below, because the
         // coordinator's appearance cache reports through it. _renderProbeEnabled
@@ -605,6 +608,17 @@ public sealed partial class ArenaGame : Game
                 StartupDisplayMode = value,
             });
 
+    private bool TryPersistUiChromeStyle(
+        string defaultThemeId,
+        UiChromeStyle value) =>
+        _settingsStore.TryUpdate(
+            defaultThemeId,
+            current => current with
+            {
+                SelectedThemeId = _themeManager.ActiveTheme.Id,
+                UiChromeStyle = value,
+            });
+
     protected override void Initialize()
     {
         base.Initialize();
@@ -657,6 +671,11 @@ public sealed partial class ArenaGame : Game
             _log.Flush();
             throw;
         }
+
+        // Loaded once here, never per frame: the nine-slice chrome atlas
+        // described on UiNineSlice, holding the surface and border regions
+        // every panel-style call site tints at draw time.
+        _chromeAtlas = Content.Load<Texture2D>("Textures/UiChrome");
 
         _soundPlayer = MonoGameSoundPlayer.Load(
             SoundLibrary.GetDefaultDirectoryPath());
@@ -808,6 +827,7 @@ public sealed partial class ArenaGame : Game
                 _autoCameraManager.Value,
                 _configuredUiScale,
                 _startupDisplayMode,
+                _configuredUiChromeStyle,
                 gameTime.ElapsedGameTime);
             pointerConsumed = menuInteraction.PointerConsumed;
             consumedBy = pointerConsumed ? "menu" : consumedBy;
@@ -897,6 +917,19 @@ public sealed partial class ArenaGame : Game
                     "startupDisplay",
                     previousDisplayMode.ToString(),
                     _startupDisplayMode.ToString());
+            }
+
+            if (menuInteraction.SelectedUiChromeStyle is
+                { } selectedUiChromeStyle &&
+                selectedUiChromeStyle != _configuredUiChromeStyle)
+            {
+                var previousUiChromeStyle = _configuredUiChromeStyle;
+                _configuredUiChromeStyle = selectedUiChromeStyle;
+                TryPersistUiChromeStyle(_defaultThemeId, selectedUiChromeStyle);
+                LogSettingChanged(
+                    "uiChromeStyle",
+                    previousUiChromeStyle.ToString(),
+                    _configuredUiChromeStyle.ToString());
             }
 
             ApplyClientCommand(menuInteraction.Command);

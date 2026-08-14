@@ -150,11 +150,17 @@ as `UiScale` and `StartupDisplayMode` already do. It deliberately does not add
 a fourth hand-copied manager class; `docs/plans/TODO.md` already records the
 three existing managers as debt, and this package must not deepen it.
 
-Persistence bumps `ClientSettingsStore.SupportedSchemaVersion` from 9 to 10.
+Persistence bumps `ClientSettingsStore.SupportedSchemaVersion` from 10 to 11.
 The change adds one independently defaulted field and does not alter the shape
 of the file, so it is backward compatible on the same terms as the 3-to-4,
 4-to-5, 7-to-8, and 8-to-9 bumps, and `AcceptedSchemaVersions` becomes
-`[8, 9, 10]`.
+`[10, 11]`.
+
+This was planned as a 9-to-10 bump against `[8, 9, 10]`. The calibrated army
+composition landed on `main` first and took version 10 as a deliberate reset
+that discards every older file, so this setting took version 11 instead and
+the accepted window reopens only as far back as 10. Recorded on integration,
+2026-08-14.
 
 The setting takes effect live. Chrome style is read at draw time exactly as the
 active theme is, so no restart and no explicit apply step is required.
@@ -244,7 +250,7 @@ Answered against `SIMULATION-GAME-STANDARDS.md` section 10.
 5. **Cache source and invalidation.** One texture loaded once at content load.
    No runtime cache is introduced.
 6. **Save, event, and version effect.** No event. No simulation version. One
-   client settings schema bump, 9 to 10, backward compatible. Neither the state
+   client settings schema bump, 10 to 11, backward compatible. Neither the state
    hash nor the event hash can move, because no simulation code is touched.
 7. **Worst-case complexity and benchmark workload.** Nine quads per panel
    instead of five, across roughly fifteen panels — a bounded constant increase

@@ -735,6 +735,7 @@ public sealed partial class ArenaGame
         _menu.Draw(
             spriteBatch,
             pixel,
+            _chromeAtlas,
             fonts,
             screenBounds,
             theme,
@@ -742,7 +743,8 @@ public sealed partial class ArenaGame
             _motionManager.Value,
             _autoCameraManager.Value,
             _configuredUiScale,
-            _startupDisplayMode);
+            _startupDisplayMode,
+            _configuredUiChromeStyle);
 
         // Last, and above the menu: the prompt is modal, so nothing may paint
         // over it. It scrims the whole area itself, which is what makes the
@@ -750,9 +752,11 @@ public sealed partial class ArenaGame
         _quitPrompt.Draw(
             spriteBatch,
             pixel,
+            _chromeAtlas,
             fonts,
             layout.ArenaBounds,
-            theme);
+            theme,
+            _configuredUiChromeStyle);
         if (_isArmyCompositionPanelVisible)
         {
             _armyCompositionPanel.Draw(

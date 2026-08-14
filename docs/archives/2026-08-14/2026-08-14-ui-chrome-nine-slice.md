@@ -1,7 +1,24 @@
 # UI chrome nine-slice sprite skin — plan
 
+**Archived: reference only.** All nine tasks were executed and the canonical
+gate was green on the rebased branch, with zero `[FAIL]` lines and
+`Hukbo.Client.Tests` at 3,867. Of the six `CH` smoke rows this plan wrote, five
+were run by a person on 2026-08-14 and passed, and they were removed from the
+checklist rather than left sitting green. The sixth, `CH-4`, was rescoped and
+remains `PENDING` there, because as first written it asked for four
+interface-scale tiers and only two are reachable on a 1080p display. Its
+sampler question — whether linear filtering bleeds across the nine-slice
+seams — is still open, and the design document, which stays live in
+`docs/plans/`, is where that question is set out.
+
+Never execute this plan, never treat it as a live task list, and never cite it
+as the reason to make a change. The live contract for this project is
+`CLAUDE.md`, `SIMULATION-GAME-STANDARDS.md`, `docs/development/testing.md`,
+`docs/development/smoke-checklist.md`, and `.claude/skills/`.
+
 Date: 2026-08-14
-Design: `2026-08-14-ui-chrome-nine-slice-design.md` in this folder.
+Design: "UI chrome nine-slice sprite skin — design", which stays live in
+`docs/plans/`.
 Anchors verified against the working tree at commit `8f2207f` on 2026-08-14.
 
 The design document governs. Where this plan and the design disagree, the

@@ -257,10 +257,13 @@ expansion the client actually performs; it has not been confirmed by anyone
 watching a battle, which is what these two rows are for.
 
 `ClientSettingsStore.SupportedSchemaVersion` moved from 9 to 10 and the store
-now accepts version 10 alone, on the precedent of the 5-to-6 bump: a saved
+discarded every version before 10, on the precedent of the 5-to-6 bump: a saved
 composition always wins over the default, so an existing settings file would
 have pinned the old even split forever. That discard is deliberate, and `AC-2`
-is the row that proves it happens rather than assuming it.
+is the row that proves it happens rather than assuming it. The UI chrome
+nine-slice package then took version 11 for its own field, so the accepted
+window is `[10, 11]`; version 9 and older are still discarded whole, which is
+what `AC-2` exercises.
 
 Only a human running `./scripts/run.ps1` on an interactive Windows desktop may
 flip one of these rows. Compilation, unit tests, and a window-opening probe run
