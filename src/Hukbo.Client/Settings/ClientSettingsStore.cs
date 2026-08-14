@@ -40,18 +40,22 @@ internal sealed class ClientSettingsStore
     /// This is backward compatible on the same terms as the 7-to-8 bump: a
     /// version 8 file loads through <see cref="AcceptedSchemaVersions"/> with
     /// only that absent field defaulting.
+    /// Raised again from 9 to 10 by the <see cref="UiChromeStyle"/> setting.
+    /// This is backward compatible on the same terms as the 8-to-9 bump: a
+    /// version 9 file loads through <see cref="AcceptedSchemaVersions"/> with
+    /// only that absent field defaulting.
     /// </summary>
-    public const int SupportedSchemaVersion = 9;
+    public const int SupportedSchemaVersion = 10;
 
     /// <summary>
     /// Schema versions <see cref="Load"/> accepts without discarding the
-    /// whole file. Version 8 and the current version qualify because the
-    /// 8-to-9 change only adds an independently defaulted field. Versions
-    /// before 8 remain incompatible because of the deliberate composition
-    /// resets recorded on <see cref="ArmyComposition"/>.
+    /// whole file. Version 8, version 9, and the current version qualify
+    /// because the 8-to-9 and 9-to-10 changes each only add an independently
+    /// defaulted field. Versions before 8 remain incompatible because of the
+    /// deliberate composition resets recorded on <see cref="ArmyComposition"/>.
     /// </summary>
     private static readonly int[] AcceptedSchemaVersions =
-        [8, SupportedSchemaVersion];
+        [8, 9, SupportedSchemaVersion];
 
     // Moved from Stylized to Full on 2026-08-13 by the lethal blow
     // legibility design, on the explicit request of the person the
@@ -90,6 +94,12 @@ internal sealed class ClientSettingsStore
     /// </summary>
     private const MovementPresetId DefaultMovementPreset =
         MovementPresetId.CohortLateralSpreadV13;
+
+    /// <summary>
+    /// The look every panel had before this setting existed, so a spectator
+    /// who never touches the selector sees no change of any kind.
+    /// </summary>
+    private const UiChromeStyle DefaultUiChromeStyle = UiChromeStyle.Procedural;
 
     private static readonly JsonSerializerOptions SerializerOptions = new()
     {
@@ -178,7 +188,8 @@ internal sealed class ClientSettingsStore
                 ResolveAutoCameraMode(raw.AutoCameraMode),
                 ResolveUiScale(raw.UiScale),
                 ResolveStartupDisplayMode(raw.StartupDisplayMode),
-                ResolveMovementPreset(raw.MovementPreset));
+                ResolveMovementPreset(raw.MovementPreset),
+                ResolveUiChromeStyle(raw.UiChromeStyle));
             _log.Write(
                 LogLevel.Debug,
                 LogChannel.Settings,
@@ -226,7 +237,8 @@ internal sealed class ClientSettingsStore
         AutoCameraMode autoCameraMode,
         UiScale uiScale,
         StartupDisplayMode startupDisplayMode,
-        MovementPresetId movementPreset)
+        MovementPresetId movementPreset,
+        UiChromeStyle uiChromeStyle)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(selectedThemeId);
         ArgumentNullException.ThrowIfNull(composition);
@@ -252,7 +264,8 @@ internal sealed class ClientSettingsStore
                 ResolveAutoCameraMode(autoCameraMode),
                 ResolveUiScale(uiScale),
                 ResolveStartupDisplayMode(startupDisplayMode),
-                ResolveMovementPreset(movementPreset));
+                ResolveMovementPreset(movementPreset),
+                ResolveUiChromeStyle(uiChromeStyle));
             using (var stream = new FileStream(
                 temporaryPath,
                 FileMode.CreateNew,
@@ -335,7 +348,8 @@ internal sealed class ClientSettingsStore
             next.AutoCameraMode,
             next.UiScale,
             next.StartupDisplayMode,
-            next.MovementPreset);
+            next.MovementPreset,
+            next.UiChromeStyle);
     }
 
     private void LogDefaulted(string defaultThemeId, string reason) =>
@@ -362,7 +376,8 @@ internal sealed class ClientSettingsStore
             DefaultAutoCameraMode,
             DefaultUiScale,
             DefaultStartupDisplayMode,
-            DefaultMovementPreset);
+            DefaultMovementPreset,
+            DefaultUiChromeStyle);
 
     /// <summary>
     /// A missing or out-of-range gore level resolves to the default without
@@ -435,6 +450,17 @@ internal sealed class ClientSettingsStore
             ? value
             : DefaultMovementPreset;
 
+    /// <summary>
+    /// A missing or out-of-range chrome style resolves to the procedural
+    /// default without invalidating any sibling field. Missing is what a
+    /// version 9 file - written before this field existed - looks like.
+    /// </summary>
+    private static UiChromeStyle ResolveUiChromeStyle(
+        UiChromeStyle? persisted) =>
+        persisted is { } value && Enum.IsDefined(value)
+            ? value
+            : DefaultUiChromeStyle;
+
     private static void TryDelete(string path)
     {
         try
@@ -464,5 +490,6 @@ internal sealed class ClientSettingsStore
         AutoCameraMode? AutoCameraMode,
         UiScale? UiScale,
         StartupDisplayMode? StartupDisplayMode,
-        MovementPresetId? MovementPreset);
+        MovementPresetId? MovementPreset,
+        UiChromeStyle? UiChromeStyle);
 }

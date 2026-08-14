@@ -52,7 +52,8 @@ public sealed class ClientSettingsStoreTests
                 AutoCameraMode.Assisted,
                 UiScale.Auto,
                 StartupDisplayMode.Windowed,
-                MovementPresetId.LastStandEngagementV11));
+                MovementPresetId.LastStandEngagementV11,
+                UiChromeStyle.Procedural));
             Assert.True(store.TrySave(
                 "broadcast",
                 ArmyComposition.Default,
@@ -61,7 +62,8 @@ public sealed class ClientSettingsStoreTests
                 AutoCameraMode.Assisted,
                 UiScale.Auto,
                 StartupDisplayMode.Windowed,
-                MovementPresetId.LastStandEngagementV11));
+                MovementPresetId.LastStandEngagementV11,
+                UiChromeStyle.Procedural));
 
             var settings = store.Load("command");
 
@@ -152,7 +154,8 @@ public sealed class ClientSettingsStoreTests
                 AutoCameraMode.Assisted,
                 UiScale.Auto,
                 StartupDisplayMode.Windowed,
-                MovementPresetId.LastStandEngagementV11));
+                MovementPresetId.LastStandEngagementV11,
+                UiChromeStyle.Procedural));
 
             var settings = store.Load("command");
 
@@ -173,7 +176,8 @@ public sealed class ClientSettingsStoreTests
                 AutoCameraMode.Assisted,
                 UiScale.Auto,
                 StartupDisplayMode.Windowed,
-                MovementPresetId.LastStandEngagementV11));
+                MovementPresetId.LastStandEngagementV11,
+                UiChromeStyle.Procedural));
 
             var settings = store.Load("signal");
 
@@ -202,7 +206,8 @@ public sealed class ClientSettingsStoreTests
                 AutoCameraMode.Assisted,
                 UiScale.Auto,
                 StartupDisplayMode.Windowed,
-                MovementPresetId.LastStandEngagementV11));
+                MovementPresetId.LastStandEngagementV11,
+                UiChromeStyle.Procedural));
 
             var settings = store.Load("signal");
 
@@ -223,7 +228,8 @@ public sealed class ClientSettingsStoreTests
                 AutoCameraMode.Assisted,
                 UiScale.Auto,
                 StartupDisplayMode.Windowed,
-                MovementPresetId.LastStandEngagementV11));
+                MovementPresetId.LastStandEngagementV11,
+                UiChromeStyle.Procedural));
 
             var settings = store.Load("signal");
 
@@ -426,7 +432,8 @@ public sealed class ClientSettingsStoreTests
                 AutoCameraMode.Follow,
                 UiScale.Auto,
                 StartupDisplayMode.Windowed,
-                MovementPresetId.LastStandEngagementV11));
+                MovementPresetId.LastStandEngagementV11,
+                UiChromeStyle.Procedural));
 
             var settings = store.Load("command");
 
@@ -455,7 +462,8 @@ public sealed class ClientSettingsStoreTests
                 AutoCameraMode.Follow,
                 uiScale,
                 StartupDisplayMode.Fullscreen,
-                MovementPresetId.LastStandEngagementV11));
+                MovementPresetId.LastStandEngagementV11,
+                UiChromeStyle.Procedural));
 
             var settings = store.Load("command");
 
@@ -487,7 +495,8 @@ public sealed class ClientSettingsStoreTests
                 AutoCameraMode.Follow,
                 UiScale.Percent150,
                 startupDisplayMode,
-                MovementPresetId.LastStandEngagementV11));
+                MovementPresetId.LastStandEngagementV11,
+                UiChromeStyle.Procedural));
 
             var settings = store.Load("command");
 
@@ -618,7 +627,8 @@ public sealed class ClientSettingsStoreTests
                 AutoCameraMode.Assisted,
                 UiScale.Auto,
                 StartupDisplayMode.Windowed,
-                MovementPresetId.LastStandEngagementV11));
+                MovementPresetId.LastStandEngagementV11,
+                UiChromeStyle.Procedural));
 
             Assert.True(store.TryUpdate(
                 "command",
@@ -674,7 +684,8 @@ public sealed class ClientSettingsStoreTests
                 AutoCameraMode.Assisted,
                 UiScale.Percent150,
                 StartupDisplayMode.Fullscreen,
-                MovementPresetId.LastStandEngagementV11));
+                MovementPresetId.LastStandEngagementV11,
+                UiChromeStyle.Procedural));
             using var locked = new FileStream(
                 settingsPath,
                 FileMode.Open,
@@ -689,7 +700,8 @@ public sealed class ClientSettingsStoreTests
                 AutoCameraMode.Assisted,
                 UiScale.Percent100,
                 StartupDisplayMode.Windowed,
-                MovementPresetId.LastStandEngagementV11));
+                MovementPresetId.LastStandEngagementV11,
+                UiChromeStyle.Procedural));
             Assert.Empty(
                 Directory.GetFiles(
                     Path.GetDirectoryName(settingsPath)!,
@@ -720,7 +732,8 @@ public sealed class ClientSettingsStoreTests
                 AutoCameraMode.Follow,
                 UiScale.Percent150,
                 StartupDisplayMode.Fullscreen,
-                MovementPresetId.EquipmentRelativeFootworkV7));
+                MovementPresetId.EquipmentRelativeFootworkV7,
+                UiChromeStyle.Procedural));
 
             var settings = store.Load("command");
 
@@ -842,6 +855,119 @@ public sealed class ClientSettingsStoreTests
             Assert.Equal(
                 MovementPresetId.CohortLateralSpreadV13,
                 settings.MovementPreset);
+        });
+    }
+
+    [Theory]
+    [InlineData(UiChromeStyle.Procedural)]
+    [InlineData(UiChromeStyle.NineSlice)]
+    public void EveryUiChromeStyleValueSurvivesARoundTrip(
+        UiChromeStyle uiChromeStyle)
+    {
+        WithTemporarySettings((store, _) =>
+        {
+            Assert.True(store.TrySave(
+                "signal",
+                SampleComposition,
+                GoreIntensity.Full,
+                MotionIntensity.Reduced,
+                AutoCameraMode.Follow,
+                UiScale.Percent150,
+                StartupDisplayMode.Fullscreen,
+                MovementPresetId.LastStandEngagementV11,
+                uiChromeStyle));
+
+            var settings = store.Load("command");
+
+            Assert.Equal("signal", settings.SelectedThemeId);
+            Assert.Equal(SampleComposition, settings.Composition);
+            Assert.Equal(uiChromeStyle, settings.UiChromeStyle);
+        });
+    }
+
+    /// <summary>
+    /// A version 9 file predates this field, so it looks exactly like a file
+    /// with the field absent: it loads cleanly rather than being discarded,
+    /// and the style defaults to <see cref="UiChromeStyle.Procedural"/>
+    /// without disturbing any sibling field.
+    /// </summary>
+    [Fact]
+    public void AVersionNineFileLoadsCleanlyAndDefaultsTheChromeStyle()
+    {
+        WithTemporarySettings((store, settingsPath) =>
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(settingsPath)!);
+            File.WriteAllText(
+                settingsPath,
+                "{\"schemaVersion\":9,\"selectedThemeId\":\"signal\"," +
+                ValidCompositionJson +
+                ",\"goreIntensity\":2,\"motionIntensity\":0," +
+                "\"autoCameraMode\":2,\"uiScale\":2," +
+                "\"startupDisplayMode\":1,\"movementPreset\":11}");
+
+            var settings = store.Load("command");
+
+            Assert.Equal(
+                ClientSettingsStore.SupportedSchemaVersion,
+                settings.SchemaVersion);
+            Assert.Equal("signal", settings.SelectedThemeId);
+            Assert.Equal(
+                MovementPresetId.LastStandEngagementV11,
+                settings.MovementPreset);
+            Assert.Equal(UiChromeStyle.Procedural, settings.UiChromeStyle);
+        });
+    }
+
+    [Fact]
+    public void AnOutOfRangeUiChromeStyleResetsOnlyThatField()
+    {
+        WithTemporarySettings((store, settingsPath) =>
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(settingsPath)!);
+            File.WriteAllText(
+                settingsPath,
+                "{\"schemaVersion\":" +
+                ClientSettingsStore.SupportedSchemaVersion +
+                ",\"selectedThemeId\":\"signal\"," +
+                ValidCompositionJson +
+                ",\"goreIntensity\":2,\"motionIntensity\":0," +
+                "\"autoCameraMode\":2,\"uiChromeStyle\":99}");
+
+            var settings = store.Load("command");
+
+            Assert.Equal("signal", settings.SelectedThemeId);
+            Assert.Equal(80, settings.Composition.UnitsPerTeam);
+            Assert.Equal(GoreIntensity.Full, settings.GoreIntensity);
+            Assert.Equal(MotionIntensity.Off, settings.MotionIntensity);
+            Assert.Equal(AutoCameraMode.Follow, settings.AutoCameraMode);
+            Assert.Equal(UiChromeStyle.Procedural, settings.UiChromeStyle);
+        });
+    }
+
+    /// <summary>
+    /// The literal <c>10</c> rather than
+    /// <see cref="ClientSettingsStore.SupportedSchemaVersion"/> is asserted
+    /// against here, so this test still catches the schema window narrowing
+    /// unexpectedly even if the constant itself moves in the same change.
+    /// </summary>
+    [Fact]
+    public void ASchemaVersionTenFileLoadsAndRoundTripsTheChromeStyle()
+    {
+        WithTemporarySettings((store, settingsPath) =>
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(settingsPath)!);
+            File.WriteAllText(
+                settingsPath,
+                "{\"schemaVersion\":10,\"selectedThemeId\":\"signal\"," +
+                ValidCompositionJson +
+                ",\"goreIntensity\":2,\"motionIntensity\":0," +
+                "\"autoCameraMode\":2,\"uiChromeStyle\":1}");
+
+            var settings = store.Load("command");
+
+            Assert.Equal(10, settings.SchemaVersion);
+            Assert.Equal("signal", settings.SelectedThemeId);
+            Assert.Equal(UiChromeStyle.NineSlice, settings.UiChromeStyle);
         });
     }
 
