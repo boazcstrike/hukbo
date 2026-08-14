@@ -214,6 +214,34 @@ public sealed class SandataSimulation
     private readonly int[] _roomRepresentativeCells = [];
 
     /// <summary>
+    /// One entry per <see cref="_pathBlockedCells"/> cell: the id of the
+    /// 4-connected component that cell belongs to, or <c>-1</c> for a
+    /// blocked cell. Two unblocked cells share an id exactly when a
+    /// 4-connected walk of unblocked cells joins them — the same
+    /// reachability <see cref="NavSearch"/> itself computes over this exact
+    /// blocked span, so this array answers "can any search ever reach that
+    /// cell from here" without running one. <see cref="TrySelectNextRoom"/>
+    /// uses it to keep the argmin from handing out a room sealed behind a
+    /// door whose closed cells the body-radius inflation swallowed whole —
+    /// see design decision 4's Phase A and the angle-house closet regression
+    /// it produced, where <see cref="RoomClearState"/> never advances past
+    /// <c>Cleared = false</c> and <see cref="GroupPathState.TargetRoomId"/>
+    /// never returns to <c>-1</c> because nothing before this array existed
+    /// to say the target could not be reached.
+    /// <para>
+    /// A component's id is its own seed cell's index, the same convention
+    /// <see cref="Navigation.RoomLayout.Bake"/> uses for a room id and for
+    /// the same reason: the ascending seed scan makes it free. Built once,
+    /// here, from <see cref="_pathBlockedCells"/> via the fixed N/E/S/W
+    /// order and flat-array FIFO scratch queue <see cref="RoomLayout.Bake"/>
+    /// already establishes as this project's flood-fill convention — never
+    /// <c>Queue&lt;T&gt;</c>. Derived, never hashed, never snapshotted,
+    /// recomputed identically on resume.
+    /// </para>
+    /// </summary>
+    private readonly int[] _navComponentByCell;
+
+    /// <summary>
     /// Creates a simulation caller bound to one mission, its resolved
     /// ruleset, the baked navigation artifacts stages 5 and 7 need, and the
     /// authoritative state to begin ticking from. <paramref name="roomLayout"/>
@@ -269,6 +297,10 @@ public sealed class SandataSimulation
         // See _pathBlockedCells's own remarks: seeded once, here, from the
         // baked map, and never written to again.
         _pathBlockedCells = BuildPathBlockedCells(navGrid);
+
+        // See _navComponentByCell: built from the same blocked span above,
+        // so the two can never disagree about what is reachable from where.
+        _navComponentByCell = BuildNavComponents(navGrid, _pathBlockedCells);
 
         // A NavGrid's dimensions are fixed for its lifetime, so stage 5's
         // cell chain can be sized once here rather than grown.
@@ -357,6 +389,101 @@ public sealed class SandataSimulation
         }
 
         return blocked;
+    }
+
+    /// <summary>
+    /// Builds <see cref="_navComponentByCell"/>: a 4-connected flood fill
+    /// (fixed N, E, S, W neighbour order; ascending row-major seed order; a
+    /// fixed-size <c>int[]</c> FIFO scratch queue, never <c>Queue&lt;T&gt;</c>)
+    /// over <paramref name="pathBlockedCells"/> — the same convention
+    /// <see cref="Navigation.RoomLayout.Bake"/> already establishes, reused
+    /// here rather than duplicated with a different shape. Called once, from
+    /// the constructor, never per tick.
+    /// </summary>
+    /// <param name="navGrid">The grid whose cell coordinates to walk.</param>
+    /// <param name="pathBlockedCells">
+    /// <see cref="_pathBlockedCells"/> — the exact blocked span
+    /// <see cref="NavSearch"/> itself reads, so the resulting partition
+    /// matches what a search can and cannot reach.
+    /// </param>
+    /// <returns>A new array, one entry per <paramref name="pathBlockedCells"/> cell.</returns>
+    internal static int[] BuildNavComponents(NavGrid navGrid, bool[] pathBlockedCells)
+    {
+        ArgumentNullException.ThrowIfNull(navGrid);
+        ArgumentNullException.ThrowIfNull(pathBlockedCells);
+
+        var cellCount = pathBlockedCells.Length;
+        var componentByCell = new int[cellCount];
+        Array.Fill(componentByCell, -1);
+
+        var queue = new int[cellCount];
+
+        for (var seed = 0; seed < cellCount; seed++)
+        {
+            if (pathBlockedCells[seed] || componentByCell[seed] != -1)
+            {
+                continue;
+            }
+
+            // seed is, by construction, the lowest unclaimed unblocked cell
+            // index reached so far in this ascending scan, so it is the
+            // lowest cell its own about-to-be-discovered component can ever
+            // contain: that is this component's id.
+            var componentId = seed;
+            var head = 0;
+            var tail = 0;
+            queue[tail] = seed;
+            tail++;
+            componentByCell[seed] = componentId;
+
+            while (head < tail)
+            {
+                var current = queue[head];
+                head++;
+
+                var x = navGrid.CellX(current);
+                var y = navGrid.CellY(current);
+
+                TryEnqueueComponentCell(navGrid, pathBlockedCells, componentByCell, queue, ref tail, x, y - 1, componentId);
+                TryEnqueueComponentCell(navGrid, pathBlockedCells, componentByCell, queue, ref tail, x + 1, y, componentId);
+                TryEnqueueComponentCell(navGrid, pathBlockedCells, componentByCell, queue, ref tail, x, y + 1, componentId);
+                TryEnqueueComponentCell(navGrid, pathBlockedCells, componentByCell, queue, ref tail, x - 1, y, componentId);
+            }
+        }
+
+        return componentByCell;
+    }
+
+    /// <summary>
+    /// <see cref="BuildNavComponents"/>'s neighbour test: enqueues
+    /// <paramref name="x"/>, <paramref name="y"/> under <paramref name="componentId"/>
+    /// when it is in bounds, unblocked, and not already claimed by an
+    /// earlier component — the same three-part guard
+    /// <see cref="Navigation.RoomLayout.Bake"/>'s own enqueue helper uses.
+    /// </summary>
+    private static void TryEnqueueComponentCell(
+        NavGrid navGrid,
+        bool[] pathBlockedCells,
+        int[] componentByCell,
+        int[] queue,
+        ref int tail,
+        int x,
+        int y,
+        int componentId)
+    {
+        if (!navGrid.TryGetCellIndex(x, y, out var index))
+        {
+            return;
+        }
+
+        if (pathBlockedCells[index] || componentByCell[index] != -1)
+        {
+            return;
+        }
+
+        componentByCell[index] = componentId;
+        queue[tail] = index;
+        tail++;
     }
 
     /// <summary>
@@ -2464,8 +2591,18 @@ public sealed class SandataSimulation
                 }
             }
 
+            // Design decision 4: a target stops being "still live" the tick
+            // it is Cleared, or the tick GetPublishedPathReasonCode reports
+            // Unreachable for this group — the corridor a prior tick's
+            // search actually failed to find, not merely one this method's
+            // own component filter would now refuse to hand out. Without the
+            // second half a group already holding an unreachable target
+            // (adopted before this filter existed, or before its own room
+            // was sealed) would never re-enter TrySelectNextRoom at all,
+            // since TargetRoomId itself never becomes -1 on its own.
             var currentTargetStillLive = updatedGroup.TargetRoomId != -1
-                && !IsRoomCleared(roomClearStates, updatedGroup.TargetRoomId);
+                && !IsRoomCleared(roomClearStates, updatedGroup.TargetRoomId)
+                && GetPublishedPathReasonCode(updatedGroup.GroupId) != PathReasonCode.Unreachable;
 
             if (!isEngageFrozen && leaderIndex >= 0 && leaderFaction == 0 && !currentTargetStillLive)
             {
@@ -2612,6 +2749,19 @@ public sealed class SandataSimulation
     /// having no destination — and unlike having none, it would keep winning
     /// the argmin forever.
     /// </para>
+    /// <para>
+    /// A candidate whose representative cell sits in a different
+    /// <see cref="_navComponentByCell"/> component than <paramref name="fromCellIndex"/>
+    /// is skipped for the same reason as a fully-blocked room: it is a goal
+    /// no <see cref="NavSearch"/> call starting from here can ever reach —
+    /// this time because a closed door's own cells were swallowed whole by a
+    /// neighbouring wall's body-radius inflation, rather than because the
+    /// room itself has no unblocked cell at all. Skipping it here, before it
+    /// is ever handed to <see cref="PathService.RequestPath"/>, is what lets
+    /// design decision 4's Phase A actually exhaust instead of a group
+    /// holding a dead target forever — see this method's own caller's
+    /// remarks for the regression this filter closes.
+    /// </para>
     /// </summary>
     private bool TrySelectNextRoom(
         ImmutableArray<RoomClearState> roomClearStates,
@@ -2621,6 +2771,7 @@ public sealed class SandataSimulation
     {
         var fromX = _navGrid.CellX(fromCellIndex);
         var fromY = _navGrid.CellY(fromCellIndex);
+        var fromComponentId = _navComponentByCell[fromCellIndex];
 
         var bestCost = int.MaxValue;
         roomId = -1;
@@ -2641,6 +2792,16 @@ public sealed class SandataSimulation
 
             var candidateCellIndex = _roomRepresentativeCells[roomIndex];
             if (candidateCellIndex < 0)
+            {
+                continue;
+            }
+
+            // A representative cell with no component (blocked by the same
+            // static seed the flood fill ran over) or a different component
+            // than fromCellIndex is a goal NavSearch can never join to here —
+            // see this method's own remarks for the sealed-door case that
+            // motivated this check.
+            if (_navComponentByCell[candidateCellIndex] != fromComponentId)
             {
                 continue;
             }

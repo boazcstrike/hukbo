@@ -145,6 +145,172 @@ public sealed class RoomSweepAngleHouseTests
         };
 
     /// <summary>
+    /// The closet's own <c>DOOR 100 460 140 460</c> record, in world units,
+    /// world-unit-for-world-unit against the fixture on disk. At the
+    /// fixture's baked body radius this door's own cells are only partly
+    /// eaten by the flanking walls' inflation (five of its cells stay
+    /// <see cref="NavCellFlags.Door"/>, per <see cref="_pathBlockedCells"/>'s
+    /// own "a closed door is deliberately left passable" rule), so the
+    /// closet is, today, reachable through it regardless of the record's own
+    /// closed <c>State</c>. <see cref="SealClosetDoor"/> is what turns "this
+    /// door is closed" into "this door is impassable", which is the
+    /// production behaviour a future dynamic-door source is expected to add
+    /// and which the fix under test must survive once it exists.
+    /// </summary>
+    private static readonly DoorRecord ClosetDoor = new(LineNumber: 0, X1: 100, Y1: 460, X2: 140, Y2: 460, Hinge: 0, State: 0);
+
+    /// <summary>
+    /// Forces <paramref name="grid"/>'s baked passability to treat
+    /// <see cref="ClosetDoor"/> as <see cref="NavCellFlags.Blocked"/> rather
+    /// than the passable <see cref="NavCellFlags.Door"/> <see cref="NavBake"/>
+    /// leaves it at the fixture's body radius, using the same pinned
+    /// <see cref="NavBake.SupercoverCells"/> walk <see cref="NavBake"/> itself
+    /// rasterizes every wall and door with. This is the only path into the
+    /// closet room (<see cref="ClosetRoomId"/>): walls close every other side
+    /// of it, so sealing this one door isolates that room's whole nav
+    /// component from the rest of the map without touching any other room's
+    /// reachability, which a global body-radius increase cannot do — a radius
+    /// large enough to swallow this one ten-world-unit doorway also swallows
+    /// every other doorway in the map first.
+    /// </summary>
+    private static void SealClosetDoor(NavGrid grid)
+    {
+        foreach (var (x, y) in NavBake.SupercoverCells(ClosetDoor.X1, ClosetDoor.Y1, ClosetDoor.X2, ClosetDoor.Y2))
+        {
+            if (grid.TryGetCellIndex(x, y, out var cellIndex))
+            {
+                grid.Passability[cellIndex] = NavCellFlags.Blocked;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Half 1 of the fix: <see cref="SandataSimulation.TrySelectNextRoom"/>'s
+    /// argmin must never hand out a room its own nav component cannot reach
+    /// from the group leader's cell, even though that room is otherwise the
+    /// nearest uncleared one by octile distance — the closet is 804 octile
+    /// units from <see cref="SpawnCellIndex"/> against the objective room's
+    /// 1688, so a component-blind argmin would still pick it every time.
+    /// Reverting the component check in <see cref="SandataSimulation.TrySelectNextRoom"/>
+    /// turns this from a passing test into one that fails on tick 0, because
+    /// the very first Phase-A selection already prefers the closer, sealed
+    /// closet.
+    /// </summary>
+    [Fact]
+    public void SweepingASealedCloset_NeverTargetsTheUnreachableRoom()
+    {
+        var (grid, buckets, layout) = BakeAngleHouse();
+        SealClosetDoor(grid);
+
+        var groups = ImmutableArray.Create(new GroupPathState(
+            GroupId: 1UL,
+            DestinationCellIndex: -1,
+            HasOutstandingRequest: false,
+            StartCellIndex: 0,
+            GoalCellIndex: 0,
+            RequestTick: 0));
+
+        var sim = new SandataSimulation(
+            BuildMission(),
+            SandataRuleset.ModernTacticalV1,
+            grid,
+            buckets,
+            BuildState(BuildAngleHouseRoster(), groups),
+            ImmutableArray<CoverRecord>.Empty,
+            layout);
+
+        var everTargetedAnyRoom = false;
+        for (var tick = 0L; tick < 600; tick++)
+        {
+            sim.RunTick(tick);
+
+            var targetRoomId = sim.State.Groups.Single().TargetRoomId;
+            Assert.NotEqual(ClosetRoomId, targetRoomId);
+
+            if (targetRoomId >= 0)
+            {
+                everTargetedAnyRoom = true;
+            }
+        }
+
+        Assert.True(everTargetedAnyRoom, "the sweep never selected any room over 600 ticks, so this test proves nothing about the closet specifically.");
+    }
+
+    /// <summary>
+    /// Half 2 of the fix: a group can still be handed the sealed closet as
+    /// its <em>opening</em> target — <see cref="TryAdoptSeededTargetRoom"/>
+    /// trusts the caller's own seeded destination and does not run the
+    /// component check Half 1 adds to the argmin — so the retarget gate
+    /// itself must notice the resulting search failure and let the group
+    /// move on, rather than reading <see cref="GroupPathState.TargetRoomId"/>
+    /// as "still live" forever because it is neither <c>-1</c> nor
+    /// <see cref="RoomClearState.Cleared"/>. This is the exact deadlock the
+    /// brief describes: before this half existed, <c>currentTargetStillLive</c>
+    /// tested only <see cref="RoomClearState.Cleared"/>, a room nothing can
+    /// ever clear from outside it stays "live" forever, and the outer gate at
+    /// <see cref="AdvanceRoomSweep"/>'s own call site never fires again.
+    /// Reverting the added <see cref="SandataSimulation.GetPublishedPathReasonCode"/>
+    /// term turns this from a passing test into one that fails once the
+    /// path service's latency elapses and the group still has not moved off
+    /// the sealed target.
+    /// </summary>
+    [Fact]
+    public void AGroupSeededWithTheSealedCloset_RetargetsInsteadOfHoldingItForever()
+    {
+        var (grid, buckets, layout) = BakeAngleHouse();
+        SealClosetDoor(grid);
+
+        var blocked = SandataSimulation.BuildPathBlockedCells(grid);
+        var sealedClosetGoalCellIndex = -1;
+        for (var cellIndex = 0; cellIndex < blocked.Length; cellIndex++)
+        {
+            if (!blocked[cellIndex] && layout.RoomIdAt(cellIndex) == ClosetRoomId)
+            {
+                sealedClosetGoalCellIndex = cellIndex;
+                break;
+            }
+        }
+
+        Assert.True(sealedClosetGoalCellIndex >= 0, "the closet has no unblocked cell left after sealing its door, so this test cannot seed it as a destination.");
+
+        var groups = ImmutableArray.Create(new GroupPathState(
+            GroupId: 1UL,
+            DestinationCellIndex: sealedClosetGoalCellIndex,
+            HasOutstandingRequest: true,
+            StartCellIndex: SpawnCellIndex,
+            GoalCellIndex: sealedClosetGoalCellIndex,
+            RequestTick: 0));
+
+        var sim = new SandataSimulation(
+            BuildMission(),
+            SandataRuleset.ModernTacticalV1,
+            grid,
+            buckets,
+            BuildState(BuildAngleHouseRoster(), groups),
+            ImmutableArray<CoverRecord>.Empty,
+            layout);
+
+        sim.RunTick(0);
+        Assert.Equal(ClosetRoomId, sim.State.Groups.Single().TargetRoomId);
+
+        var everHeldTheClosetPastLatency = false;
+        for (var tick = 1L; tick < 200; tick++)
+        {
+            sim.RunTick(tick);
+
+            var group = sim.State.Groups.Single();
+            if (tick > SandataRuleset.ModernTacticalV1.PathLatencyTicks + 5 && group.TargetRoomId == ClosetRoomId)
+            {
+                everHeldTheClosetPastLatency = true;
+            }
+        }
+
+        Assert.False(
+            everHeldTheClosetPastLatency,
+            "the group held the sealed closet as its target well past the path service's latency, instead of retargeting once the search reported it unreachable.");
+    }
+
+    /// <summary>
     /// Every room of the shipped map takes its id from a cell the body-radius
     /// inflation blocks, so a sweep that pathed to a room's id cell could
     /// never reach any room on this map. This pins the property that made
