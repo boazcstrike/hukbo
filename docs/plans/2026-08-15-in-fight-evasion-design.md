@@ -627,11 +627,24 @@ widen.**
    alternating-sign rule of section 5.1 makes this structural for M1, M2 and M3;
    M4 is the only rung with a directional bias and it is capped at 1024 raw every
    twelve ticks.
-4. **Contact must be retained.** Mean agent-ticks spent within
-   `ContactSquaredDistance` of a selected living enemy must be at least **90 per
-   cent** of V13's measured value. This is the direct, numeric form of "movement
-   during the battle, not away from it", and it is the single bar most likely to
-   catch a mistuned rung.
+4. **Engagement must be retained.** Mean agent-ticks spent with a living
+   selected enemy inside the warrior's own `AttackRangeRaw`, centre to centre,
+   must be at least **90 per cent** of V13's measured 385.88. This is the
+   direct, numeric form of "movement during the battle, not away from it", and
+   it is the single bar most likely to catch a mistuned rung.
+
+   **This bar originally read `ContactSquaredDistance` and was vacuous.** Task 1
+   measured it as exactly zero on all twenty seeds, across 3,170,540 agent-ticks
+   in which a warrior held a living enemy target. The cause is structural rather
+   than a measurement defect: `CollisionGeometry.Overlaps` uses a strict `<`, so
+   the collision resolver guarantees no committed position ever sits below
+   `(2 * BodyRadiusRaw)^2 = 75,759,616`, while a tangency-inclusive contact test
+   is satisfied only at *exactly* that value. The closest any warrior came in
+   the whole matrix was 75,759,617 — one squared raw unit above it, never on it.
+   A bar comparing zero against ninety per cent of zero passes for any
+   behaviour whatsoever, including a behaviour that empties the battlefield.
+   Attack range is the non-degenerate form of the same question and is what the
+   bar now uses.
 5. **Movement must actually increase.** The rooted share — agent-ticks whose
    per-tick displacement is below the 60-raw gait threshold, divided by living
    agent-ticks — must fall **strictly below** V13's measured value. That is the
@@ -647,6 +660,34 @@ widen.**
    over.
 8. **Nothing already shipped may move.** The five gate baselines, the nine freeze
    fixtures, and all pinned trajectories of section 6 stay byte-identical.
+
+## 8.1 The measured V13 baseline
+
+Measured by `tests/Hukbo.Core.Tests/Movement/EvasionCalibrationHarness.cs` under
+`CohortLateralSpreadV13` and `PrecolonialPhilippinesV5`, 200 agents, seeds 1
+through 20, every other scenario field taken from `Scenario.CreateDefault`. The
+harness compiles only under the `HUKBO_CALIBRATION` symbol, so the gate never
+pays for it; it is re-run by hand for the V14 column at plan task 13.
+
+| Quantity | Pooled V13 value | The bar written against it |
+| --- | --- | --- |
+| Rooted share | 0.6221 (per-seed range 0.5188 to 0.6974) | must fall strictly below |
+| Travel per living agent | 559,764.96 raw | ceiling 727,694 raw (+30 per cent) |
+| Mean net displacement | 354,300.93 raw | ceiling 407,446 raw (+15 per cent) |
+| Reach retention | 385.88 agent-ticks per agent | floor 347.29 (90 per cent) |
+| Median terminal tick | 2081 (mean 2251.9) | ceiling 2601 (+25 per cent) |
+| Decisive seeds | 20 of 20, split 11 / 9 | at least 19 of 20, no seed at the cap |
+
+Raw pooled accumulators, so a later run can confirm it measured the same thing:
+`livingAgentTicks` 3,222,567; `rootedAgentTicks` 2,004,875; `totalTravelRaw`
+2,239,059,836; `netDisplacementSumRaw` 1,417,203,729; `targetHeldAgentTicks`
+3,170,540; `reachAgentTicks` 1,543,521; `spawnAgentSlots` 4000.
+
+Two observations worth carrying forward. **Nearly five ticks in eight are
+already rooted** under the shipped preset, which is the number behind the
+complaint this work answers. And **V13 is already 20-of-20 decisive**, not
+19-of-20, so the termination bar has no slack being spent before V14 starts —
+any seed that fails to decide under V14 is a regression V14 caused.
 
 ## 9. Open questions
 
