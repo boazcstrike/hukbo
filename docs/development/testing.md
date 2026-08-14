@@ -1361,6 +1361,118 @@ below where stage 5 used to sit and roughly a seventh of what the whole tick
 now costs.
 
 
+## Pawn gait leg-motion pixel measurement, 2026-08-14 (PV-6)
+
+No published source gives an on-screen pixel height below which drawn leg
+motion stops being worth animating, and two research passes looking for one
+both failed. `tests/Hukbo.Client.Tests/GaitPixelHeightTests.cs` measures the
+game's own numbers instead of guessing, and pins them so the table below
+cannot drift silently. Measured at commit `8ee5a51`. This is a measurement,
+not a tuning pass — no gait constant was changed to produce it.
+
+Five points on the zoom axis are covered: the two detail-tier boundaries
+(`PawnGeometry`'s `MediumDetailScale` = 0.95 and `HighDetailScale` = 1.80,
+PawnGeometry.cs:235-236) and the three camera stations
+`ConservativePawnCullTests` already names in its own review protocol — the
+camera's minimum and maximum zoom clamps, and the default-fit zoom the panel
+resolves for the tracked Phase 1 render baseline's 1920x1080 arena bounds
+(obtained in the test by calling `SpectatorCamera.Fit`, not by a copied
+literal). For each point, drawn leg height is
+`PawnGeometry.ToSize(LegLengthUnits * apparentScale)` (`LegLengthUnits` =
+7.5, PawnGeometry.cs:482), where `apparentScale` is read from
+`PawnGeometry.Create`'s own output rather than recomputed by hand. Peak foot
+travel is `strideRatio * legHeightPx` and peak foot lift is
+`liftRatio * legHeightPx`, both rounded with the same `MathF.Round` and no
+floor that `PawnGeometry.BuildLeg` itself uses (PawnGeometry.cs:1745) —
+unlike leg height, a foot travel or lift figure is allowed to round to zero
+pixels. Stride and lift ratios are `GaitGeometry`'s own constants:
+`WalkStrideRatio` = 0.32, `RunStrideRatio` = 0.60, `WalkFootLiftRatio` =
+0.15, `RunFootLiftRatio` = 0.38 (GaitGeometry.cs:63,70,73,80).
+
+| Tier boundary | Station | Gait | Apparent scale (unitless) | Leg height (px) | Foot travel (px) | Foot lift (px) |
+| --- | --- | --- | --- | --- | --- | --- |
+| — | Minimum-zoom station (camera zoom 0.05) | Walk | 0.72 (clamp floor — Low tier, legs do not draw) | 5 | 2 | 1 |
+| — | Minimum-zoom station (camera zoom 0.05) | Run | 0.72 (clamp floor — Low tier, legs do not draw) | 5 | 3 | 2 |
+| Low/Medium boundary | — | Walk | 0.95 | 7 | 2 | 1 |
+| Low/Medium boundary | — | Run | 0.95 | 7 | 4 | 3 |
+| — | Default-fit station (camera zoom ≈1.00787, 1920x1080 arena bounds) | Walk | ≈1.3606 | 10 | 3 | 2 |
+| — | Default-fit station (camera zoom ≈1.00787, 1920x1080 arena bounds) | Run | ≈1.3606 | 10 | 6 | 4 |
+| Medium/High boundary | — | Walk | 1.80 | 14 | 4 | 2 |
+| Medium/High boundary | — | Run | 1.80 | 14 | 8 | 5 |
+| — | Maximum-zoom station (camera zoom 12) | Walk | 2.40 (clamp ceiling) | 18 | 6 | 3 |
+| — | Maximum-zoom station (camera zoom 12) | Run | 2.40 (clamp ceiling) | 18 | 11 | 7 |
+
+**Reading this as a measurement, not a recommendation.** At every one of the
+five points, neither gait's foot travel nor its foot lift rounds below 1 px —
+the smallest nonzero figure recorded is 1 px, at the minimum-zoom station's
+Walk foot lift and at the Low/Medium boundary's Walk foot lift. Leg motion
+does not fade toward invisibility as apparent scale drops; it instead hits a
+step function. `PawnGeometry.CreateLegsAndFeet` returns an empty layout at
+`PawnDetailTier.Low` regardless of the leg-height figure this table computes
+for that tier (design section 9's Low-tier non-occlusion guarantee), so the
+minimum-zoom station's row above describes what the formula would produce,
+not what is drawn — at that station the legs do not draw at all, at any
+travel or lift. Confirmed directly:
+`GaitPixelHeightTests.MinimumZoomStation_LandsInLowTier_WhereLegsNeverDraw`,
+`DefaultFitStation_LandsInMediumTier`, and
+`MaximumZoomStation_LandsInHighTier`.
+
+## Canonical gate result — Hukbo, 2026-08-14 (isolated receipt at `8ee5a51`)
+
+This is the receipt the lethal blow legibility package's task table asked for
+and never obtained. That plan required one isolated green gate proving the
+change alone left the gate green. The attempt made on the day failed at the
+build stage on unrelated concurrent work, and the only green run available
+afterwards bundled the lethal blow change together with cohort lateral spread
+and other uncommitted work, which is strong evidence but is not the receipt the
+plan asked for.
+
+The run recorded here was made in a dedicated worktree checked out detached at
+`8ee5a51`, confirmed clean beforehand — `git status --porcelain` produced no
+output and `git rev-parse HEAD` returned
+`8ee5a51843073fc5f1c3e1555e1cbdb7ee6e8beb`. No task from the pawn visual
+fidelity package had run yet, so nothing in the tree was newer than the lethal
+blow work. The command was `./scripts/verify.ps1` with no flags, so all five
+stages ran, including the locked restore that `-SkipBootstrap` would have
+skipped. It exited with code 0.
+
+```
+[PASS] Platform: Windows x64
+[PASS] PowerShell: 7.6.4
+[PASS] git version 2.55.0.windows.3
+[PASS] Git LFS: installed (optional; no tracked LFS assets are currently required)
+[PASS] .NET SDK: 10.0.302
+[PASS] packages.lock.json present for all 21 projects.
+[PASS] MonoGame packages are centrally pinned: MonoGame.Content.Builder.Task 3.8.5, MonoGame.Framework.DesktopGL 3.8.5
+[PASS] Required prerequisites and repository configuration are present.
+[PASS] Locked package restore completed.
+[PASS] Formatting verification completed.
+[PASS] Release solution build completed.
+[PASS] Release repository tests completed.
+[PASS] Headless workload completed: agents=200 ticks=10000 seed=1.
+[PASS] Headless workload completed: agents=200 ticks=10000 seed=1.
+[PASS] Headless workload completed: agents=200 ticks=10000 seed=1.
+[PASS] Headless workload completed: agents=200 ticks=10000 seed=1.
+[PASS] Headless workload completed: agents=200 ticks=10000 seed=1.
+[PASS] Canonical repository verification completed.
+```
+
+**Stage five runs five headless workloads, not one.** Each is 200 agents,
+10,000 ticks, and seed 1, and each reported `deterministic: true` with a
+`firstMismatchTick` of `null`. They differ by preset pair, and a later claim
+that "the hashes are unchanged" has to name which of the five it means.
+
+| Combat preset | Movement preset | Outcome | State hash | Event hash |
+| --- | --- | --- | --- | --- |
+| 6 | 4 | `Faction0Victory` | `5460D13E3F7FD3E5` | `8E18ED1437B2924B` |
+| 5 | 8 | `Faction1Victory` | `C8023D3B5BEB005E` | `F709A345E2F7370E` |
+| 5 | 10 | `Faction0Victory` | `7C145A9E05916E4C` | `77626E104234206C` |
+| 5 | 11 | `Faction0Victory` | `6225182B4A470F91` | `C4DABE6AF98B6BEC` |
+| 5 | 13 | `Faction1Victory` | `4A0723BC9A1B924B` | `E0CE32CF8830A864` |
+
+The final row is the pair the recorded seed-1 baseline elsewhere in this
+document refers to.
+
 ## The interactive smoke checklist
 
 Moved to [smoke-checklist.md](smoke-checklist.md) on 2026-08-11.

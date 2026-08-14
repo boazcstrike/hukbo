@@ -36,28 +36,6 @@ public sealed partial class ArenaGame
         1_000_000.0 / Stopwatch.Frequency;
 
     /// <summary>
-    /// RU-25. The wooden-shaft tint drawn for every in-flight
-    /// <see cref="ProjectileFlight"/>, provisional gameplay presentation
-    /// rather than a historical measurement (CLAUDE.md section 7).
-    /// </summary>
-    private static readonly Color ProjectileShaftColor = new(214, 178, 122);
-
-    /// <summary>
-    /// The metal tint of a spear head and of a lead ball — darker and cooler
-    /// than <see cref="ProjectileShaftColor"/> so the two parts of a spear
-    /// read as two parts. Provisional gameplay presentation rather than a
-    /// historical measurement (CLAUDE.md section 7).
-    /// </summary>
-    private static readonly Color ProjectileHeadColor = new(168, 172, 178);
-
-    /// <summary>
-    /// The tint of an arrow's fletching. Pale enough to separate from
-    /// <see cref="ProjectileShaftColor"/> at the tail. Provisional gameplay
-    /// presentation rather than a historical measurement (CLAUDE.md section 7).
-    /// </summary>
-    private static readonly Color ProjectileFletchColor = new(236, 228, 208);
-
-    /// <summary>
     /// GPU-004. The instant the current arena span opened, moved forward by
     /// every boundary crossing inside <see cref="DrawArenaLayer"/>. Meaningful
     /// only while the render probe is enabled and only for the duration of one
@@ -432,12 +410,16 @@ public sealed partial class ArenaGame
     /// <summary>
     /// Recomputes each visible pawn's <see cref="PawnLayout"/> with the same
     /// inputs <see cref="DrawPawns"/> resolves — footAnchor, camera zoom,
-    /// appearance, swing pose, and every other pawn-geometry parameter left at
+    /// appearance, gait pose, and every other pawn-geometry parameter left at
     /// <see cref="DrawPawns"/>'s own implicit defaults — so
     /// <c>PawnQuadCount.Count</c>'s result matches what
-    /// <c>PawnRenderer.Draw</c> actually emits for that pawn this frame.
-    /// Mirrors <see cref="DrawPawns"/>'s two-stage geometry path element for
-    /// element, so the two passes cull the same agents.
+    /// <c>PawnRenderer.Draw</c> actually emits for that pawn this frame. Not
+    /// yet a literal element-for-element mirror of <see cref="DrawPawns"/>'s
+    /// two-stage geometry path: <see cref="DrawPawns"/> also resolves a
+    /// ranged pose and gates the attack pose on
+    /// <c>RangedPoseResolver.SuppressesSwing</c>, neither of which this
+    /// method reproduces. It does share <see cref="DrawPawns"/>'s cull
+    /// rectangle logic, so the two passes cull the same agents.
     /// </summary>
     private void RecordPawnQuads(Rectangle arenaBounds)
     {
@@ -545,9 +527,20 @@ public sealed partial class ArenaGame
                 _attackPoses.TryGetValue(agent.EntityId, out var pose)
                 ? pose
                 : (AttackPose?)null;
+
+            // Resolved the same way DrawPawns resolves it (see that method's
+            // own remark): the gait store already gates its own entries on
+            // IsAlive, so GaitPoseResolver.TryGetPose returns false for a
+            // dead agent without this method duplicating that gate.
+            var gaitPose = GaitPoseResolver.TryGetPose(
+                _gaitPoses,
+                agent.EntityId,
+                out var resolvedGaitPose)
+                ? resolvedGaitPose
+                : (GaitPose?)null;
             var layout = pawnPrefix.CompleteAttackPosedLayout(
                 attackPose,
-                gaitPose: null,
+                gaitPose,
                 ResolveReactionOffset(agent.EntityId),
                 rangedPose: null,
 
@@ -979,17 +972,7 @@ public sealed partial class ArenaGame
     }
 
     private static Color GetProjectileElementColor(ProjectilePropElementKind kind) =>
-        kind switch
-        {
-            ProjectilePropElementKind.Shaft => ProjectileShaftColor,
-            ProjectilePropElementKind.Head => ProjectileHeadColor,
-            ProjectilePropElementKind.Fletch => ProjectileFletchColor,
-            ProjectilePropElementKind.Ball => ProjectileHeadColor,
-            _ => throw new ArgumentOutOfRangeException(
-                nameof(kind),
-                kind,
-                null),
-        };
+        ProjectilePalette.GetColor(kind);
 
     private void DrawMapSurface(
         SpriteBatch spriteBatch,
@@ -1403,6 +1386,12 @@ public sealed partial class ArenaGame
                 brokeOffUnderPressure: agent.BrokeOffUnderPressure);
 
             DrawEmbeddedProjectiles(spriteBatch, pixel, agent.EntityId, pawnLayout);
+
+            // PV-11. This pawn reached an actual draw call this frame, dead
+            // pass or alive pass either one, so any latched attack contact of
+            // its is eligible to release when AcknowledgeAttackDraw runs
+            // below. See AttackFrameCoordinator.RecordDrawn.
+            _presentation.RecordPawnDrawn(agent.EntityId);
 
             OpenArenaGeometrySpan();
         }

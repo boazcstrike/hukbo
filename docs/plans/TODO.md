@@ -108,3 +108,51 @@ is not authorized work; it is a reminder that the question was decided
   engagement on the placeholder map takes proportionally longer to resolve. The
   real fix is a scenario system that carries health per spawn rather than a
   single constant for every operator on the map.
+
+## From the pawn visual fidelity package (2026-08-14)
+
+- **The collapsed contact bundle's behavioural fix.** The deferred path has
+  never been observed firing in a real run, and changing the tuning of a
+  path that has never fired would be a change made without measurement. The
+  precondition is the characterization test added on 2026-08-14,
+  `Coalesce_SilentlyDropsEveryPresentationCueOfTheDiscardedBundle` in
+  `tests/Hukbo.Client.Tests/Presentation/AttackContactDispatcherTests.cs`,
+  which records that a discarded bundle costs its weapon cue, its death cue,
+  its blood, its defender reaction, and its clash effect. The same
+  characterization also recorded what the collapse diagnostic actually logs:
+  it carries the REPLACING contact's sequence and tick, not the discarded
+  contact's, at `AttackContactDispatcher.cs:283` and `:298`, so the log keeps
+  no trace of what was thrown away. Context: task PV-12 of the pawn visual fidelity plan.
+- **AA-22's first contributor, the sub-pixel arm question.** Deferred because
+  the premise is false on disk. Arms are gated at `PawnDetailTier.Low`
+  (`PawnGeometry.cs:1380`), not below a 1.35 camera zoom — the 1.35 the
+  backlog points at is `ZoomScale` at `PawnGeometry.cs:234`, a different
+  constant that happens to share the value. And
+  `MathF.Max(ArmMinimumHalfWidthPixels, ArmHalfWidthUnits * scale)` at
+  `PawnGeometry.cs:1398` (with the two constants defined at `:289` and
+  `:286`) already floors a full arm stroke at 1.2 pixels, so it is never
+  sub-pixel. Context: task PV-12 of the pawn visual fidelity plan.
+- **The `ConservativePawnCull` wiring decision.** Wiring `ConservativePawnCull`
+  into the pawn draw loop cannot close AA-24, because the type's own remarks
+  say its bound is "a genuine superset, never a replacement" and that
+  "nothing here may ever be used as the only cull" — wiring it draws exactly
+  the same pawns the exact test already draws, so it is a performance change
+  at best, never a correctness or visibility one. The wiring decision itself
+  is handed to the thousand-unit performance plan, which owns the whole-screen
+  submission-count question (97,968 quads measured at 200 agents, 106,068 at
+  500) that wiring would have to be justified against. Context: task PV-5 of the pawn visual fidelity plan, handing off to
+  [`2026-08-14-thousand-unit-performance.md`](2026-08-14-thousand-unit-performance.md).
+- **Effect-pool capacity sizing.** The five presentation effect pools —
+  hit-effect, blood burst, blood ground mark, blood spurt, and clash
+  effect — all share one capacity, `PawnAppearanceCache.Capacity`, because
+  `PresentationCoordinator` defaults every one of their capacity parameters
+  to it and `ArenaGame` overrides only `projectileCapacity`, leaving the
+  other four at that shared default. One consequence already measured: hit
+  effects alone contribute 60,000 of the 97,968-quad whole-screen worst case
+  at 200 units, because a lethal hit effect's fixed ring-segment count is
+  multiplied by that shared capacity rather than by anything sized for
+  effects. Whether each pool should carry its own capacity, independent of
+  `PawnAppearanceCache.Capacity`, is not decided here. Also recorded:
+  `BloodEffectSystem`'s own constructor defaults of 256, 384, and 32 are dead
+  in production, because every caller that matters goes through
+  `PresentationCoordinator`, which never uses them. Context: task PV-12 of the pawn visual fidelity plan.

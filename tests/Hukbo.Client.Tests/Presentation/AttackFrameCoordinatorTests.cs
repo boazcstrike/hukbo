@@ -56,6 +56,7 @@ public sealed class AttackFrameCoordinatorTests
         Assert.Equal(0f, latched.AgeSeconds);
         Assert.True(coordinator.HasUndrawnContacts);
 
+        coordinator.RecordDrawn(2);
         Assert.Equal(1, coordinator.AcknowledgeDraw());
         Assert.Equal(first.Sequence, latched.Sequence);
         var second = Assert.Single(
@@ -67,6 +68,54 @@ public sealed class AttackFrameCoordinatorTests
         Assert.Equal(2, second.Sequence);
         Assert.Equal(2, Assert.Single(
             coordinator.Animations.ActiveAnimations.ToArray()).Sequence);
+    }
+
+    [Fact]
+    public void AcknowledgeDraw_SurvivesAFrameWhoseAttackerPawnWasNeverDrawn()
+    {
+        var coordinator = new AttackFrameCoordinator(attackerCapacity: 1);
+        coordinator.Ingest([AttackEvent(sequence: 1, attacker: 2, defender: 7)]);
+        AgentView[] agents = [Agent(2, 0), Agent(7, 300)];
+
+        coordinator.ReleaseForDraw(agents, MotionIntensity.Full, allowRelease: true).ToArray();
+
+        // Deliberately no RecordDrawn(2) call — this is the cull-rejected
+        // case: the pawn's contact latched, but nothing in this frame's draw
+        // pass reached PawnRenderer.DrawLayout for it.
+        Assert.Equal(0, coordinator.AcknowledgeDraw());
+
+        Assert.True(coordinator.Animations.TryGetAnimation(2, out var animation));
+        Assert.True(animation.AwaitingDrawAcknowledgement);
+        Assert.True(coordinator.Dispatcher.TryGetLatched(2, out _));
+        Assert.True(coordinator.HasUndrawnContacts);
+    }
+
+    [Fact]
+    public void AcknowledgeDraw_ForcesOpenALatchAfterMaximumLatchFramesOfNeverBeingDrawn()
+    {
+        var coordinator = new AttackFrameCoordinator(attackerCapacity: 1);
+        coordinator.Ingest([AttackEvent(sequence: 1, attacker: 2, defender: 7)]);
+        AgentView[] agents = [Agent(2, 0), Agent(7, 300)];
+
+        coordinator.ReleaseForDraw(agents, MotionIntensity.Full, allowRelease: true).ToArray();
+
+        // MaximumLatchFrames is 5 today, tied to
+        // AttackContactDispatcher.MaximumPendingContactsPerAttacker. Asserted
+        // as a literal so a change to that constant is caught here rather
+        // than silently tracked by this test.
+        const int maximumLatchFrames = 5;
+        for (var frame = 0; frame < maximumLatchFrames - 1; frame++)
+        {
+            Assert.Equal(0, coordinator.AcknowledgeDraw());
+        }
+
+        Assert.True(coordinator.Animations.TryGetAnimation(2, out _));
+
+        Assert.Equal(1, coordinator.AcknowledgeDraw());
+        Assert.True(coordinator.Animations.TryGetAnimation(2, out var releasedAnimation));
+        Assert.False(releasedAnimation.AwaitingDrawAcknowledgement);
+        Assert.Equal(0, coordinator.Dispatcher.LatchedCount);
+        Assert.False(coordinator.HasUndrawnContacts);
     }
 
     [Fact]

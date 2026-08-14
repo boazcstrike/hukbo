@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Hukbo.Client.Audio;
 using Hukbo.Client.Presentation;
 using Hukbo.Core.Combat;
 using Hukbo.Core.Simulation;
@@ -123,6 +124,214 @@ public sealed class AttackContactDispatcherTests
         Assert.Equal(BodyPart.Neck, replacement.HitLocation);
         Assert.Equal(AttackResolution.Landed, replacement.Resolution);
         Assert.Equal(6, replacement.ComboPosition);
+    }
+
+    /// <summary>
+    /// CHARACTERIZATION TEST — records a known defect, not desired
+    /// behaviour. It does not fix anything.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// When a seventh-attacker-relative sixth contact overflows the
+    /// five-slot-per-attacker pool, <c>Add</c> calls <c>ReplacePending</c>
+    /// (<c>src/Hukbo.Client/Presentation/AttackContactDispatcher.cs:237,277</c>),
+    /// which overwrites the discarded bundle's array slot in place. The
+    /// discarded <see cref="AttackContactBundle"/> is never latched, never
+    /// drained, and never logged by identity — <c>ReportCollapsed</c> logs
+    /// the sequence and tick of the <em>replacing</em> contact, not the
+    /// discarded one, so even the diagnostic line keeps no trace of what was
+    /// thrown away. Every presentation channel that would have read that
+    /// bundle — the weapon sound, the death sound, the blood spray, the
+    /// clash spark, the defender's flinch — silently loses its cue for that
+    /// contact.
+    /// </para>
+    /// <para>
+    /// A single discarded bundle cannot exercise both the blood channel and
+    /// the clash channel at once: <see cref="BloodEffectSystem.StartContact"/>
+    /// only starts a burst for <see cref="AttackResolution.Landed"/>, and
+    /// <see cref="ClashEffect.FiresFor"/> is documented to fire for neither a
+    /// landed blow nor a void. This test therefore overflows two independent
+    /// attacker pools — one landed-and-lethal bundle to cover the weapon,
+    /// death, blood, and defender-reaction channels, and one shield-blocked
+    /// bundle to cover the clash channel — and asserts each channel's loss
+    /// as its own, separately failing assertion.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void Coalesce_SilentlyDropsEveryPresentationCueOfTheDiscardedBundle()
+    {
+        var writer = new StringWriter();
+        using var diagnostics = DiagnosticLog.CreateForWriter(
+            new LogOptions(LogLevel.Debug, LogChannel.Render, null),
+            writer);
+        var dispatcher = new AttackContactDispatcher(
+            attackerCapacity: 2,
+            diagnostics);
+
+        // Attacker 2 fills its five-contact pool, its fifth (newest, about
+        // to be evicted) contact lands and is then marked lethal, and a
+        // sixth attack forces the eviction.
+        // Attacker 3 fills its own five-contact pool, its fifth (newest)
+        // contact is shield-blocked, and a sixth attack forces its eviction.
+        dispatcher.Ingest(
+        [
+            AttackEvent(1, 1, 2, 10, damage: 0, resolution: AttackResolution.Evaded),
+            AttackEvent(2, 2, 2, 11, damage: 0, resolution: AttackResolution.Evaded),
+            AttackEvent(3, 3, 2, 12, damage: 0, resolution: AttackResolution.Evaded),
+            AttackEvent(4, 4, 2, 13, damage: 0, resolution: AttackResolution.Evaded),
+            AttackEvent(
+                5,
+                5,
+                2,
+                14,
+                damage: 17,
+                weapon: WeaponId.Wasay,
+                hitLocation: BodyPart.Neck,
+                resolution: AttackResolution.Landed),
+            DeathEvent(6, 5, 14),
+            AttackEvent(
+                7,
+                6,
+                2,
+                20,
+                damage: 0,
+                weapon: WeaponId.Itak,
+                resolution: AttackResolution.Evaded),
+            AttackEvent(11, 1, 3, 30, damage: 0, resolution: AttackResolution.Evaded),
+            AttackEvent(12, 2, 3, 31, damage: 0, resolution: AttackResolution.Evaded),
+            AttackEvent(13, 3, 3, 32, damage: 0, resolution: AttackResolution.Evaded),
+            AttackEvent(14, 4, 3, 33, damage: 0, resolution: AttackResolution.Evaded),
+            AttackEvent(
+                15,
+                5,
+                3,
+                34,
+                damage: 0,
+                weapon: WeaponId.Kalis,
+                shield: ShieldId.TallHardwood,
+                hitLocation: BodyPart.WeaponArm,
+                resolution: AttackResolution.ShieldBlocked),
+            AttackEvent(
+                16,
+                6,
+                3,
+                40,
+                damage: 0,
+                weapon: WeaponId.Itak,
+                resolution: AttackResolution.Evaded),
+        ]);
+
+        Assert.Equal(2, dispatcher.CollapsedContactCount);
+
+        // The discarded bundles are reconstructed here from the dispatcher's
+        // own, already-verified construction rule (TryCreateBundle plus
+        // MarkLethal) because the dispatcher provides no way to recover
+        // them once overwritten — that inability is exactly the defect.
+        var discardedLandedLethal = new AttackContactBundle(
+            Sequence: 5,
+            Tick: 5,
+            AttackerEntityId: 2,
+            DefenderEntityId: 14,
+            Damage: 17,
+            FactionId: 0,
+            Weapon: WeaponId.Wasay,
+            AttackerShield: ShieldId.None,
+            HitLocation: BodyPart.Neck,
+            Resolution: AttackResolution.Landed,
+            ComboPosition: null,
+            IsLethal: true);
+        var discardedShieldBlocked = new AttackContactBundle(
+            Sequence: 15,
+            Tick: 5,
+            AttackerEntityId: 3,
+            DefenderEntityId: 34,
+            Damage: 0,
+            FactionId: 0,
+            Weapon: WeaponId.Kalis,
+            AttackerShield: ShieldId.TallHardwood,
+            HitLocation: BodyPart.WeaponArm,
+            Resolution: AttackResolution.ShieldBlocked,
+            ComboPosition: null,
+            IsLethal: false);
+
+        var attacker = Agent(entityId: 2, xRaw: 0, yRaw: 0);
+        var defender = Agent(entityId: 14, xRaw: 100, yRaw: 100, isAlive: false);
+
+        // Channel 1: weapon cue. The discarded bundle carried a real,
+        // non-null attack sound that will now never play.
+        var soundRequest = SoundCueMapper.MapContact(discardedLandedLethal);
+        Assert.Equal(GameSoundId.AttackWasay, soundRequest.Contact);
+
+        // Channel 2: death cue. The bundle was marked lethal before it was
+        // overwritten, so the owned Death cue it earned is lost with it.
+        Assert.Equal(GameSoundId.Death, soundRequest.Lethal);
+
+        // Channel 3: blood. A landed, lethal bundle starts a burst carrying
+        // its own weapon, hit location, and lethal tier; none of that ever
+        // reaches BloodEffectSystem for this contact.
+        var blood = new BloodEffectSystem();
+        blood.StartContact(discardedLandedLethal, attacker, defender);
+        var burst = Assert.Single(blood.ActiveBursts.ToArray());
+        Assert.Equal(WeaponId.Wasay, burst.Weapon);
+        Assert.Equal(BodyPart.Neck, burst.HitLocation);
+        Assert.True(burst.IsLethal);
+
+        // Channel 4: defender reaction. The defender's flinch is keyed on
+        // this exact contact; it never reaches DefenderReactionSystem.
+        var reactions = new DefenderReactionSystem(capacity: 1);
+        reactions.StartContact(discardedLandedLethal, attacker, defender);
+        var reaction = Assert.Single(reactions.ActiveReactions.ToArray());
+        Assert.Equal(14UL, reaction.DefenderEntityId);
+        Assert.True(reaction.IsLethal);
+
+        // Channel 5: clash. The shield-blocked bundle from the second
+        // attacker pool would have put a clash spark on screen; it is
+        // discarded before any renderer ever sees it.
+        Assert.True(ClashEffect.FiresFor(discardedShieldBlocked.Resolution));
+
+        // The dispatcher itself never yields either discarded sequence,
+        // under any drain order.
+        var survivors = Drain(dispatcher).Select(contact => contact.Sequence).ToArray();
+        Assert.DoesNotContain(5L, survivors);
+        Assert.DoesNotContain(15L, survivors);
+
+        // Even the diagnostic line keeps no trace of the discarded bundle's
+        // own identity: it logs the sequence and tick of the contact that
+        // replaced it, not the one that was lost.
+        var lines = writer.ToString().Split(
+            '\n',
+            StringSplitOptions.RemoveEmptyEntries);
+        Assert.Equal(2, lines.Length);
+
+        using var firstCollapse = JsonDocument.Parse(lines[0]);
+        var firstRoot = firstCollapse.RootElement;
+        Assert.Equal(
+            LogEvents.RenderAttackContactCollapsed,
+            firstRoot.GetProperty("ev").GetString());
+        Assert.Equal("dbg", firstRoot.GetProperty("lvl").GetString());
+        Assert.Equal(2UL, firstRoot.GetProperty("attackerId").GetUInt64());
+        Assert.Equal(1, firstRoot.GetProperty("collapsedCount").GetInt32());
+        Assert.Equal(7, firstRoot.GetProperty("sequence").GetInt64());
+        Assert.Equal(6, firstRoot.GetProperty("tick").GetInt64());
+
+        using var secondCollapse = JsonDocument.Parse(lines[1]);
+        var secondRoot = secondCollapse.RootElement;
+        Assert.Equal(
+            LogEvents.RenderAttackContactCollapsed,
+            secondRoot.GetProperty("ev").GetString());
+        Assert.Equal("dbg", secondRoot.GetProperty("lvl").GetString());
+        Assert.Equal(3UL, secondRoot.GetProperty("attackerId").GetUInt64());
+        Assert.Equal(2, secondRoot.GetProperty("collapsedCount").GetInt32());
+        Assert.Equal(16, secondRoot.GetProperty("sequence").GetInt64());
+        Assert.Equal(6, secondRoot.GetProperty("tick").GetInt64());
+
+        // The event identifier's real wire value, pinned so a reader chasing
+        // it (for example the attack-animation-v2 backlog, which currently
+        // greps the wrong string "render.attack.contact.collapsed") lands on
+        // the identifier that actually appears in a log line.
+        Assert.Equal(
+            "render.attackContactCollapsed",
+            LogEvents.RenderAttackContactCollapsed);
     }
 
     [Fact]
@@ -373,4 +582,24 @@ public sealed class AttackContactDispatcherTests
             targetEntityId: null,
             value: 0,
             factionId: null);
+
+    private static AgentView Agent(
+        ulong entityId,
+        int xRaw,
+        int yRaw,
+        bool isAlive = true) =>
+        new(
+            entityId,
+            FactionId: 0,
+            xRaw,
+            yRaw,
+            HitPoints: isAlive ? 100 : 0,
+            MaximumHitPoints: 100,
+            TargetEntityId: null,
+            Intent: AgentIntent.Idle,
+            isAlive,
+            new CombatLoadout(
+                WeaponId.Kampilan,
+                ArmorId.LightOrganic,
+                ShieldId.None));
 }

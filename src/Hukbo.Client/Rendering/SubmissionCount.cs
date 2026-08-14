@@ -642,4 +642,92 @@ internal static class RenderBudgetEstimate
     /// two-element shape an arrow draws in flight.
     /// </summary>
     internal const int EmbeddedProjectileQuadsPerProjectile = 2;
+
+    /// <summary>
+    /// Worst-case quad cost of one live <c>HitEffect</c>, derived from
+    /// <c>HitEffectRenderer.Draw</c> and <c>HitEffectGeometry.Create</c>: a
+    /// lethal effect draws a primary ring of 28 stroked segments, a secondary
+    /// ring of 20 more (only <c>RingCount == 2</c>, which only a lethal
+    /// effect reaches), plus its full 12-shard <c>ShardCount</c> — a lethal
+    /// effect's <c>VisibleShardCount</c> is never reduced, unlike an
+    /// ordinary hit's. 28 + 20 + 12 = 60. An ordinary hit is cheaper (an
+    /// 18-segment ring plus at most 6 shards), so the lethal case is the
+    /// bound.
+    /// </summary>
+    internal const int HitEffectQuadsPerHitEffect = 60;
+
+    /// <summary>
+    /// Worst-case quad cost of one live <c>BloodBurst</c>, derived from
+    /// <c>BloodRenderer.DrawBursts</c> and <c>BloodGeometry.Create</c>: one
+    /// stroked line per droplet, up to <c>BloodGeometry</c>'s own
+    /// <c>MaximumDropletCount</c> of 12.
+    /// </summary>
+    internal const int BloodBurstQuadsPerBurst = 12;
+
+    /// <summary>
+    /// Worst-case quad cost of one live <c>GroundMark</c>, derived from
+    /// <c>BloodRenderer.DrawGroundMarks</c> and
+    /// <c>BloodGeometry.CreateGroundMark</c>: one filled blot per blot, up to
+    /// <c>BloodGeometry</c>'s own <c>DenseBlotCount</c> of 3, the dense-gore
+    /// case.
+    /// </summary>
+    internal const int BloodGroundMarkQuadsPerMark = 3;
+
+    /// <summary>
+    /// Worst-case quad cost of one live <c>LethalSpurt</c>, derived from
+    /// <c>BloodRenderer.DrawSpurts</c> (called from <c>DrawBursts</c>) and
+    /// <c>BloodGeometry.CreateSpurt</c>: one stroked line per strand, up to
+    /// <c>BloodGeometry</c>'s own fixed <c>SpurtStrandCount</c> of 10.
+    /// </summary>
+    internal const int BloodSpurtQuadsPerSpurt = 10;
+
+    /// <summary>
+    /// Quad cost of one live <c>ClashEffect</c>, derived from
+    /// <c>ClashEffectRenderer.Draw</c>: exactly two stroked lines forming the
+    /// crossed spark, unconditionally, for every resolution the effect
+    /// fires for.
+    /// </summary>
+    internal const int ClashEffectQuadsPerEffect = 2;
+
+    /// <summary>
+    /// Whole-screen effect-pool quad ceiling at 200 visible units (pawn
+    /// worst case, backdrop worst case, and every fixed-capacity effect pool
+    /// — blood bursts, blood ground marks, lethal spurts, hit effects, clash
+    /// effects, dust, trample marks, in-flight projectiles, embedded
+    /// projectiles — simultaneously at its own capacity, measured
+    /// 2026-08-14 at 97,968 quads by
+    /// <c>RenderBudgetEstimateTests.WholeScreenEffectPoolWorstCaseArithmetic_FitsWithinTheWholeScreenEstimateAt200And500Units</c>).
+    /// Set with roughly 5% headroom over that measurement, at 103_000. This
+    /// is a distinct ceiling from <see cref="ArenaBatchQuadsAt200UnitsEstimate"/>:
+    /// the arena-batch ceiling bounds pawns and backdrop only, and was never
+    /// meant to also carry every effect pool at its own capacity — no such
+    /// combined bound existed before this constant.
+    /// <para>
+    /// This is an arithmetic upper bound, not a frame budget, and it must
+    /// never be read as available headroom. Every pool would have to be full
+    /// at the same instant, with every hit effect on its lethal geometry, for
+    /// a frame to approach it; the largest frame actually measured at 500
+    /// units was 9,246 quads. What the bound is for is making growth visible:
+    /// adding a pool, raising a capacity, or enriching an effect's geometry
+    /// moves it, and the test that asserts it names every term it summed.
+    /// </para>
+    /// <para>
+    /// One pool dominates. Hit effects alone account for 60,000 of the 97,968,
+    /// because a lethal hit effect's ring segment counts are fixed regardless
+    /// of detail tier or camera zoom, and the pool's capacity is sized from
+    /// <c>PawnAppearanceCache.Capacity</c> rather than from anything about
+    /// effects. That is worth knowing before anyone tries to reduce this
+    /// number by trimming a different pool.
+    /// </para>
+    /// </summary>
+    internal const int WholeScreenEffectPoolQuadsAt200UnitsEstimate = 103_000;
+
+    /// <summary>
+    /// Whole-screen effect-pool quad ceiling at 500 visible units, the same
+    /// stacked worst case as
+    /// <see cref="WholeScreenEffectPoolQuadsAt200UnitsEstimate"/> with the
+    /// per-pawn term scaled to 500 units instead of 200, measured 2026-08-14
+    /// at 106,068 quads. Set with roughly 5% headroom, at 111_500.
+    /// </summary>
+    internal const int WholeScreenEffectPoolQuadsAt500UnitsEstimate = 111_500;
 }

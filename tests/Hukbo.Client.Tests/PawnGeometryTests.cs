@@ -163,19 +163,13 @@ public sealed class PawnGeometryTests
                     MathF.Sin(radians));
                 var pose = new AttackPose(
                     AttackAnimationPhase.Contact,
-                    Forward: direction,
-                    Right: new Vector2(-direction.Y, direction.X),
                     TorsoOffset: Vector2.Zero,
                     TorsoRotationRadians: 0f,
                     StanceWeight: 1f,
                     WeaponHand: Vector2.Zero,
-                    SupportHand: Vector2.Zero,
                     HasSupportHand: false,
                     WeaponTip: direction * 1.15f,
-                    TrailStart: Vector2.Zero,
-                    TrailEnd: direction,
                     TrailStrength: 1f,
-                    ShieldHand: Vector2.Zero,
                     HasShield: false,
                     AttackResolution.Landed,
                     IsLethal: false);
