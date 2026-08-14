@@ -362,7 +362,7 @@ public sealed class SoundManifestTests
     /// no fewer. This is the number the task's "done when" calls "the row
     /// count the catalog declares": 114 since 2026-08-14 and 106 before it,
     /// not the 484 the plan row and the design document both still say, and
-    /// not the 572 individual variant files those 114 rows expand to
+    /// not the 577 individual variant files those 114 rows expand to
     /// (asserted separately below).
     /// </summary>
     [Fact]
@@ -394,10 +394,11 @@ public sealed class SoundManifestTests
 
     /// <summary>
     /// The sum of every row's variant count is the true number of individual
-    /// files a full generation run would produce: 572, not the plan row's
+    /// files a full generation run would produce: 577, not the plan row's
     /// and the design document's 484, not the 524 an earlier revision of this
-    /// catalog declared, and not the 540 that stood until 2026-08-14. Two
-    /// separate edits carried it here. The first raised four single-shot
+    /// catalog declared, not the 540 that stood until 2026-08-14, and not the
+    /// 572 that stood until 2026-08-15. Three separate edits carried it here.
+    /// The first raised four single-shot
     /// gun-report rows — 7.62x39 and 9x19, each in close-dry and indoor-tail —
     /// from 6 declared takes to 10, since those four rows are the only ones
     /// with real generated audio on disk; see
@@ -408,18 +409,22 @@ public sealed class SoundManifestTests
     /// closing a <c>KeyNotFoundException</c> an automatic-capable pistol would
     /// have hit on its first round. That adds eight rows — two calibers, two
     /// environments, loop and tail — of four variants each, so 106 rows
-    /// expanding to 540 files became 114 rows expanding to 572.
+    /// expanding to 540 files became 114 rows expanding to 572. The third,
+    /// on 2026-08-15, raised 7.62x39 close-dry alone from ten declared takes
+    /// to fifteen, matching five further generated files kept from a run that
+    /// asked for audible bolt-carrier cycling after the report; the row count
+    /// is unchanged at 114 and no other row moved.
     /// <b>Declaring a row generates nothing.</b> No ElevenLabs spend is
     /// authorized by this number; it is the size of a hypothetical full run.
     /// Pinned here so a catalog edit that moves it is caught by a red test
     /// rather than a stale document.
     /// </summary>
     [Fact]
-    public void TotalVariantFileCountIsFiveHundredSeventyTwo()
+    public void TotalVariantFileCountIsFiveHundredSeventySeven()
     {
         var totalVariants = SandataSoundCatalog.Rows.Sum(row => (int)row.VariantCount);
 
-        Assert.Equal(572, totalVariants);
+        Assert.Equal(577, totalVariants);
     }
 
     /// <summary>
@@ -452,7 +457,14 @@ public sealed class SoundManifestTests
             if (isElevatedRow)
             {
                 elevatedRows++;
-                Assert.Equal(10, row.VariantCount);
+
+                // 7.62x39 close-dry is the one row with fifteen files rather
+                // than ten, per SandataSoundCatalog's AkCloseDryVariantCount.
+                var expected = caliber == CaliberFamily.Cal762X39 && row.Environment == SoundEnvironment.CloseDry
+                    ? 15
+                    : 10;
+
+                Assert.Equal(expected, row.VariantCount);
             }
             else
             {

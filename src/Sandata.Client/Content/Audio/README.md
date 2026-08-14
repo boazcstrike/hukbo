@@ -19,14 +19,16 @@ in the two acoustic environments an interior map reaches.
 
 | Slot | Files | Weapon it serves |
 | --- | --- | --- |
-| `gun-762x39-single-close` | 10 | AK-pattern rifle, 7.62x39mm, fired in the open |
+| `gun-762x39-single-close` | 15 | AK-pattern rifle, 7.62x39mm, fired in the open |
 | `gun-762x39-single-indoor` | 10 | the same rifle, fired inside the house |
 | `gun-9x19-single-close` | 10 | Glock-pattern pistol, 9x19mm, fired in the open |
 | `gun-9x19-single-indoor` | 10 | the same pistol, fired inside the house |
 
-Forty files. These four rows are the only ones in the whole 106-slot catalog
+Forty-five files. These four rows are the only ones in the whole 106-slot catalog
 that declare more than the ordinary six variants — `SandataSoundCatalog`
-raised each of them from six to ten on 2026-08-12 — and they are also the only
+raised each of them from six to ten on 2026-08-12, and raised
+`gun-762x39-single-close` alone from ten to fifteen on 2026-08-15 — and they
+are also the only
 rows in that catalog with a single real file on disk. That is not a
 coincidence.
 `ShotSlotResolver` picks a variant uniformly across a row's declared
@@ -73,6 +75,25 @@ snap with a distinct slide clack, in both cases carried through the same
 outdoor and indoor microphone treatment as the first batch. The existing
 twenty-four were left untouched and stayed in rotation; the sixteen new takes
 extend the same four rows rather than replacing anything.
+
+**The next five (variants 11 through 15 of `gun-762x39-single-close` only),
+generated 2026-08-15.** The request was for a take whose mechanical action is
+audible in its own right — the bolt carrier travelling back, the steel-on-steel
+clack and rattle, and the bolt snapping forward into battery — rather than a
+report alone. Ten takes were generated at 1.5 seconds instead of the earlier
+1.0, which is what gives the model room to place the cycling after the crack;
+five were kept and five discarded by ear. The existing ten were left untouched
+and stay in rotation, so this row now holds fifteen takes while the other three
+still hold ten.
+
+**A prompt of more than 450 characters is rejected outright.** The 2026-08-15
+run was first written as an 800-character description and every request came
+back `400 Bad Request` with `"code": "text_too_long"` and
+`"expected a maximum number of 450 characters"`. `sfx.ps1` does not surface
+that body in `-Batch` mode — it reports only the status code — so the failure
+looks like a network problem until the same request is sent by hand. Keep a
+prompt under 450 characters and spend the budget on the sound itself rather
+than on negations.
 
 **Prompt wording decides whether a take is audible at all, and this cost real
 credits to learn.** The first prompts written for the 2026-08-11 run described

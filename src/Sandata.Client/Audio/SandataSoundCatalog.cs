@@ -59,6 +59,19 @@ internal static class SandataSoundCatalog
     /// </summary>
     private const byte GeneratedGunReportVariantCount = 10;
 
+    /// <summary>
+    /// The declared take count for 7.62x39 close-dry alone, which has fifteen
+    /// real takes on disk rather than ten: the ten generated on 2026-08-11 and
+    /// 2026-08-12, plus five kept from the 2026-08-15 run that asked for
+    /// audible bolt-carrier cycling after the report. This is a separate
+    /// constant from <see cref="GeneratedGunReportVariantCount"/> rather than a
+    /// raise of it, because the other three generated rows still have ten files
+    /// each and <see cref="ShotSlotResolver"/> plays any variant a row claims to
+    /// have — one shared constant raised to fifteen would make five shots in
+    /// every fifteen silent on those rows.
+    /// </summary>
+    private const byte AkCloseDryVariantCount = 15;
+
     // Dimension sizes for the flat lookup index below. FamilyKeySpan is sized
     // to the widest FamilyKey axis in use (CaliberFamily, at 8 members) so
     // every family fits in the same flat array without a per-family shape.
@@ -333,9 +346,7 @@ internal static class SandataSoundCatalog
         {
             foreach (var environment in AllRealEnvironments())
             {
-                var variantCount = IsGeneratedGunReportRow(caliber, environment)
-                    ? GeneratedGunReportVariantCount
-                    : OrdinaryVariantCount;
+                var variantCount = GetSingleShotVariantCount(caliber, environment);
 
                 rows.Add(new SoundSlot(
                     SoundFamily.GunReport,
@@ -346,6 +357,25 @@ internal static class SandataSoundCatalog
                     GunReportTailTicks));
             }
         }
+    }
+
+    /// <summary>
+    /// How many numbered takes one single-shot gun-report row declares. Three
+    /// tiers, each backed by what is actually on disk: 7.62x39 close-dry has
+    /// fifteen files, the other three generated rows have ten, and every
+    /// remaining caliber and environment has none at all and keeps the
+    /// theoretical placeholder.
+    /// </summary>
+    private static byte GetSingleShotVariantCount(CaliberFamily caliber, SoundEnvironment environment)
+    {
+        if (caliber == CaliberFamily.Cal762X39 && environment == SoundEnvironment.CloseDry)
+        {
+            return AkCloseDryVariantCount;
+        }
+
+        return IsGeneratedGunReportRow(caliber, environment)
+            ? GeneratedGunReportVariantCount
+            : OrdinaryVariantCount;
     }
 
     /// <summary>

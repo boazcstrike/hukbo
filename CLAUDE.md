@@ -524,9 +524,10 @@ presentation-only), `game-ui-ux` (HUD anchoring, controller focus),
   both since 2026-08-14, but they remain two workloads with two results, and
   `-Game Hukbo` still runs Hukbo alone.
 - Run `./scripts/sfx.ps1` for Sandata beyond the slice authorized on
-  2026-08-11 and extended on 2026-08-12. That slice now covers forty files —
-  ten variants each of `gun-762x39-single-close`, `gun-762x39-single-indoor`,
-  `gun-9x19-single-close`, and `gun-9x19-single-indoor`, covering the
+  2026-08-11 and extended on 2026-08-12 and again on 2026-08-15. That slice now
+  covers forty-five files — fifteen variants of `gun-762x39-single-close` and
+  ten each of `gun-762x39-single-indoor`, `gun-9x19-single-close`, and
+  `gun-9x19-single-indoor`, covering the
   AK-pattern rifle and the Glock-pattern pistol in the two acoustic
   environments an interior map reaches — and both those files and the
   MonoGame-backed playback path that plays them are already committed; the
@@ -537,7 +538,7 @@ presentation-only), `game-ui-ux` (HUD anchoring, controller focus),
   declared count, so a higher declared count is the only way more of the
   generated takes are ever heard; every other row still declares six and
   remains wholly ungenerated. The remaining catalog is still 114 slots
-  expanding to 572 variant files in total, roughly 114,400 ElevenLabs
+  expanding to 577 variant files in total, roughly 115,400 ElevenLabs
   credits — 106 slots and 540 files until 2026-08-14, when the automatic loop
   and tail rows were declared for every caliber family rather than the six
   rifle calibers alone, closing a crash an automatic-capable pistol would have

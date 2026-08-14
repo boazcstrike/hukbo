@@ -241,13 +241,14 @@ at all. Full rules: `docs/research/HISTORICAL_1500s_WEAPONS.md` and
 - Report one game's green as the other's. A bare `./scripts/verify.ps1` has run
   both since 2026-08-14, but they remain two workloads with two results.
 - Run `./scripts/sfx.ps1` for Sandata beyond the slice authorized on
-  2026-08-11 and extended on 2026-08-12. That slice now covers forty files —
-  ten variants each of the AK-pattern rifle and the Glock-pattern pistol, in
-  the two acoustic environments an interior map reaches — and those files,
+  2026-08-11 and extended on 2026-08-12 and again on 2026-08-15. That slice now
+  covers forty-five files — the AK-pattern rifle and the Glock-pattern pistol,
+  in the two acoustic environments an interior map reaches, at ten variants
+  each except the AK's close-dry row, which has fifteen — and those files,
   plus the MonoGame-backed playback path that plays them, are already
   committed; the provenance is recorded in
   `src/Sandata.Client/Content/Audio/README.md`. The remaining catalog is still
-  114 slots expanding to 572 variant files in total, roughly 114,400
+  114 slots expanding to 577 variant files in total, roughly 115,400
   ElevenLabs credits, and that remaining spend is **not authorized**. It was
   106 slots and 540 files until 2026-08-14, when the automatic loop and tail
   rows were declared for every caliber family rather than the six rifle
