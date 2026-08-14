@@ -7,8 +7,8 @@ namespace Hukbo.Client.Tests;
 /// <summary>
 /// Covers <see cref="RangedPoseResolver"/>: the mapping from the agent views
 /// to one pose per ranged agent, the lookup shape the draw loop uses, and the
-/// swing-suppression rule design section 8.3 of
-/// <c>docs/plans/2026-08-07-ranged-units-design.md</c> requires. Mirrors
+/// swing-suppression rule section 8.3 of the ranged-units design document
+/// requires. Mirrors
 /// <c>SwingPoseResolverTests</c> and <c>GaitPoseResolverTests</c>.
 /// </summary>
 public sealed class RangedPoseResolverTests

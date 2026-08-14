@@ -40,18 +40,27 @@ internal sealed class ClientSettingsStore
     /// This is backward compatible on the same terms as the 7-to-8 bump: a
     /// version 8 file loads through <see cref="AcceptedSchemaVersions"/> with
     /// only that absent field defaulting.
+    /// Raised again from 9 to 10 by the fourth deliberate composition reset
+    /// recorded on <see cref="ArmyComposition"/>, when the default moved off
+    /// an even four-way split onto calibrated per-rank proportions. This
+    /// behaves like the 2-to-3, 5-to-6, and 6-to-7 bumps rather than a
+    /// field-adding bump: the shape is unchanged and a version 9 file would
+    /// still parse, but a saved composition always overrides
+    /// <see cref="ArmyComposition.Default"/>, so accepting the old file would
+    /// silently keep the old even split forever.
     /// </summary>
-    public const int SupportedSchemaVersion = 9;
+    public const int SupportedSchemaVersion = 10;
 
     /// <summary>
     /// Schema versions <see cref="Load"/> accepts without discarding the
-    /// whole file. Version 8 and the current version qualify because the
-    /// 8-to-9 change only adds an independently defaulted field. Versions
-    /// before 8 remain incompatible because of the deliberate composition
-    /// resets recorded on <see cref="ArmyComposition"/>.
+    /// whole file. Only the current version qualifies: the 9-to-10 change is
+    /// a deliberate composition reset, so a version 9 file must be discarded
+    /// exactly like every version before it, on the same grounds as the
+    /// 2-to-3, 5-to-6, and 6-to-7 resets recorded on
+    /// <see cref="ArmyComposition"/>.
     /// </summary>
     private static readonly int[] AcceptedSchemaVersions =
-        [8, SupportedSchemaVersion];
+        [SupportedSchemaVersion];
 
     // Moved from Stylized to Full on 2026-08-13 by the lethal blow
     // legibility design, on the explicit request of the person the
