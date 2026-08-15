@@ -1,5 +1,10 @@
 # Follower-trailing mutual block in the collision resolver — design
 
+**Archived: reference only.** Archived on 2026-08-16, after the option its
+evidence favoured was built and refuted. Nothing in it is authorization for
+anything. The one option it leaves standing, 6.5, needs its own design document
+before anyone builds it, and this document is not that document.
+
 **Revived from the archive on 2026-08-15, executed the same day, and option 6.4
 was refuted by measurement.** This document was archived that morning on the
 grounds that its stall was closed elsewhere and none of its five options had
@@ -102,7 +107,7 @@ a problem, explains its cause, and lays out the options.
 **Updated 2026-07-28.** Section 4 was originally a hypothesis reasoned from the
 source, and section 9 made proving or refuting it the first task of any plan
 that followed. That measurement has since been taken and is recorded in
-[`docs/research/2026-07-28-COLLISION-DEADLOCK-DIAGNOSIS.md`](../research/2026-07-28-COLLISION-DEADLOCK-DIAGNOSIS.md).
+[`docs/research/2026-07-28-COLLISION-DEADLOCK-DIAGNOSIS.md`](../../research/2026-07-28-COLLISION-DEADLOCK-DIAGNOSIS.md).
 Section 4 now states what was measured. Sections 6 and 9 are unchanged and still
 describe unchosen options and unperformed work; the findings document's section
 6 says which way the evidence points and why that is still not a decision.
@@ -256,7 +261,7 @@ into whatever formation seed 12 produces, is apparently enough to reach it at
 
 **This was a hypothesis, and it has now been measured.** Steps 1 and 2 of
 section 9 were carried out on 2026-07-28 and are recorded in
-[`docs/research/2026-07-28-COLLISION-DEADLOCK-DIAGNOSIS.md`](../research/2026-07-28-COLLISION-DEADLOCK-DIAGNOSIS.md).
+[`docs/research/2026-07-28-COLLISION-DEADLOCK-DIAGNOSIS.md`](../../research/2026-07-28-COLLISION-DEADLOCK-DIAGNOSIS.md).
 The result splits this section in two.
 
 **The mutual-lock mechanism above is confirmed.** In the seed-12 stall, 99.8 %

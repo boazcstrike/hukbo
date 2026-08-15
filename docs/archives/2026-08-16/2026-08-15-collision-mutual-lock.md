@@ -1,5 +1,9 @@
 # The collision mutual lock — plan
 
+**Archived: reference only.** Archived on 2026-08-16 alongside its design. Never
+execute its task list — it was abandoned deliberately, by measurement, and the
+section titled "What was measured, and what it refutes" is the reason.
+
 **Closed on 2026-08-15 with no code shipped. Option 6.4 is refuted by
 measurement.** The rotation pass this plan specifies was built twice, in two
 independent implementations, and measured against the five seeds that still
