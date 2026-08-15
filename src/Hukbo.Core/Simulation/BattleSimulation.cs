@@ -2354,6 +2354,17 @@ public sealed class BattleSimulation
             return;
         }
 
+        // The arm carries the same engagement guard the rungs themselves
+        // carry. Without it a warrior backing away or regrouping could be
+        // armed, never become eligible to spend the step, and meanwhile read
+        // as "Breaking off" in the inspector and fold that into the state hash
+        // — a state the ladder can neither produce nor consume.
+        if (target.Intent is not (AgentIntent.Moving or AgentIntent.Attacking) ||
+            target.TargetEntityId is null)
+        {
+            return;
+        }
+
         target.EvasiveAction = EvasiveAction.BreakOffArmed;
     }
 
@@ -5231,6 +5242,13 @@ public sealed class BattleSimulation
 
             agent.TargetEntityId = null;
             agent.Intent = AgentIntent.Dead;
+
+            // Cleared here rather than only on the next tick's evasive pass. A
+            // warrior can resolve an evasive action at the movement stage and
+            // be killed by the attack stage later in the same tick, and the
+            // state hash is taken at the end of that tick — so leaving it to
+            // the next pass would fold a corpse's last step into the hash.
+            agent.EvasiveAction = EvasiveAction.None;
             AddEvent(
                 events,
                 BattleEventKind.Death,
