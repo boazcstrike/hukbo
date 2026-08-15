@@ -54,26 +54,34 @@ is not authorized work; it is a reminder that the question was decided
 
 ## From the follower-trailing deadlock diagnosis (2026-07-28, re-checked 2026-08-15)
 
-**Both entries below stopped being parked work on 2026-08-15.** The design that
-carried them,
+**Both entries below were taken off the shelf on 2026-08-15 and put back the
+same day.** The design that carries them,
 [`2026-07-28-follower-trailing-deadlock-design.md`](2026-07-28-follower-trailing-deadlock-design.md),
-was archived that morning on the grounds that none of its five options had ever
-been built, and the user then directed that the work be finished. It is live
-again and its plan document owns these two questions. They are kept here so the
-reasoning stays findable, and they will leave this file when that plan closes.
+was archived that morning because none of its five options had ever been built;
+the user then directed that the work be finished, so it was revived and executed
+through [`2026-08-15-collision-mutual-lock.md`](2026-08-15-collision-mutual-lock.md).
+That plan closed with **no code shipped**: rotation and swap detection was built
+twice and does not fix the stall, for reasons both documents record. These two
+questions are parked again, and the first of them has an answer now that it did
+not have before.
 
-The context they were parked with: the stall was closed in the intent layer by
-`b9003a9`, and a 2026-08-13 re-measurement over 200 seeds found zero stalls at
-the shipping configuration. The resolver-level mutual lock is still real and is
-what the live work removes.
+- **The body radius is no longer pinned by this bug, and that is new
+  information.** The whole reason `DefaultBodyRadiusRaw` sits at 4.25 is that
+  4.5 hung seed 12 in a 2026-07-28 measurement. That measurement was repeated on
+  2026-08-15 against current code: seed 12 at 4.5 now reaches a decision at tick
+  739, and **0 of 200 seeds reach the tick limit at that radius**. The
+  intent-layer escape closed the 4.5 case as thoroughly as it closed 4.25. What
+  the body radius should be is therefore a tuning question that can be argued on
+  its own merits, and nobody has argued it. Changing the constant still moves
+  both hashes on every seed and is not authorized by this entry.
+- **The 2,000-agent point** below is unchanged and unmeasured since 2026-07-28.
 
-- **`CollisionRules.DefaultBodyRadiusRaw` is 4.25 because 4.5 hung the
-  simulation, not because anybody chose 4.25.** The constant's own remark records
-  the 2026-07-28 measurement: at 4.5, seed 12 stalled for 9,976 ticks with nine
-  agents alive on each side. That measurement predates the intent-layer stall
-  escape and has never been repeated since, so nobody knows today whether 4.5 is
-  still unreachable. Re-measuring is the whole of the work here; changing the
-  constant is a hash change on every seed and is not authorized by this entry.
+- **`CollisionRules.DefaultBodyRadiusRaw` is 4.25 for a reason that has
+  expired.** The constant's own remark still records the 2026-07-28 measurement
+  in which 4.5 stalled seed 12 for 9,976 ticks with nine agents alive on each
+  side. That remark is now stale in its conclusion though accurate as history,
+  and it should be updated by whoever next touches the constant. The 2026-08-15
+  re-measurement is above.
 - **The 2,000-agent point is a traffic jam that contains a fight.** At the
   shipping radius it measured 1,943,319 blocked agent-ticks, a longest blocked
   streak of 108 ticks, a front that never widened past 104,460 raw units, and

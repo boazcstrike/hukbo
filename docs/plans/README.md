@@ -14,15 +14,26 @@ record are all live, because a future session still has to read them. What none
 of them means is *go and build this* — only an explicit authorization does that,
 and section 6 of [`../../CLAUDE.md`](../../CLAUDE.md) says how one is given.
 
-**One document came back the same day.** The follower-trailing deadlock design
-was archived in the seventh sweep below and then revived within the hour, when
-the user read the sweep's finding that none of its five options had ever been
-built and directed that the work be finished. It is live again, it carries a
-revival banner recording the three code checks made before the decision, and its
-plan document carries the tasks. The two questions the sweep moved into
-[`TODO.md`](TODO.md) came back with it and are now the plan's business rather
-than parked work. An archived document may never be executed, which is why the
-revival happened before a line of code was written rather than after.
+**One document came back the same day, was executed, and settled a question that
+had been open since July.** The follower-trailing deadlock design was archived in
+the seventh sweep below and revived within the hour, when the user read the
+sweep's finding that none of its five options had ever been built and directed
+that the work be finished. An archived document may never be executed, which is
+why the revival happened before a line of code was written rather than after.
+
+The work ran and **shipped no code**. Option 6.4, rotation and swap detection,
+was built twice in two independent implementations and does not fix the stall:
+the five stalled seeds are still five, and forcing an exchange at all costs the
+resolver's displacement rule. The measured reason is that locked warriors want
+the *same* ground rather than each other's, so an exchange rule has nothing to
+exchange. Both documents are live and carry the numbers —
+[`2026-08-15-collision-mutual-lock.md`](2026-08-15-collision-mutual-lock.md) is
+the plan and holds the counters, and the design's banner records what its
+section 6 now means. One incidental finding is worth more than the attempt: at
+body radius 4.5, which is the value this bug has pinned since July, **0 of 200
+seeds now stall**, so the body radius is a tuning question again rather than a
+workaround. The two questions the sweep moved into [`TODO.md`](TODO.md) are
+parked there again, one of them now with an answer.
 
 Swept an eighth time on 2026-08-15, and **nothing left the folder.** Every
 document still here was re-checked against the code by a separate reader, one
@@ -271,7 +282,8 @@ designs archived in the fourth sweep of 2026-08-14 left.
 | [`2026-08-14-contingent-cohesion-before-contact-design.md`](2026-08-14-contingent-cohesion-before-contact-design.md) | Why smoke row `BR-1` failed with "they visibly form up but not enough, some just charged and fought". The weapon grouping works; cohesion does not. Two gates compose into it: under `ContingentState.Advance`, `IsCohesionEligible` gate 4 denies every member that is not straggling, and a 24-body-radius cohesion square shared by eight contingents in one map half keeps the geometric gates failing, so contingents rarely reach the gathering `Hold` state at all. Section 3 is the binding historical constraint — a per-contingent local pause is a Provisional reconstruction, but tightening or dressing the group is barred outright by the corpus's only spacing finding | Design only; authorizes nothing. **No longer blocked** — `CohortLateralSpreadV13` landed and released `BattleSimulation.cs`, so the preset value to append is 14. Its plan directly below carries the tasks, and records five places where this design describes code that is not on disk |
 | [`2026-08-14-contingent-cohesion-before-contact.md`](2026-08-14-contingent-cohesion-before-contact.md) | That design's sixteen tasks behind one new appended `MovementPresetId`, with the twenty-seed termination sweep as the gate on the whole change and movement preset V7 named as the precedent for a preset that behaved interestingly and never resolved a battle. Its findings section is the reason to read it before the design: R3's premise is false, because the cohesion square is already sized to the contingent at `jitterRaw + BodyRadiusRaw`; R2 is a no-op, because `ParticipatesInCrossContingentScan` already excludes exactly `Close` and `Break`; and R1 names the aim point where gate 4 measures to the leader | Plan only; authorizes nothing. All thirty-six of its file and line citations were checked against disk |
 | [`2026-08-09-attack-animation-v2-backlog.md`](2026-08-09-attack-animation-v2-backlog.md) | What the twelve-task attack-animation plan left behind. **All twenty-four `AA` smoke rows closed `PASS` on 2026-08-13**, so its section 6, "Smoke rows still unobserved", is spent outright and its section 1 no longer describes a failing row. What survives is the engineering: sections 3, 4, and 5, and section 2's finding that `ConservativePawnCull` has no production caller — which is still true, and which a person's `AA-24` `PASS` did not change | Open on its engineering items only; every smoke row it names has closed |
-| [`2026-07-28-follower-trailing-deadlock-design.md`](2026-07-28-follower-trailing-deadlock-design.md) | The follower-trailing mutual block in the collision resolver, with its diagnosis measured. Archived and revived on 2026-08-15: none of its five options is in the code, and the user directed the work be finished. The measured evidence points at option 6.4, rotation and swap detection, over a connected component rather than only a pair, and it names one case no option covers — an agent whose destination is permanently owned by a stationary neighbour | **Live and being executed.** Its plan document carries the tasks; this document is the reasoning and wins on mechanism |
+| [`2026-07-28-follower-trailing-deadlock-design.md`](2026-07-28-follower-trailing-deadlock-design.md) | The follower-trailing mutual block in the collision resolver, with its diagnosis measured. Archived, revived, and executed on 2026-08-15. Its banner records what the attempt established: option 6.4 is refuted, and 6.5 — sliding along the obstruction — is the only remaining option that can move a warrior whose neighbour wants the same ground | Design; 6.4 tried and failed. 6.5 needs its own design before anyone builds it |
+| [`2026-08-15-collision-mutual-lock.md`](2026-08-15-collision-mutual-lock.md) | The plan that executed the design above and closed with no code shipped. It holds the instrumentation counters that refuted rotation and swap detection: 14,218 of 14,791 candidates rejected because two members' claims overlapped each other, then 3,560 rotations committed under the corrected rule with the stall count unchanged at five. It also records that body radius 4.5 no longer stalls any of 200 seeds | **Closed 2026-08-15.** A record of what was tried; never execute its task list |
 | [`2026-08-14-thousand-unit-performance-design.md`](2026-08-14-thousand-unit-performance-design.md) | Whether a 1,000-unit battle can be watched at all: the render matrix that predates the corpse layer, the gait legs, and the projectile props, and the per-tick scans in `BattleSimulation` that are quadratic in agent count. Section 2.4 closes the instanced-rendering question rather than leaving it open, and section 4.1 shows why a spatial index buys target selection nothing under the shipped scenario | Design only; authorizes nothing |
 | [`2026-08-14-thousand-unit-performance.md`](2026-08-14-thousand-unit-performance.md) | That design's sixteen tasks in four phases, every one of them hash-neutral by construction, with a genuine stop condition at TU-4: if re-measurement shows the 1,000-unit frame already inside budget, the correct action is to run `GR-5` and close the workstream having written no code. `GR-3` closed `PASS` on 2026-08-15; `GR-5` remains open | Plan only; **not authorized**. Not started |
 | [`2026-08-15-weapon-sprite-design.md`](2026-08-15-weapon-sprite-design.md) | Why every weapon in Hukbo is three colinear lines, and what an authored atlas of eighty cells — ten variants for each of the seven weapon roles and ten for the tall hardwood shield — would replace `DrawBlade` and `DrawShield` with. It leaves `PawnGeometry`, the arms, and the swing trail alone, and keeps the bowstring procedural because the bowstring is the one weapon element that genuinely deforms | Accepted; implementation authorized |
