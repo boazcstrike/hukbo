@@ -392,3 +392,68 @@ implementer looking for a `ContingentShapeV12FullBattleReproducesItsPinnedTrajec
 will not find one. There is no `BattlefieldRealismV10Tests.cs` trajectory test
 and no `LastStandEngagementV11Tests.cs` trajectory test either; both of those
 literals live in `ContingentShapeV12Tests.cs`.
+
+### Tasks 8 and 9 — the calibration sweep and the chosen tunables, 2026-08-15
+
+The harness is `tests/Hukbo.Core.Tests/Movement/ContingentCohesionCalibrationHarness.cs`,
+compiled only behind `HUKBO_CALIBRATION`, so an ordinary build and every gate
+stage discover zero new tests. It runs with:
+
+```powershell
+dotnet test tests/Hukbo.Core.Tests/Hukbo.Core.Tests.csproj -c Release `
+  -p:DefineConstants=HUKBO_CALIBRATION `
+  --filter FullyQualifiedName~ContingentCohesionCalibrationRun `
+  --logger "console;verbosity=detailed"
+```
+
+It measures the scenario shape the twenty-seed termination sweep uses — 200
+agents, `PrecolonialPhilippinesV5`, the same roster share weights, the same tick
+cap — so task 9's choice and task 11's gate are read against one yardstick.
+
+**V13, the shipped default, measured as the control in every run below:** hold
+share 10.04 per cent, granted-cohesion share 1.83 per cent, median first contact
+tick 60, median terminal tick 2328, 20 of 20 seeds decided.
+
+Seven candidate settings for V14, each a full twenty-seed sweep:
+
+| Band | Margin (bp) | Hold share | Granted share | Median terminal | Decided |
+| --- | --- | --- | --- | --- | --- |
+| 1/2 | 9000 | 10.18 % | 5.75 % | 1996 | 20 / 20 |
+| 1/2 | 7500 | 10.25 % | 5.99 % | 2169 | 20 / 20 |
+| 1/2 | 5000 | 10.51 % | 7.42 % | 2184 | 20 / 20 |
+| 2/3 | 6000 | 10.70 % | 3.81 % | 2071 | 20 / 20 |
+| **1/3** | **6000** | **11.65 %** | **13.37 %** | **2058** | **20 / 20** |
+| 1/3 | 5000 | 11.82 % | 14.39 % | 2236 | 20 / 20 |
+| 1/3 | 4000 | 12.89 % | 13.83 % | 2117 | 20 / 20 |
+| 1/4 | 6000 | 12.11 % | 19.59 % | 2025 | 20 / 20 |
+
+**Registered: `cohesionBandNumerator: 1`, `cohesionBandDenominator: 3`,
+`cohesionSquareMarginBasisPoints: 6000`.** Both of task 9's clauses hold at that
+setting — the hold share strictly exceeds V13's, 11.65 against 10.04, and the
+granted-cohesion share strictly exceeds it by a factor of seven, 13.37 against
+1.83 — and every seed still decides before the cap, with the median battle
+finishing 270 ticks *sooner* than under V13 rather than later.
+
+**Three settings scored better on the raw shares and were rejected, which is
+worth stating because the metric alone would have chosen one of them.** A band
+of one quarter reaches 19.59 per cent granted, but at that width nearly every
+member of an advancing contingent is eligible on nearly every tick: the rule
+stops meaning "close up when the group is spread" and starts meaning "always
+walk to the aim point". That is the degenerate twin of the behaviour this preset
+exists to produce, and a spectator would see contingents that never advance
+freely rather than contingents that cross the field as bodies. One third leaves
+the inner third of each contingent exempt, which keeps the rule a cohesion band
+rather than a permanent gather.
+
+A margin of 4000 or 5000 basis points raises the hold share further by shrinking
+the claimed square further below the packing bound that
+`FormationRules.ComputeContingentJitterRaw` derives. Finding 1 above records that
+this shrink is a real trade rather than free, and task 12's blocked-streak guard
+is in the plan precisely because of it, so the smallest margin that clears both
+clauses comfortably was preferred over the smallest margin that maximised one of
+them.
+
+These three numbers are a provisional reconstruction for gameplay purposes. No
+source describes how close a warrior stood to his contingent's leader or how much
+ground such a group claimed, and none of these figures is offered as a historical
+measurement.

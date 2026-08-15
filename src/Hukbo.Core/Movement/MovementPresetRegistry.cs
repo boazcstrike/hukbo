@@ -670,19 +670,35 @@ public static class MovementPresetRegistry
     /// "Contingent cohesion before contact — plan".
     /// </summary>
     /// <remarks>
-    /// The three tunables are <b>provisional starting values</b>, and they are
-    /// gameplay tuning with no evidentiary basis whatever: no source describes
+    /// The three tunables are a <b>provisional reconstruction</b> for gameplay
+    /// purposes and carry no evidentiary basis whatever: no source describes
     /// how close a warrior stood to the man leading his contingent, or how
     /// much ground such a group claimed, and none of these numbers is offered
-    /// as a historical measurement. They are placeholders chosen only so the
-    /// preset is well formed and registrable, and the plan replaces all three
-    /// by measurement — the calibration harness reports the hold share, the
-    /// granted-cohesion share, the tick of first contact, and the terminal
-    /// tick per seed for this preset and for
-    /// <see cref="MovementPresetId.CohortLateralSpreadV13"/>, and the values
-    /// registered here are then chosen from that table rather than from taste.
-    /// Until that happens, no behavioural claim rests on the specific figures
-    /// one half and 7500 basis points.
+    /// as a historical measurement.
+    /// <para>
+    /// They were chosen from measurement rather than from taste. The
+    /// calibration harness swept seeds 1 through 20 under this preset and
+    /// under <see cref="MovementPresetId.CohortLateralSpreadV13"/> at seven
+    /// candidate settings, reporting the hold share, the granted-cohesion
+    /// share, the tick of first contact, and the terminal tick for each. At
+    /// the registered one third and 6000 basis points, the share of
+    /// living-contingent-ticks resolved to Hold rises from 10.04 to 11.65 per
+    /// cent and the share of Advance members granted a cohesion destination
+    /// rises from 1.83 to 13.37 per cent, with all twenty seeds still decided
+    /// before the cap and a median terminal tick of 2058 against V13's 2328 —
+    /// so contingents gather more and battles finish sooner rather than later.
+    /// The full table is in the plan's results section.
+    /// </para>
+    /// <para>
+    /// Wider bands measured better still on both shares and were rejected
+    /// deliberately. At one quarter, nearly every member of an advancing
+    /// contingent is eligible on nearly every tick, which stops being "close
+    /// up when the group is spread" and becomes "always walk to the aim
+    /// point" — the degenerate twin of the behaviour this preset exists to
+    /// produce, and one that would read on screen as a contingent that never
+    /// advances freely at all. One third leaves the inner third of each
+    /// contingent exempt.
+    /// </para>
     /// </remarks>
     private static readonly MovementRuleset ContingentCohesionBeforeContactV14Ruleset = new(
         id: MovementPresetId.ContingentCohesionBeforeContactV14,
@@ -708,8 +724,8 @@ public static class MovementPresetRegistry
         allyCollapseWeightBasisPoints: 0,
         gathersContingentsBeforeContact: true,
         cohesionBandNumerator: 1,
-        cohesionBandDenominator: 2,
-        cohesionSquareMarginBasisPoints: 7500);
+        cohesionBandDenominator: 3,
+        cohesionSquareMarginBasisPoints: 6000);
 
     public static bool IsRegistered(MovementPresetId id) =>
         id switch
