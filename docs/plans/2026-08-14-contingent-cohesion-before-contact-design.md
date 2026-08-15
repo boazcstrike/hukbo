@@ -1,11 +1,19 @@
 # Contingent cohesion before contact — design
 
-Status: proposed, and **deliberately not yet planned**. The block this document
-once carried has lifted — `CohortLateralSpreadV13` has landed, so nothing is
-holding `src/Hukbo.Core/Simulation/BattleSimulation.cs` any more, and the preset
-value this design would append is 14, which does not exist yet. See section 7.
-Nothing here is built, and a design document does not authorize implementation,
-so this one still authorizes nothing.
+Status: **executed on 2026-08-15**, as
+`MovementPresetId.ContingentCohesionBeforeContactV15`. The preset is registered,
+selectable from the Army Composition panel, and opt-in; the shipped client
+default stays `CohortLateralSpreadV13`, because this design's section 5 puts the
+flip behind a person watching a battle first. R1 shipped as written, and R2 and
+R3 shipped in the reshaped form their plan established after both of their
+premises turned out to be false against the code. See section 7 for the block
+that no longer exists, and the plan titled "Contingent cohesion before contact —
+plan" for the task-by-task record and the calibration table.
+
+**The value is 15, not the 14 this document and its plan both predicted.** The
+in-fight evasion package merged to `main` while this one was being built and took
+`EvasiveFootworkV14 = 14`. Appending after the real last member gives 15, and no
+shipped value was renumbered to get there.
 
 **The row that motivated this document has since closed, and none of this
 document was built.** `BR-1` was re-run by a person at an interactive desktop on
@@ -258,8 +266,28 @@ enum; it is the shipped client default at
 blocks on it at `scripts/verify.ps1:105-113`. This design's own preset value is
 therefore 14, and 14 does not exist yet.
 
-Nothing here is implemented, and lifting the block does not authorize
-implementing it. A plan document under section 6 of `CLAUDE.md` comes first.
+**Correction, 2026-08-15: the block is gone and the work is done, and the value
+is 15 rather than the 14 stated above.** The paragraph above computed 14 against
+a tree where `CohortLateralSpreadV13` was the last member of the enum, which was
+true when it was written. The in-fight evasion package then merged to `main` and
+took `EvasiveFootworkV14 = 14` while this package was being built in its own
+worktree — two packages appending after 13 at the same time, in separate trees.
+Appending after the real last member gives `ContingentCohesionBeforeContactV15 =
+15`, and no value that had ever shipped was renumbered to get there, which is
+what that rule protects.
+
+The findings the plan recorded were carried into the implementation rather than
+silently built as this document first described them. R1's reference point is the
+member's distance from its leader, not from the contingent aim point, because
+this document's own section 2 and the code agree against its section 4. R2 turned
+out to change no executable statement, because the exclusion set it wanted was
+already exactly `Close` and `Break`, so it shipped as a test pinning that set plus
+two comment corrections — one of which had the effect inverted, since an excluded
+square relieves a neighbour's overlap rather than causing one. R3's premise that a
+24-body-radius square is claimed by every contingent alike was false — the margin
+is already proportional to living headcount — so it shipped as a basis-point scale
+on the claimed margin alone, delivering R3's stated purpose through a mechanism
+that exists.
 
 ## 8. Out of scope
 

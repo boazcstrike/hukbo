@@ -108,6 +108,56 @@ not prove a sound was audible, that it arrived at the right moment, or that it
 sounded right. Smoke rows below still require a human at an interactive desktop;
 see `.claude/skills/hukbo-debug-logging/SKILL.md` for the full reading guide.
 
+## Canonical gate result — both games, 2026-08-15 (contingent cohesion V15)
+
+`./scripts/verify.ps1 -SkipBootstrap`, on branch `hukbo-cohesion-v14` in an
+isolated worktree with `main` merged in at `63dca5e`, exit code 0. A bare
+invocation runs both games, and **these are two results, not one**:
+
+```
+[PASS] Formatting verification completed.
+[PASS] Release solution build completed.
+[PASS] Release repository tests completed.
+[PASS] Headless workload completed: agents=200 ticks=10000 seed=1.   (x6, Hukbo)
+[PASS] Release repository tests completed.                            (Sandata)
+[PASS] Headless workload completed: agents=200 ticks=10000 seed=1.   (Sandata)
+[PASS] Canonical repository verification completed.
+```
+
+Suites: Hukbo Core 2,672 passed, Hukbo Client 4,065 passed, Sandata Core 1,176
+passed, Sandata Client 325 passed. Zero failed, zero skipped in all four.
+
+**Every recorded baseline reproduced byte-identically, which is the load-bearing
+evidence for this change.** V15 is opt-in and registers new ruleset fields behind
+a gate that every earlier preset leaves clear, so no shipped preset may move:
+
+| Workload | State hash | Event hash | Outcome |
+| --- | --- | --- | --- |
+| Default | `5460D13E3F7FD3E5` | `8E18ED1437B2924B` | `Faction0Victory` |
+| Ranged standoff V8 | `C8023D3B5BEB005E` | `F709A345E2F7370E` | `Faction1Victory` |
+| Battlefield realism V10 | `7C145A9E05916E4C` | `77626E104234206C` | `Faction0Victory` |
+| Last-stand engagement V11 | `6225182B4A470F91` | `C4DABE6AF98B6BEC` | `Faction0Victory` |
+| Cohort lateral spread V13 | `4A0723BC9A1B924B` | `E0CE32CF8830A864` | `Faction1Victory` |
+| Evasive footwork V14 | `155326060E6FAC82` | `289980C2B3F9E1D2` | `Faction0Victory` |
+| Sandata seed 1 | `DA3D1BEB99978A75` | `260A20BC8F578E19` | `Ongoing` |
+
+All seven reported `deterministic: true` with no mismatch tick.
+
+**The gate now runs six Hukbo workloads, not five.** The sixth is
+`EvasiveFootworkV14`, added by the in-fight evasion package, not by this one.
+This change deliberately adds no benchmark block: those blocks cover the preset
+the client actually ships, V15 is opt-in, and V12 set that precedent.
+
+**What this gate does not prove.** Nothing here says a contingent looks like a
+body crossing the field, which is the entire point of the preset. That is smoke
+row `CC-1`, it is `PENDING`, and only a person at an interactive desktop may
+close it.
+
+The package's own measurements — the seven-setting calibration sweep the tunables
+were chosen from, the twenty-seed termination figures, and the blocked-streak
+guard — are in the plan titled "Contingent cohesion before contact — plan" rather
+than repeated here.
+
 ## Canonical gate result — Hukbo, 2026-08-09
 
 `./scripts/verify.ps1` with no flags, all five stages, exit code 0, at

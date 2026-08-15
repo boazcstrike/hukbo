@@ -17,9 +17,11 @@ The gate, the current gate results, and the recorded baselines live in
 
 ## Where the checklist stands, 2026-08-15
 
-**13 rows in 2 subsections, every one `PENDING`.** One is `GR-5`; the other
-twelve are `WS-1` through `WS-12`, added on 2026-08-15 by the weapon and shield
-sprite atlas package. No `PASS`, `FAIL`, `BLOCKED`, or `DECLINED` row is left.
+**14 rows in 3 subsections, every one `PENDING`.** One is `GR-5`; twelve are
+`WS-1` through `WS-12`, added on 2026-08-15 by the weapon and shield sprite
+atlas package; and `CC-1` was added the same day by the contingent cohesion
+package, for the opt-in movement preset V15. No `PASS`, `FAIL`, `BLOCKED`, or
+`DECLINED` row is left.
 Twenty-nine rows closed on 2026-08-15 and were lifted
 out with the six families that closed in full: calibrated army composition,
 death collapse, UI chrome nine-slice, pawn visual fidelity, pawn sprite body,
@@ -144,3 +146,34 @@ do not. Leave a row `PENDING` if untouched; report `BLOCKED` honestly.
 | WS-10 | In sprite mode, watch a warrior take a hit and then die | Faction colour still reads on the sprite weapon and shield, and the hit pulse and dead-state fade still land on them | | PENDING |
 | WS-11 | In sprite mode, watch a warrior swing leftward specifically, and compare against a rightward swing | Judge whether the single-edged blades read wrongly when the swing carries them through a half turn. This is a known, unfixed consequence of rotating one authored cell, recorded in design section 15; the row exists to decide whether it is acceptable, not to confirm it is absent | | PENDING |
 | WS-12 | Switch the theme to the light one, whose arena surface is `#E5D4AA`, and look at sprite shields and pale hafts | They keep a readable edge. The three-pixel inner outline exists only because they dissolved into that background without it | | PENDING |
+
+## Contingent cohesion before contact (movement preset V15)
+
+`MovementPresetId.ContingentCohesionBeforeContactV15` is registered, selectable,
+and **not** the shipped default. `ClientSettingsStore.DefaultMovementPreset`
+stays `CohortLateralSpreadV13`, so a tester has to choose V15 deliberately from
+the Army Composition panel, and a preset chosen there is staged for the **next
+Full Reset** rather than applied to the battle already running. A round started
+before the reset is still running V13.
+
+The row below is the question this whole package exists to answer, and it is the
+one no test can answer. The automated work proves that an advancing member
+between one third and three quarters of the cohesion radius is now granted a
+cohesion destination, that a contingent claims a smaller square, that member
+spacing is byte-identical to V13, that all twenty seeds still decide before the
+cap with a median of 2058 ticks, and that the worst blocked streak is 49 ticks
+against a bound of 125. None of that says a contingent *looks* like a body
+crossing the field. That is what `BR-1` originally reported as missing, in the
+words "they visibly form up but not enough, some just charged and fought".
+
+The preset is a provisional reconstruction for gameplay purposes. The band and
+the margin were chosen from a calibration sweep, not from any source: no account
+describes how close a warrior stood to the man leading his contingent.
+
+Only a human running `./scripts/run.ps1` on an interactive Windows desktop may
+flip this row. Compilation, unit tests, and a window-opening probe run do not.
+Leave it `PENDING` if untouched; report `BLOCKED` honestly.
+
+| # | Step | Expected | Actual | Status |
+| --- | --- | --- | --- | --- |
+| CC-1 | Open the Army Composition panel, select `V15 Contingent Cohesion Before Contact`, press `Shift+R` for a full reset, and watch one full battle from the default camera station. Then do the same with `V13 Cohort Lateral Spread` and compare | Under V15 a contingent visibly crosses the field as a body rather than dissolving into individual pursuit, and the difference from V13 is discernible without being told which preset is running. Record whether the two are tellable apart at all, because a change nobody can see on screen is the failure this row exists to catch. Spacing must still look irregular — the warriors close up, they do not dress into ranks or files, and if they look tidy that is a defect against the design's section 3 | | PENDING |

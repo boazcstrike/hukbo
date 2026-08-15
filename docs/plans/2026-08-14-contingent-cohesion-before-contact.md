@@ -493,3 +493,39 @@ The three identity gates now admit three presets rather than two —
 evasion package admitted itself to the same gates for the same reason. The two
 presets are independent: neither reads the other's ruleset fields, and a battle
 runs one or the other.
+
+### Tasks 15 and 16 — documentation and the canonical gate, 2026-08-15
+
+The gate ran once, after integration, and was not delegated:
+`./scripts/verify.ps1 -SkipBootstrap` on this branch with `main` merged in at
+`63dca5e`, exit code 0. A bare invocation runs both games and they stay two
+results. The full record, including the seven reproduced baselines, is in
+`docs/development/testing.md` under the 2026-08-15 both-games entry.
+
+Suites: Hukbo Core 2,672 passed, Hukbo Client 4,065, Sandata Core 1,176, Sandata
+Client 325. Zero failed and zero skipped in all four.
+
+Every one of the six Hukbo baselines and the Sandata baseline reproduced
+byte-identically. That is the evidence for the claim this whole package rests
+on: V15 registers new ruleset fields behind a gate every earlier preset leaves
+clear, so the seven pinned content hashes and all nineteen frozen facts are
+unmoved and no fixture was re-recorded.
+
+Documentation delivered: the design's status line now reads executed and its
+section 7 carries the correction recording that the block is gone, that the value
+is 15, and that the findings were carried into the implementation rather than
+silently built as first written; both documents' rows in `docs/plans/README.md`
+are updated; smoke row `CC-1` was added as `PENDING`.
+
+**`CC-1` is the row that decides whether this package worked.** Every measurement
+here is a proxy. The hold share rose, the granted share rose sevenfold, spacing
+is provably unchanged, and battles finish sooner — and none of that establishes
+that a spectator sees contingents crossing the field as bodies, which is what
+`BR-1` reported missing. Only a person at an interactive desktop can close it,
+and no agent may.
+
+**What this package deliberately did not do.** It did not flip the client
+default, which stays `CohortLateralSpreadV13` until a person has watched a V15
+battle. It did not add a benchmark block to `scripts/verify.ps1`. It did not
+touch `FormationPlanner`, `ContingentOffset`, lane geometry, or contingent
+sizing. It did not re-record a frozen fixture.
