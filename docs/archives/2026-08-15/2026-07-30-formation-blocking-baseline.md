@@ -1,8 +1,33 @@
 # Formation blocking at 500 agents — backlog entry and measured baseline
 
-**Status:** Backlog. This document authorizes no implementation. It records a
-measured baseline and the reasoning that produced it, so that whoever picks the
-work up later starts from numbers instead of from a re-derivation.
+**Archived: reference only.** Archived on 2026-08-15 by user decision. This
+document was never a task list and never authorized anything; it is a record of
+two measurements and the reasoning that produced them. Never execute it, never
+treat its numbers as current, and never cite it as the reason for a change.
+
+Read it only to answer "what did formation blocking measure before". Two things
+about those numbers matter to anyone who does. The 2026-07-30 table in section 2
+is a two-seed comparison, and section 5's twenty-seed sweep of 2026-08-13
+retired it outright: `blockedAgentTicks` varies by 146 per cent across seeds, so
+a two-seed difference carried no signal at all. Section 5 is the later and more
+honest of the two, and its worst case is a longest blocked streak of 904 ticks.
+But section 6 then retired section 5 in turn, and that matters more than either
+table: the sweep ran under `LastStandEngagementV11`, which was the shipped
+movement default on the day, and the shipped default has since moved to
+`CohortLateralSpreadV13`. Section 5 is therefore a record of a preset a
+spectator no longer watches. Nothing in this document describes what the client
+launches today, and re-measuring is the only honest way to compare against it.
+
+The one thread that outlived it is in `docs/plans/TODO.md`, under the heading
+naming the second-round lag report of 2026-07-30: warriors spend long stretches
+unable to move in the crush, no cause was ever identified, and the work is
+parked by user decision. The population question this document brushes against
+belongs to the thousand-unit performance design and plan now.
+
+**Original status line, kept for the record:** Backlog. This document authorizes
+no implementation. It records a measured baseline and the reasoning that
+produced it, so that whoever picks the work up later starts from numbers instead
+of from a re-derivation.
 
 **Date:** 2026-07-30. Written against `main` at `caf0d63`, with combat preset
 V4 as the shipped default (`e724348`) and the rank-led contingent change in
@@ -116,7 +141,6 @@ bodies overlap. This is a blocking problem, not a separation failure.
 ## 4. When this is picked up
 
 The related work still in `docs/plans/` is
-`2026-07-28-follower-trailing-deadlock-design.md` and
 the contingent shape design, whose own planning pass is the
 archived document titled "Contingent shape — task plan (Phase C)". A plan for
 this backlog entry should say which
@@ -218,3 +242,39 @@ between two particular seeds.
 The twenty reports were written to `artifacts/blocking-sweep/seed-NN.json`.
 `artifacts/` is not tracked, so the figures are reproduced above in full and
 the directory can be deleted without losing them.
+
+## 6. Audit, 2026-08-15 — the sweep's movement preset is stale
+
+Section 5 says its sweep measures what a spectator sees, and half of that claim
+has since expired. The combat half still holds: the client still builds with
+`CombatPresetId.PrecolonialPhilippinesV5`, at
+`src/Hukbo.Client/ArenaGame.cs:1585`. The movement half does not. The client's
+shipped movement default has moved from `LastStandEngagementV11` to
+`MovementPresetId.CohortLateralSpreadV13`, set in
+`src/Hukbo.Client/Settings/ClientSettingsStore.cs:113-114` and threaded through
+`ArenaGame.cs:379` into `BuildScenario` at `ArenaGame.cs:414-417`. A spectator
+watching the game today is not watching V11.
+
+The section 5 table is therefore a record of `LastStandEngagementV11` under
+combat V5, and it is no longer a current baseline for what the client runs. It
+stays where it is, unedited, exactly as section 2 stays as the record of what
+was measured under combat V4. Read it as history, not as the number a change
+has to beat.
+
+What a future change here needs first is the same twenty-seed sweep re-run
+under `CohortLateralSpreadV13`, so that the comparison is against the movement
+rules a spectator actually sees. Until that re-run exists, no claim about
+improvement or regression in blocking under the shipped client can be made from
+this document.
+
+The document remains re-measurable, which is the reason it is still worth
+keeping. Every counter its tables quote is still emitted by the simulation and
+still reaches the headless JSON report. `blockedAgentTicks`,
+`attackCapableAgentTicks`, `longestBlockedStreakTicks`, `candidatePairs`,
+`contactPairs`, `acceptedMoves`, `maximumFrontWidthRaw`, `maximumFrontDepthRaw`,
+and `maximumPenetrationRaw` are on
+`src/Hukbo.Core/Simulation/CollisionMetrics.cs:73-81`; `acceptedAttacks` and
+`landedAttacks` are on `src/Hukbo.Core/Simulation/CombatMetrics.cs:50-51`; and
+all eleven are written out through
+`src/Hukbo.Headless/HeadlessRunner.cs:438-450`. The sweep can be reproduced by
+changing one flag.

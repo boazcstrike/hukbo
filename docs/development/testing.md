@@ -731,9 +731,13 @@ roster-expansion suite's theory cases collapsed as the expected apportionment
 became a single calibrated array rather than several even-split cases.
 
 **No evidence about anything interactive.** The three new `AC-*` rows in the
-smoke checklist are what this change owes, and every one of them is `PENDING`.
-The gate never opened the Army Composition panel, never discarded a settings
-file, and never watched a battle.
+smoke checklist were what this change owed. The gate never opened the Army
+Composition panel, never discarded a settings file, and never watched a battle;
+a person did all three on 2026-08-15 and passed all three rows, which left the
+live checklist for the archive record titled "Calibrated army composition
+smoke". That record notes what the passes do not settle: `AC-3` also asked
+whether a quarter of each side standing off makes the battle read as a
+stalemate, and no answer to that was written down.
 
 ## Sandata — recorded baselines and measurement runs, 2026-08-09
 
@@ -1650,10 +1654,13 @@ against: `slipLateral` 5,018, `dodgeIncoming` 714, `giveGround` 890,
 
 Moved to [smoke-checklist.md](smoke-checklist.md) on 2026-08-11.
 
-As of that date it carries 105 rows across 29 sections: 82 `PENDING`,
-13 `BLOCKED`, 8 `PASS`, and 2 `FAIL`. **Only a person at an interactive desktop
-may flip a row**, and no agent may, for any reason, including a passing
-automated test.
+As of 2026-08-15 it carries one row in one section: `GR-5`, `PENDING`, with no
+`PASS`, `FAIL`, or `BLOCKED` row left anywhere in it. On the day it was split
+out it carried 105 rows across 29 sections. **Only a person at an interactive
+desktop may flip a row**, and no agent may, for any reason, including a passing
+automated test. Recount that figure from the checklist's own status column
+before relying on it; every count in this repository that was taken on faith
+turned out to be wrong.
 
 Nothing in this file, and nothing the canonical gate prints, is evidence about
 interactive behaviour. The gate never formats a battle event, never opens the

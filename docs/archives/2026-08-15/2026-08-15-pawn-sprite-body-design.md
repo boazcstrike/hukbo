@@ -1,5 +1,15 @@
 # Pawn sprite body — design
 
+**Archived: reference only.** This design shipped: the atlas, the setting, the
+`B` toggle, and the head-and-torso seam all exist on `main` at `21e1abb`, and
+the eight `SB` smoke rows closed on 2026-08-15. Never execute it, never treat it
+as a live task list, and never cite it as the reason to make a change. The live
+contract for this project remains `CLAUDE.md`,
+`SIMULATION-GAME-STANDARDS.md`, `docs/development/testing.md`, and
+`docs/development/smoke-checklist.md`. Section 9's discoverability gap — nothing
+on screen announces the `B` key — is the one question this document leaves open,
+and making room in the menu panel is its own design.
+
 Date: 2026-08-15
 Status: accepted, implementation authorized
 Game: Hukbo (this design does not touch Sandata)

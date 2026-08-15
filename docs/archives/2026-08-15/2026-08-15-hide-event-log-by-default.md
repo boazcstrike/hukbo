@@ -1,5 +1,14 @@
 # Hide the battle event log by default — plan
 
+**Archived: reference only.** This is a finished plan. The change was built,
+gated, and merged to `main` at `8a25abf`, and the five `HEL` smoke rows it owed
+were run and passed by a person at an interactive desktop on 2026-08-15. Never
+execute it, never treat it as a live task list, and never cite it as the reason
+to make a change. The live contract for this project remains `CLAUDE.md`,
+`SIMULATION-GAME-STANDARDS.md`, `docs/development/testing.md`, and
+`docs/development/smoke-checklist.md`. The record of those five rows is the
+archive titled "Battle event log hidden by default smoke", alongside this file.
+
 Date: 2026-08-15
 Branch: `hukbo-hide-event-log`
 Base: `9f794ce`

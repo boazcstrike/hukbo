@@ -34,9 +34,61 @@ is not authorized work; it is a reminder that the question was decided
   ones in the reported round, with a longest unbroken blocked streak of 168
   ticks — 8.4 seconds of a warrior standing still. Parked by user decision on
   2026-07-30 after the same session's lag report was traced to this rather than
-  to the frame loop. The full measured baseline, both seeds, and what a future
-  change has to beat are in
-  [`2026-07-30-formation-blocking-baseline.md`](2026-07-30-formation-blocking-baseline.md).
+  to the frame loop. No cause was ever identified, and no successor plan has
+  claimed the handoff.
+
+  The document that carried the full measurement was archived on 2026-08-15
+  under the title "Formation blocking at 500 agents — backlog entry and measured
+  baseline", so the numbers a future change has to beat are restated here rather
+  than pointed at. Its 2026-07-30 figures above are a two-seed comparison and
+  should not be used as a target: a twenty-seed sweep on 2026-08-13 found
+  `blockedAgentTicks` varying by 146 per cent across seeds, which retires any
+  two-seed difference as noise, and its worst case was a longest unbroken
+  blocked streak of 904 ticks — 45 seconds of one warrior standing still.
+
+  That sweep is not a live baseline either. It ran under
+  `MovementPresetId.LastStandEngagementV11`, the shipped movement default that
+  day, and the shipped default is now `MovementPresetId.CohortLateralSpreadV13`.
+  No figure anywhere describes what a spectator watches today, so whoever picks
+  this up re-measures first and compares against nothing in this entry.
+
+## From the follower-trailing deadlock diagnosis (2026-07-28, re-checked 2026-08-15)
+
+**Both entries below were taken off the shelf on 2026-08-15 and put back the
+same day.** The design that carries them,
+[`2026-07-28-follower-trailing-deadlock-design.md`](2026-07-28-follower-trailing-deadlock-design.md),
+was archived that morning because none of its five options had ever been built;
+the user then directed that the work be finished, so it was revived and executed
+through [`2026-08-15-collision-mutual-lock.md`](2026-08-15-collision-mutual-lock.md).
+That plan closed with **no code shipped**: rotation and swap detection was built
+twice and does not fix the stall, for reasons both documents record. These two
+questions are parked again, and the first of them has an answer now that it did
+not have before.
+
+- **The body radius is no longer pinned by this bug, and that is new
+  information.** The whole reason `DefaultBodyRadiusRaw` sits at 4.25 is that
+  4.5 hung seed 12 in a 2026-07-28 measurement. That measurement was repeated on
+  2026-08-15 against current code: seed 12 at 4.5 now reaches a decision at tick
+  739, and **0 of 200 seeds reach the tick limit at that radius**. The
+  intent-layer escape closed the 4.5 case as thoroughly as it closed 4.25. What
+  the body radius should be is therefore a tuning question that can be argued on
+  its own merits, and nobody has argued it. Changing the constant still moves
+  both hashes on every seed and is not authorized by this entry.
+- **The 2,000-agent point** below is unchanged and unmeasured since 2026-07-28.
+
+- **`CollisionRules.DefaultBodyRadiusRaw` is 4.25 for a reason that has
+  expired.** The constant's own remark still records the 2026-07-28 measurement
+  in which 4.5 stalled seed 12 for 9,976 ticks with nine agents alive on each
+  side. That remark is now stale in its conclusion though accurate as history,
+  and it should be updated by whoever next touches the constant. The 2026-08-15
+  re-measurement is above.
+- **The 2,000-agent point is a traffic jam that contains a fight.** At the
+  shipping radius it measured 1,943,319 blocked agent-ticks, a longest blocked
+  streak of 108 ticks, a front that never widened past 104,460 raw units, and
+  1,352 of 2,000 agents still alive when the 10,000-tick cap arrived. 2,000 is a
+  stress point rather than a shipping configuration — the shipped default is 500
+  in total — and whether it is a supported population at all was never decided.
+  The thousand-unit performance design and plan own the population question now.
 
 ## From the ranged units package (2026-08-07)
 
@@ -64,6 +116,34 @@ is not authorized work; it is a reminder that the question was decided
   embedded projectiles — plan". The quad-budget warning the entry carried is not
   lost with it: it lives in `src/Hukbo.Client/Rendering/SubmissionCount.cs` by
   name, which is where a future feature wanting a per-pawn quad will meet it.
+
+## From the ranged units closure record (2026-08-09, archived 2026-08-15)
+
+The handoff that carried these was archived on 2026-08-15 under the title
+"Ranged units — session handoff, 2026-08-09". The package itself is closed:
+merged at `9daa271`, sixty sound takes committed, all eleven `RG-*` smoke rows
+passed by a person on 2026-08-14. These three items outlived it.
+
+- **The V9 termination gap, accepted rather than fixed.** Movement preset V9
+  resolves 14 of 20 decisive seeds against a bar of 19. V9 is opt-in and V4
+  remains the shipped default, and the user accepted the gap with it recorded on
+  2026-08-14. One cause was identified and a second was not. Do not retune to
+  chase it; the refusal counters in `BattleSimulation` are the instrument for a
+  fresh investigation.
+- **Phase 2 of the ranged design: line of sight and friendly fire.** Deferred by
+  the design by construction, not left undone. A projectile today passes through
+  a friendly warrior; the user watched for exactly that on 2026-08-14 and
+  reported it does not look wrong at battle pace, which removes the urgency
+  without removing the debt.
+- **A scripted launch cannot start the battle.** `PlaybackController.IsPlaying`
+  defaults to `false` and the only producer of `Play()` is `ClientCommand.Play`,
+  reachable from input alone, so an agent-driven run renders a paused battle
+  forever and `simTicks` stays 0. A `HUKBO_AUTOPLAY=1` opt-in read once at
+  construction, exactly as `HUKBO_RENDER_PROBE` already is, plus an `-AutoPlay`
+  switch on `run.ps1`, would let a scripted Debug run drive a battle to
+  completion. Proposed twice on 2026-08-09 and not taken up; it is a new Client
+  feature needing its own row. It would not let an agent flip a smoke row —
+  only a person may do that. It would only mean the agent finds the crash first.
 
 ## From the unit test cleanup (2026-08-14)
 
