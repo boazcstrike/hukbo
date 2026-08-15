@@ -168,13 +168,26 @@ public sealed class ConservativePawnCullTests
         // Every PawnWeaponRole — derived from the enum rather than
         // hardcoded, because a literal 4 here already rotted silently once,
         // the moment RU-35 grew the enum to seven members — times three
-        // statures, times three builds, times four tall-hardwood skins for
-        // a shielded warrior and the single model-category default for an
-        // unshielded one. produced.Count comes from
+        // statures, times three builds, times the skin count every shield
+        // role contributes. produced.Count comes from
         // PawnAppearanceFactory.Create, a source independent of the enum
         // itself, so a role the factory silently stopped producing would
         // still break this equality instead of vacuously satisfying it.
-        Assert.Equal(Enum.GetValues<PawnWeaponRole>().Length * 3 * 3 * (4 + 1), produced.Count);
+        //
+        // The skin factor is summed from the catalog rather than written as
+        // the literal (4 + 1) it used to be — four tall-hardwood skins plus
+        // the single model-category default an unshielded warrior falls
+        // through to. That literal rotted the moment the shield-size package
+        // added PawnShieldRole.NarrowBreastHigh with a skin of its own, which
+        // is the same failure mode the weapon factor above was converted to
+        // avoid. A role with no declared skins still contributes one, because
+        // SelectSkin falls through to ModelCategoryDefault for it.
+        var shieldSkinTotal = Enum.GetValues<PawnShieldRole>()
+            .Sum(role => Math.Max(ShieldVisualCatalog.GetSkins(role).Count, 1));
+
+        Assert.Equal(
+            Enum.GetValues<PawnWeaponRole>().Length * 3 * 3 * shieldSkinTotal,
+            produced.Count);
 
         var enumerated = new HashSet<(PawnWeaponRole, PawnShieldRole, float, float, string)>(
             GeometryAppearances().Select(appearance => (
@@ -236,13 +249,19 @@ public sealed class ConservativePawnCullTests
         // now derived from the enum for the same reason as above) x every
         // PawnShieldRole (hardcoded 2, now also derived from the enum —
         // RU-41, the identical rot RU-22 repaired for PawnWeaponRole) x 3
-        // statures x 3 builds x 6 shield skins — GeometryAppearances' own
-        // cross-product — times 3 armor factors x 2 sash states x 3 accent
-        // counts x 14 zooms x 4 anchors. Asserted so a silently shrunken
-        // axis list cannot pass this test by covering less.
+        // statures x 3 builds x the shield-skin count — GeometryAppearances'
+        // own cross-product — times 3 armor factors x 2 sash states x 3
+        // accent counts x 14 zooms x 4 anchors. Asserted so a silently
+        // shrunken axis list cannot pass this test by covering less.
+        //
+        // The shield-skin factor was a literal 6 and rotted the third time
+        // this file learned the same lesson, when the shield-size package
+        // declared a skin for PawnShieldRole.NarrowBreastHigh. It now reads
+        // the length of the very array GeometryAppearances sweeps.
         Assert.Equal(
             (Enum.GetValues<PawnWeaponRole>().Length *
-                Enum.GetValues<PawnShieldRole>().Length * 3 * 3 * 6) * 3 * 2 * 3 * 14 * 4,
+                Enum.GetValues<PawnShieldRole>().Length * 3 * 3 *
+                GeometryShieldSkinIds.Length) * 3 * 2 * 3 * 14 * 4,
             cases);
     }
 
@@ -603,18 +622,22 @@ public sealed class ConservativePawnCullTests
             }
         }
 
-        // Every weapon x 2 shields x 5 resolutions x 16 headings x 14 zooms
-        // x 4 anchors. Asserted so a silently shrunken axis list cannot pass
-        // this test by covering less.
+        // Every weapon x every shield x 5 resolutions x 16 headings x 14
+        // zooms x 4 anchors. Asserted so a silently shrunken axis list cannot
+        // pass this test by covering less.
         //
-        // The weapon factor is read from the enum rather than written as a
-        // literal. It was a literal 4, authored when the roster was four
-        // weapons, and the ranged three turned it into a merge failure that
-        // said nothing about what this test protects — every containment
-        // assertion above passed for all seven. Two other cardinality pins in
-        // this suite were converted for the same reason.
+        // Both the weapon and the shield factor are read from their enums
+        // rather than written as literals. The weapon factor was a literal 4,
+        // authored when the roster was four weapons, and the ranged three
+        // turned it into a merge failure that said nothing about what this
+        // test protects — every containment assertion above passed for all
+        // seven. The shield factor was a literal 2 and rotted the same way
+        // the moment the shield-size package appended
+        // ShieldId.NarrowBreastHigh.
         Assert.Equal(
-            Enum.GetValues<WeaponId>().Length * 2 * 5 * 16 * 14 * 4,
+            Enum.GetValues<WeaponId>().Length
+                * Enum.GetValues<ShieldId>().Length
+                * 5 * 16 * 14 * 4,
             cases);
     }
 
@@ -786,6 +809,25 @@ public sealed class ConservativePawnCullTests
     /// <c>PawnGeometry.ShieldProportionDelta</c> also has to classify even
     /// though <c>SelectSkin</c> cannot reach them today.
     /// </summary>
+    /// <summary>
+    /// Every shield skin identifier <see cref="GeometryAppearances"/> sweeps:
+    /// each tall-hardwood skin, the family default, the model-category
+    /// default, and every skin declared for a shield role added since — today
+    /// the single narrow breast-high board. Hoisted to a field so the
+    /// cardinality assertions can multiply by its real length instead of a
+    /// literal, which is the same rot this file already repaired twice for
+    /// the weapon-role and shield-role factors.
+    /// </summary>
+    private static readonly string[] GeometryShieldSkinIds =
+        ShieldVisualCatalog.TallHardwoodSkins
+            .Select(skin => skin.Catalog.Id)
+            .Append(ShieldVisualCatalog.Default.Catalog.Id)
+            .Append(ShieldVisualCatalog.ModelCategoryDefault.Catalog.Id)
+            .Concat(ShieldVisualCatalog
+                .GetSkins(PawnShieldRole.NarrowBreastHigh)
+                .Select(skin => skin.Catalog.Id))
+            .ToArray();
+
     private static IEnumerable<PawnAppearance> GeometryAppearances()
     {
         var seed = PawnAppearanceFactory.Create(
@@ -793,11 +835,7 @@ public sealed class ConservativePawnCullTests
             WeaponId.Kampilan,
             ShieldId.TallHardwood);
 
-        var shieldSkinIds = ShieldVisualCatalog.TallHardwoodSkins
-            .Select(skin => skin.Catalog.Id)
-            .Append(ShieldVisualCatalog.Default.Catalog.Id)
-            .Append(ShieldVisualCatalog.ModelCategoryDefault.Catalog.Id)
-            .ToArray();
+        var shieldSkinIds = GeometryShieldSkinIds;
 
         foreach (var weaponRole in Enum.GetValues<PawnWeaponRole>())
         {

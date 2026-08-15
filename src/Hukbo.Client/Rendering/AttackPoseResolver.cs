@@ -92,6 +92,10 @@ internal static class AttackPoseResolver
         {
             ShieldId.None => false,
             ShieldId.TallHardwood => shieldCompatible,
+            // T4: the narrow shield is a real shield for pose purposes — it
+            // takes the same shield-compatible paired-stance path as
+            // TallHardwood, never the unshielded one.
+            ShieldId.NarrowBreastHigh => shieldCompatible,
             _ => throw new ArgumentOutOfRangeException(
                 nameof(shield),
                 shield,

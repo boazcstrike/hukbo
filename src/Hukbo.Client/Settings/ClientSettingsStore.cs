@@ -99,19 +99,31 @@ internal sealed class ClientSettingsStore
     /// selector sees no change of any kind. It moved from
     /// <see cref="MovementPresetId.BattlefieldRealismV10"/> to
     /// <see cref="MovementPresetId.LastStandEngagementV11"/> when the last-stand
-    /// engagement fix shipped, and again to
+    /// engagement fix shipped, again to
     /// <see cref="MovementPresetId.CohortLateralSpreadV13"/> when the cohort
-    /// lateral spread fix shipped; this default tracks the client's default
-    /// rather than naming a preset of its own, and moves again the next time
-    /// that one does. A settings file that already recorded a movement
-    /// preset — including a version 9 file recording
+    /// lateral spread fix shipped, and again to
+    /// <see cref="MovementPresetId.ShieldEncumbranceV14"/> when the shield
+    /// size against projectile size feature shipped, so the client's default
+    /// army composition — which fields the new narrow-breast-high shield —
+    /// resolves a movement profile instead of throwing; this default tracks
+    /// the client's default rather than naming a preset of its own, and moves
+    /// again the next time that one does. A settings file that already
+    /// recorded a movement preset — including a version 9 file recording
     /// <see cref="MovementPresetId.LastStandEngagementV11"/> from before this
     /// bump — is read back verbatim through <see cref="ResolveMovementPreset"/>
     /// and is unaffected: this constant only governs what a spectator who has
     /// never chosen a preset, or whose file failed to load, receives.
+    /// <see cref="ResolveMovementPreset"/> carries its own, separate guard for
+    /// the one persisted-value case this bump does not cover on its own: a
+    /// stale file naming <see cref="MovementPresetId.EquipmentRelativeFootworkV6"/>,
+    /// <see cref="MovementPresetId.EquipmentRelativeFootworkV7"/>, or
+    /// <see cref="MovementPresetId.MonotoneAllyClearanceV9"/>, the three
+    /// registered presets that turn equipment-relative footwork on with only
+    /// <see cref="MovementRuleset.CanonicalLoadoutCount"/> rows and no
+    /// narrow-shield entries.
     /// </summary>
     private const MovementPresetId DefaultMovementPreset =
-        MovementPresetId.CohortLateralSpreadV13;
+        MovementPresetId.ShieldEncumbranceV14;
 
     /// <summary>
     /// The look every panel had before this setting existed, so a spectator
@@ -471,14 +483,44 @@ internal sealed class ClientSettingsStore
     /// <see cref="MovementPresetRegistry"/> has not registered, and this
     /// resolver's job is to never hand that value onward. Missing is what a
     /// version 8 file - written before this field existed - looks like.
+    /// <para>
+    /// A third check guards a narrower ordering hazard the shield size
+    /// against projectile size feature introduced. The client's default army
+    /// composition now fields narrow-breast-high-shield Kalis and Itak, and
+    /// <c>MovementRuleset.ResolveLoadoutProfile</c> throws for any loadout
+    /// its target preset has no row for. Most legacy presets are harmless: a
+    /// preset with <see cref="MovementRuleset.UsesEquipmentRelativeFootwork"/>
+    /// false never calls that method for anyone, and one with the full
+    /// <see cref="MovementRuleset.ExtendedCanonicalLoadoutCount"/> rows has a
+    /// narrow-shield entry to give it. The hazard is the narrow middle: a
+    /// registered preset with equipment-relative footwork on but only
+    /// <see cref="MovementRuleset.CanonicalLoadoutCount"/> rows — today,
+    /// <see cref="MovementPresetId.EquipmentRelativeFootworkV6"/>,
+    /// <see cref="MovementPresetId.EquipmentRelativeFootworkV7"/>, and
+    /// <see cref="MovementPresetId.MonotoneAllyClearanceV9"/> — which a
+    /// pre-existing settings file could still name. A file recording any of
+    /// those falls through to <see cref="DefaultMovementPreset"/> exactly as
+    /// a missing or unregistered value would, rather than crashing the game
+    /// on launch for a returning spectator who never touched the selector.
+    /// </para>
     /// </summary>
     private static MovementPresetId ResolveMovementPreset(
-        MovementPresetId? persisted) =>
-        persisted is { } value &&
-        Enum.IsDefined(value) &&
-        MovementPresetRegistry.IsRegistered(value)
-            ? value
-            : DefaultMovementPreset;
+        MovementPresetId? persisted)
+    {
+        if (persisted is not { } value ||
+            !Enum.IsDefined(value) ||
+            !MovementPresetRegistry.IsRegistered(value))
+        {
+            return DefaultMovementPreset;
+        }
+
+        var ruleset = MovementPresetRegistry.Get(value);
+        return ruleset.UsesEquipmentRelativeFootwork &&
+            ruleset.LoadoutMovementProfiles.Length <
+                MovementRuleset.ExtendedCanonicalLoadoutCount
+            ? DefaultMovementPreset
+            : value;
+    }
 
     /// <summary>
     /// A missing or out-of-range chrome style resolves to the procedural

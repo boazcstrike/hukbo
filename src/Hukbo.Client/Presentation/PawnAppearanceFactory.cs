@@ -154,6 +154,14 @@ internal static class PawnAppearanceFactory
         {
             ShieldId.None => PawnShieldRole.None,
             ShieldId.TallHardwood => PawnShieldRole.TallHardwood,
+            // T4 (shield-projectile-block-design.md): the only place
+            // ShieldId.NarrowBreastHigh maps to its PawnShieldRole.
+            // KNOWN GAP, not this task's file: ShieldVisualCatalog.GetSkins
+            // (Presentation/Catalogs/ShieldVisualCatalog.cs) has no case for
+            // PawnShieldRole.NarrowBreastHigh yet, so SelectSkin below throws
+            // ArgumentOutOfRangeException for this role until that catalog is
+            // extended — see this task's report for the affected tests.
+            ShieldId.NarrowBreastHigh => PawnShieldRole.NarrowBreastHigh,
             _ => throw new ArgumentOutOfRangeException(
                 nameof(shield),
                 shield,

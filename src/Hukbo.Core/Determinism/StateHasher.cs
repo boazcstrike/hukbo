@@ -67,6 +67,24 @@ internal static class StateHasher
     /// <see cref="AgentState.PriorSupportAllies"/>, and
     /// <see cref="AgentState.BrokeOffUnderPressure"/> as <c>1</c> or <c>0</c>.
     /// </param>
+    /// <param name="appliesShieldBlockRecovery">
+    /// <see cref="Movement.MovementRuleset.AppliesShieldBlockRecovery"/> of
+    /// the movement preset the simulation is running on,
+    /// <see langword="false"/> for every preset up to and including V6, V7's
+    /// pressure interrupt, and every intervening preset that does not author
+    /// the shield-projectile-block design's block-recovery window. Gated on
+    /// its own flag rather than reused from
+    /// <paramref name="appliesPressureInterrupt"/>, following the same
+    /// precedent that flag itself sets against
+    /// <paramref name="movementContentHash"/>: a preset could in principle
+    /// carry equipment-relative footwork and even pressure interrupt without
+    /// authoring shield block recovery, and folding the new field inside
+    /// either existing gate would move that preset's byte layout for no
+    /// reason. When <see langword="false"/> nothing new is written anywhere.
+    /// When <see langword="true"/>, one field folds at the tail of the
+    /// per-agent fold, after the pressure-interrupt fields:
+    /// <see cref="AgentState.ShieldBlockRecoveryTicksRemaining"/>.
+    /// </param>
     /// <param name="hasRangedWeapon">
     /// Whether the ruleset the simulation is running on fields at least one
     /// ranged weapon, computed once by <c>BattleSimulation</c> from
@@ -98,6 +116,7 @@ internal static class StateHasher
         bool hasRankLevels,
         ulong? movementContentHash = null,
         bool appliesPressureInterrupt = false,
+        bool appliesShieldBlockRecovery = false,
         bool hasRangedWeapon = false,
         ReadOnlySpan<Projectile> projectiles = default)
     {
@@ -175,6 +194,11 @@ internal static class StateHasher
                 Add(ref hash, agent.DamageTakenLastTick);
                 Add(ref hash, agent.PriorSupportAllies);
                 Add(ref hash, agent.BrokeOffUnderPressure ? 1 : 0);
+            }
+
+            if (appliesShieldBlockRecovery)
+            {
+                Add(ref hash, agent.ShieldBlockRecoveryTicksRemaining);
             }
         }
 

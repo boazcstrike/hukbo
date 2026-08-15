@@ -70,4 +70,77 @@ public static class TallHardwoodMovementProfiles
         disengageEnemyToAllyBasisPoints: 15_000,
         reengageEnemyToAllyBasisPoints: 11_000,
         pursuitSupportBodyDiametersBasisPoints: 8_000);
+
+    /// <summary>
+    /// The shielded Kalis (<c>KS</c>) row used only by
+    /// <see cref="MovementPresetId.ShieldEncumbranceV14"/>, canonical loadout
+    /// index 4 there as in every earlier equipment-relative preset.
+    /// Provisional reconstruction: gameplay tuning; no historical measurement.
+    /// It is a distinct row from <see cref="KalisRow"/>, not an edit to it:
+    /// V6 through V13 keep registering <see cref="KalisRow"/> unchanged, and
+    /// only this preset's registry entry substitutes this row in its place, so
+    /// no earlier preset's content hash or frozen trajectory digest moves. Its
+    /// four pace fields are lowered below <see cref="KalisRow"/>'s so that the
+    /// shield-size design's pace ordering
+    /// <c>solo &gt; narrow-shield &gt; tall-shield</c>
+    /// (2026-08-15 shield-projectile-block design, section 6.1) holds with a
+    /// visible margin against
+    /// <see cref="Movement.Profiles.NarrowBreastHighMovementProfiles.KalisRow"/>;
+    /// every other field is carried forward from <see cref="KalisRow"/>
+    /// unchanged, because the design only asks the broad shield to slow down,
+    /// not to reposition or re-time its footwork.
+    /// </summary>
+    public static LoadoutMovementProfile KalisRowV14 { get; } = new(
+        new CombatLoadout(
+            WeaponId.Kalis, ArmorId.LightOrganic, ShieldId.TallHardwood),
+        forwardPaceBasisPoints: 9_000,
+        lateralPaceBasisPoints: 8_000,
+        backwardPaceBasisPoints: 6_300,
+        committedPaceBasisPoints: 2_700,
+        preferredDistanceBasisPoints: 13_000,
+        opponentDistanceOffsetBasisPoints: [-250, 0, 250, 500, 0, 250],
+        maximumFacingStepsPerTick: 2,
+        committedFacingStepsPerTick: 1,
+        accelerationBasisPointsPerTick: 5_600,
+        decelerationBasisPointsPerTick: 6_000,
+        commitmentTicks: 3,
+        recoveryTicks: 3,
+        allyClearanceBodyDiametersBasisPoints: 14_000,
+        disengageEnemyToAllyBasisPoints: 17_500,
+        reengageEnemyToAllyBasisPoints: 11_000,
+        pursuitSupportBodyDiametersBasisPoints: 10_000);
+
+    /// <summary>
+    /// The shielded Itak (<c>IS</c>) row used only by
+    /// <see cref="MovementPresetId.ShieldEncumbranceV14"/>, canonical loadout
+    /// index 5 there as in every earlier equipment-relative preset.
+    /// Provisional reconstruction: gameplay tuning; no historical measurement.
+    /// It is a distinct row from <see cref="ItakRow"/>, not an edit to it, for
+    /// the same reason <see cref="KalisRowV14"/> is distinct from
+    /// <see cref="KalisRow"/>: V6 through V13 keep registering
+    /// <see cref="ItakRow"/> unchanged. Its four pace fields are lowered below
+    /// <see cref="ItakRow"/>'s so the pace ordering holds against
+    /// <see cref="Movement.Profiles.NarrowBreastHighMovementProfiles.ItakRow"/>
+    /// with a visible margin; every other field is carried forward from
+    /// <see cref="ItakRow"/> unchanged.
+    /// </summary>
+    public static LoadoutMovementProfile ItakRowV14 { get; } = new(
+        new CombatLoadout(
+            WeaponId.Itak, ArmorId.LightOrganic, ShieldId.TallHardwood),
+        forwardPaceBasisPoints: 9_300,
+        lateralPaceBasisPoints: 8_300,
+        backwardPaceBasisPoints: 6_700,
+        committedPaceBasisPoints: 3_200,
+        preferredDistanceBasisPoints: 10_000,
+        opponentDistanceOffsetBasisPoints: [-500, -250, 0, 250, -250, 0],
+        maximumFacingStepsPerTick: 2,
+        committedFacingStepsPerTick: 1,
+        accelerationBasisPointsPerTick: 6_500,
+        decelerationBasisPointsPerTick: 7_000,
+        commitmentTicks: 3,
+        recoveryTicks: 3,
+        allyClearanceBodyDiametersBasisPoints: 13_500,
+        disengageEnemyToAllyBasisPoints: 15_000,
+        reengageEnemyToAllyBasisPoints: 11_000,
+        pursuitSupportBodyDiametersBasisPoints: 8_000);
 }

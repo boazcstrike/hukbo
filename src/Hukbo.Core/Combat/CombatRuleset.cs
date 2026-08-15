@@ -740,6 +740,38 @@ public sealed class CombatRuleset
         Fnv1a.Add(ref hash, (ulong)ClashProfile.MinimumHardShareBasisPoints);
         Fnv1a.Add(ref hash, (ulong)ClashProfile.MaximumHardShareBasisPoints);
         Fnv1a.Add(ref hash, (ulong)ClashProfile.MaximumInterceptionBasisPoints);
+
+        // PROVISIONAL, size-aware shield interception, added by V7. Gated on
+        // ClashProfile.DeclaresSizeAwareShieldIntercept rather than folded
+        // unconditionally: every preset through V6 leaves the size-aware
+        // tables null, so this block folds nothing for them and their
+        // recorded content hashes stay byte-identical.
+        if (ClashProfile.DeclaresSizeAwareShieldIntercept)
+        {
+            var shieldBases = ClashProfile.OrderedShieldInterceptBases.ToArray();
+            Fnv1a.Add(ref hash, (ulong)shieldBases.Length);
+            foreach (var (shield, value) in shieldBases)
+            {
+                Fnv1a.Add(ref hash, (ulong)shield);
+                Fnv1a.Add(ref hash, (ulong)value);
+            }
+
+            var shieldSpans = ClashProfile.OrderedShieldSpans.ToArray();
+            Fnv1a.Add(ref hash, (ulong)shieldSpans.Length);
+            foreach (var (shield, value) in shieldSpans)
+            {
+                Fnv1a.Add(ref hash, (ulong)shield);
+                Fnv1a.Add(ref hash, (ulong)value);
+            }
+
+            var shieldDefeatBulks = ClashProfile.OrderedShieldDefeatBulks.ToArray();
+            Fnv1a.Add(ref hash, (ulong)shieldDefeatBulks.Length);
+            foreach (var (weapon, value) in shieldDefeatBulks)
+            {
+                Fnv1a.Add(ref hash, (ulong)weapon);
+                Fnv1a.Add(ref hash, (ulong)value);
+            }
+        }
     }
 
     private static IReadOnlyList<ArmorId> NormalizeArmors(IReadOnlyList<ArmorId> armors)

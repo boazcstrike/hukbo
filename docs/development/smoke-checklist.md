@@ -439,3 +439,21 @@ live battle, may flip one of them. Leave untouched rows `PENDING`; report
 | HEL-3 | Click the `Events` button on the control bar twice | The button toggles the same visibility F8 toggles, and its active state tracks whether the log is shown | | PENDING |
 | HEL-4 | With the event log hidden, press F9 to show the sound log | The sound log occupies the whole right-hand column on its own rather than only its usual lower share, and the arena narrows by exactly the column width | | PENDING |
 | HEL-5 | With the event log hidden, click and scroll where the log used to be, then press Escape | Nothing in the hidden log reacts: the click reaches the arena beneath it, the wheel drives the camera rather than a log scroll, and Escape is handled by whatever would handle it with no log present | | PENDING |
+
+## Shield size against projectile size (the 2026-08-15 shield-projectile-block design)
+
+Warriors now carry one of three shield states rather than two: no shield, a
+narrow breast-high board, or the body-length tall hardwood shield. A larger
+shield intercepts more and stops small projectiles reliably, a larger
+projectile is harder for any shield to stop and punishes the small shield
+worst, a larger shield is slower to carry, and a warrior who has just taken a
+blow on the shield has their pace clamped for a few ticks before recovering.
+The shipped build runs combat preset V7 and movement preset V14, which are the
+only presets that carry any of this.
+
+None of these rows may be closed by a passing test, by a build, or by a
+screenshot probe. Only a person at an interactive Windows desktop, watching a
+live battle, may flip one of them. Leave untouched rows `PENDING`; report
+`BLOCKED` honestly.
+
+[{"#":"SPB-1","Step":"Launch the client and look at the shielded warriors on both sides before pressing play","Expected":"Two visibly different shields are drawn: a tall body-length board and a clearly narrower, shorter breast-high board. The difference is legible without zooming in","Actual":"","Status":"PENDING"},{"#":"SPB-2","Step":"Click a warrior carrying the narrow shield and read the agent inspector","Expected":"The `Shield:` row reads `Narrow Breast-High`, not `None` and not `Tall Hardwood`","Actual":"","Status":"PENDING"},{"#":"SPB-3","Step":"Run a battle and watch an archer or arquebusier shoot at a tall-shield bearer, then at a narrow-shield bearer","Expected":"The tall shield stops noticeably more of what is shot at it than the narrow shield does","Actual":"","Status":"PENDING"},{"#":"SPB-4","Step":"Watch arquebus fire against a tall-shield bearer specifically","Expected":"Shot gets through the shield far more often than arrows do — the arquebus is the least blockable projectile in the game despite being the smallest","Actual":"","Status":"PENDING"},{"#":"SPB-5","Step":"Watch a tall-shield bearer and a narrow-shield bearer advance across open ground alongside an unshielded warrior of the same weapon","Expected":"The unshielded warrior is fastest, the narrow-shield bearer is next, and the tall-shield bearer is slowest. The ordering is visible over a sustained advance","Actual":"","Status":"PENDING"},{"#":"SPB-6","Step":"Select a shield bearer, keep the inspector open, and watch it through a melee exchange in which the shield takes a blow","Expected":"A `Block:  recovering Nt` line appears in the inspector for a few ticks immediately after a blocked blow and then disappears on its own. It is absent at every other moment","Actual":"","Status":"PENDING"},{"#":"SPB-7","Step":"Watch the same warrior's movement at the moment that line is showing","Expected":"The warrior's pace visibly checks for the short window and then recovers. The effect reads as a brief stumble, not as a stun","Actual":"","Status":"PENDING"},{"#":"SPB-8","Step":"Show the battle event log and find a line for a one-handed attacker carrying each shield","Expected":"The suffix names the shield size — `tall shield` or `narrow shield` — rather than the bare word `shielded`, and an unshielded attacker still reads `solo`","Actual":"","Status":"PENDING"},{"#":"SPB-9","Step":"Open the army composition panel and cycle the movement preset selector to the end of the list","Expected":"`V14 Shield Encumbrance` is present as the last entry and is the one selected by default on a fresh settings file","Actual":"","Status":"PENDING"}]

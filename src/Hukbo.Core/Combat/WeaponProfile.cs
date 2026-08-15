@@ -83,6 +83,26 @@ namespace Hukbo.Core.Combat;
 /// ranged weapon to declare this alongside <see cref="ProjectileSpeedRaw"/>
 /// and <see cref="StandoffDistanceRaw"/>, all three or none.
 /// </param>
+/// <param name="ShieldDefeatBulkRaw">
+/// PROVISIONAL gameplay tuning, not a historical measurement — none of it may
+/// be cited back into docs/research/HISTORICAL_1500s_WEAPONS.md or
+/// docs/research/HISTORICAL_1500s_ARMOR.md. How much this weapon's attack
+/// works against a shield's span in <see cref="ClashProfile"/>'s size-aware
+/// shield-intercept formula, as a raw fixed-point value — world units
+/// multiplied by <see cref="Hukbo.Core.Mathematics.FixedPoint.Scale"/>. Must
+/// be zero or positive, and must be zero when <see cref="FlightTickCeiling"/>
+/// is zero: a melee blow striking through the same span a shield already
+/// covers has no independent physical size of its own to compare against it.
+/// A higher value here defeats interception more, and defeats a narrower
+/// shield's interception more than a broad shield's — the deliberately
+/// counter-intuitive case is the arquebus, given the highest bulk of any
+/// weapon here despite being the physically smallest, because
+/// docs/research/HISTORICAL_1500s_ARMOR.md section 6.2 records that at
+/// Mactan in 1521 "the shots only passed through the shields which were made
+/// of thin wood and the arms [of the bearers]" while the same account
+/// records arrows stopped by the same shields — this field models that
+/// defeat, not the weapon's physical dimensions.
+/// </param>
 public readonly record struct WeaponProfile(
     int DamagePerAttack,
     int AttackRangeRaw,
@@ -93,7 +113,8 @@ public readonly record struct WeaponProfile(
     int ComboCooldownTicks = 1,
     int ProjectileSpeedRaw = 0,
     int StandoffDistanceRaw = 0,
-    int FlightTickCeiling = 0)
+    int FlightTickCeiling = 0,
+    int ShieldDefeatBulkRaw = 0)
 {
     /// <summary>
     /// Throws when any attribute is not positive, or when a combo chance is
@@ -126,6 +147,29 @@ public readonly record struct WeaponProfile(
             ComboCooldownTicks,
             $"{parameterName}.{nameof(ComboCooldownTicks)}");
         ValidateRangedFields(parameterName);
+        ValidateShieldDefeatBulk(parameterName);
+    }
+
+    /// <summary>
+    /// Enforces the shield-defeat-bulk construction invariant: non-negative,
+    /// and zero for a melee weapon. Called by <see cref="Validate"/>, which
+    /// <see cref="CombatRuleset"/> runs for every declared profile.
+    /// </summary>
+    private void ValidateShieldDefeatBulk(string parameterName)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(
+            ShieldDefeatBulkRaw,
+            $"{parameterName}.{nameof(ShieldDefeatBulkRaw)}");
+
+        if (FlightTickCeiling == 0 && ShieldDefeatBulkRaw != 0)
+        {
+            throw new ArgumentException(
+                $"{parameterName} declares {nameof(ShieldDefeatBulkRaw)} " +
+                $"{ShieldDefeatBulkRaw} but {nameof(FlightTickCeiling)} is " +
+                "zero, meaning this is a melee profile. A melee weapon must " +
+                $"declare {nameof(ShieldDefeatBulkRaw)} of zero.",
+                parameterName);
+        }
     }
 
     /// <summary>

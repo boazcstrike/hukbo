@@ -136,6 +136,7 @@ internal sealed partial class ArmyCompositionPanel
             MovementPresetId.LastStandEngagementV11,
             MovementPresetId.ContingentShapeV12,
             MovementPresetId.CohortLateralSpreadV13,
+            MovementPresetId.ShieldEncumbranceV14,
         ];
 
     /// <summary>
@@ -158,6 +159,7 @@ internal sealed partial class ArmyCompositionPanel
             "V11 Last-Stand Engagement",
             "V12 Contingent Shape",
             "V13 Cohort Lateral Spread",
+            "V14 Shield Encumbrance",
         ];
 
     /// <summary>

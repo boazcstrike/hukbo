@@ -190,7 +190,20 @@ internal static class BattleEventFormatter
             return null;
         }
 
-        return shield == ShieldId.None ? "solo" : "shielded";
+        // Three shield states, so the bare word "shielded" no longer
+        // identifies anything: it read the same for a body-length board and a
+        // breast-high one once the shield-size package appended
+        // ShieldId.NarrowBreastHigh. Each shield now names its own size.
+        return shield switch
+        {
+            ShieldId.None => "solo",
+            ShieldId.TallHardwood => "tall shield",
+            ShieldId.NarrowBreastHigh => "narrow shield",
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(shield),
+                shield,
+                null),
+        };
     }
 
     private static string GetBodyPartLabel(BodyPart bodyPart) =>

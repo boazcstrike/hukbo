@@ -608,6 +608,16 @@ public sealed class BattleSimulation
         scenario.Validate();
         AssertRosterMatchesRegisteredPreset(scenario, rules);
 
+        // Resolved here, ahead of the constructor's own
+        // MovementPresetRegistry.Get(scenario.MovementPreset) call at line
+        // 237, purely so CreateAgent below can scale each agent's raw
+        // movement speed by its shield's encumbrance at spawn: the
+        // constructor does not run until every AgentState already exists.
+        // Both lookups resolve the same registry entry for the same
+        // scenario, so this costs one extra dictionary-free switch, not a
+        // second source of truth.
+        var movementRules = MovementPresetRegistry.Get(scenario.MovementPreset);
+
         var random = new SplitMix64(scenario.Seed);
         var agents = new AgentState[scenario.TotalAgents];
         var mapWidthRaw = checked(scenario.MapWidth * FixedPoint.Scale);
@@ -725,6 +735,7 @@ public sealed class BattleSimulation
                 yRaw,
                 scenario,
                 rules,
+                movementRules,
                 loadout,
                 contingentId);
         }
@@ -751,6 +762,7 @@ public sealed class BattleSimulation
                 rightY,
                 scenario,
                 rules,
+                movementRules,
                 loadout,
                 contingentId);
         }
@@ -941,6 +953,13 @@ public sealed class BattleSimulation
             // pressure-interrupt fields inside that block would move V6's
             // per-agent byte layout. Only V7 registers this true.
             _movementRules.AppliesPressureInterrupt,
+            // A gate of its own, not a reuse of the pressure-interrupt flag
+            // above: a preset could carry pressure interrupt without
+            // authoring shield block recovery, and folding the new field
+            // inside that gate would move such a preset's per-agent byte
+            // layout for no reason. Only the shield-projectile-block design's
+            // movement preset registers this true.
+            _movementRules.AppliesShieldBlockRecovery,
             // A ruleset with no ranged roster entry folds nothing at all for
             // the projectile pool -- not even a zero -- which is what keeps
             // every preset up to and including PrecolonialPhilippinesV4
@@ -1118,6 +1137,7 @@ public sealed class BattleSimulation
         int yRaw,
         Scenario scenario,
         CombatRuleset rules,
+        MovementRuleset movementRules,
         CombatLoadout loadout,
         int contingentId)
     {
@@ -1132,13 +1152,33 @@ public sealed class BattleSimulation
             ? rules.ResolveLevel(loadout.Rank)
             : scenario.PlaceholderFighterLevel;
 
+        // Shield-projectile-block design section 6.1: scaled once, here, at
+        // spawn, directly on the agent's raw movement speed — never through
+        // a loadout movement profile row, because the shipped movement
+        // pipeline registers no row for a ranged loadout and an
+        // equipment-relative preset throws for one. Integer arithmetic in a
+        // long intermediate so the multiply cannot overflow regardless of
+        // scenario tuning, then narrowed back with checked, matching every
+        // other basis-point scale in this file. Every preset whose
+        // MovementRuleset.AppliesShieldEncumbrance is false resolves
+        // MovementRuleset.FullShieldPaceBasisPoints (10,000) for every
+        // shield, so movementSpeedRaw is scenario.MovementSpeedRaw times
+        // 10,000 divided by 10,000: byte-identical to today's value for
+        // every preset up to and including
+        // MovementPresetId.CohortLateralSpreadV13.
+        var shieldPaceBasisPoints =
+            movementRules.ResolveShieldPaceBasisPoints(loadout.Shield);
+        var movementSpeedRaw = checked((int)(
+            (long)scenario.MovementSpeedRaw * shieldPaceBasisPoints /
+            MovementRuleset.FullShieldPaceBasisPoints));
+
         return new AgentState(
             entityId,
             factionId,
             xRaw,
             yRaw,
             scenario.MaximumHitPoints,
-            scenario.MovementSpeedRaw,
+            movementSpeedRaw,
             scenario.PerceptionRangeRaw,
             profile.AttackRangeRaw,
             profile.DamagePerAttack,
@@ -1233,6 +1273,16 @@ public sealed class BattleSimulation
             if (agent.IsAlive && agent.AttackCooldownRemaining > 0)
             {
                 agent.AttackCooldownRemaining--;
+            }
+
+            // Shield-projectile-block design section 6.2. Zero forever under
+            // every preset whose AppliesShieldBlockRecovery is false, since
+            // nothing ever sets the counter above zero there, so this
+            // decrement is a no-op for every such preset and needs no gate
+            // of its own.
+            if (agent.IsAlive && agent.ShieldBlockRecoveryTicksRemaining > 0)
+            {
+                agent.ShieldBlockRecoveryTicksRemaining--;
             }
         }
     }
@@ -2654,7 +2704,8 @@ public sealed class BattleSimulation
                 provisionalPhase,
                 facing,
                 candidate.DeltaXRaw,
-                candidate.DeltaYRaw);
+                candidate.DeltaYRaw,
+                _movementRules);
 
             // A point destination is somewhere to arrive; the step is the
             // smaller of the resulting pace and the remaining distance
@@ -3265,7 +3316,8 @@ public sealed class BattleSimulation
         var facing = ResolveCandidateFacing(
             agent, profile, provisionalPhase, threat, deltaXRaw, deltaYRaw);
         var paceRaw = ResolveProposedPace(
-            agent, profile, provisionalPhase, facing, deltaXRaw, deltaYRaw);
+            agent, profile, provisionalPhase, facing, deltaXRaw, deltaYRaw,
+            _movementRules);
         var distanceRaw = IntegerSquareRoot(checked(
             (deltaXRaw * deltaXRaw) + (deltaYRaw * deltaYRaw)));
         var effectivePaceRaw = (int)Math.Min(paceRaw, distanceRaw);
@@ -3389,7 +3441,8 @@ public sealed class BattleSimulation
         FootworkPhase provisionalPhase,
         Facing16 committedFacing,
         long travelDeltaXRaw,
-        long travelDeltaYRaw)
+        long travelDeltaYRaw,
+        MovementRuleset ruleset)
     {
         var travelSector = FacingRules.FromDelta(
             travelDeltaXRaw, travelDeltaYRaw, agent.FactionId);
@@ -3410,6 +3463,20 @@ public sealed class BattleSimulation
         {
             paceCapBasisPoints = Math.Min(
                 paceCapBasisPoints, profile.CommittedPaceBasisPoints);
+        }
+
+        // Shield-projectile-block design section 6.2: the same clamp shape
+        // as the Commit clamp just above, taking the minimum so the window
+        // can only ever lower the cap, never raise it. Gated on the ruleset
+        // flag rather than the counter alone so a stray nonzero counter under
+        // a preset that does not author the effect — which should never
+        // happen, since nothing sets the counter under such a preset — could
+        // never silently clamp pace it was never meant to touch.
+        if (ruleset.AppliesShieldBlockRecovery &&
+            agent.ShieldBlockRecoveryTicksRemaining > 0)
+        {
+            paceCapBasisPoints = Math.Min(
+                paceCapBasisPoints, ruleset.ShieldBlockRecoveryPaceCeilingBasisPoints);
         }
 
         var desiredPaceRaw = MovementRouteRules.DesiredPaceRaw(
@@ -3536,6 +3603,7 @@ public sealed class BattleSimulation
     private void ApplyEquipmentAttackFootworkAndDeathCleanup()
     {
         var appliesPressureInterrupt = _movementRules.AppliesPressureInterrupt;
+        var appliesShieldBlockRecovery = _movementRules.AppliesShieldBlockRecovery;
         for (var index = 0; index < _agentStates.Length; index++)
         {
             var agent = _agentStates[index];
@@ -3552,6 +3620,14 @@ public sealed class BattleSimulation
                     agent.DamageTakenLastTick = 0;
                     agent.PriorSupportAllies = 0;
                     agent.BrokeOffUnderPressure = false;
+                }
+
+                if (appliesShieldBlockRecovery)
+                {
+                    // Shield-projectile-block design section 6.2. Idempotent
+                    // for an agent that died on an earlier tick, exactly as
+                    // the pressure-interrupt clear above is.
+                    agent.ShieldBlockRecoveryTicksRemaining = 0;
                 }
 
                 continue;
@@ -4329,6 +4405,36 @@ public sealed class BattleSimulation
             penetrationRaw);
     }
 
+    /// <summary>
+    /// Opens or extends <paramref name="defender"/>'s shield block-recovery
+    /// window (shield-projectile-block design section 6.2), called from both
+    /// the melee resolution path and the ranged-arrival path in
+    /// <see cref="GatherAndCommitAttacks"/> so a defender is covered
+    /// regardless of which kind of attack the shield stopped. Takes the
+    /// larger of the counter's current value — whether left over from an
+    /// earlier tick or already raised earlier this same tick by another
+    /// blocked attack against the same defender — and the duration this
+    /// defender's shield authors, so two blocks landing on one defender in
+    /// one tick take the maximum rather than summing. A no-op under any
+    /// preset whose <see cref="MovementRuleset.AppliesShieldBlockRecovery"/>
+    /// is <see langword="false"/>, matching every other gate this design
+    /// introduces.
+    /// </summary>
+    private void ApplyShieldBlockRecovery(AgentState defender)
+    {
+        if (!_movementRules.AppliesShieldBlockRecovery)
+        {
+            return;
+        }
+
+        var duration = _movementRules.ResolveShieldBlockRecoveryTicks(
+            defender.Loadout.Shield);
+        if (duration > defender.ShieldBlockRecoveryTicksRemaining)
+        {
+            defender.ShieldBlockRecoveryTicksRemaining = duration;
+        }
+    }
+
     private void GatherAndCommitAttacks(List<BattleEvent> events)
     {
         Array.Clear(_damageTotals);
@@ -4471,6 +4577,7 @@ public sealed class BattleSimulation
                     break;
                 case AttackResolution.ShieldBlocked:
                     shieldBlocked[arrivalFaction]++;
+                    ApplyShieldBlockRecovery(arrivalTarget);
                     break;
                 case AttackResolution.Parried:
                     parried[arrivalFaction]++;
@@ -4651,6 +4758,7 @@ public sealed class BattleSimulation
                     break;
                 case AttackResolution.ShieldBlocked:
                     shieldBlocked[attackerFaction]++;
+                    ApplyShieldBlockRecovery(target);
                     break;
                 case AttackResolution.Parried:
                     parried[attackerFaction]++;

@@ -280,4 +280,34 @@ public enum MovementPresetId
     /// the cohort lateral spread plan.
     /// </summary>
     CohortLateralSpreadV13 = 13,
+
+    /// <summary>
+    /// The shield-encumbrance preset. Carries every one of
+    /// <see cref="CohortLateralSpreadV13"/>'s cohesion, formation, and
+    /// pressure-interrupt tunables forward unchanged, and is the first
+    /// preset to register
+    /// <see cref="MovementRuleset.ExtendedCanonicalLoadoutCount"/> profile
+    /// rows instead of <see cref="MovementRuleset.CanonicalLoadoutCount"/>:
+    /// the six rows every preset since
+    /// <see cref="EquipmentRelativeFootworkV6"/> has carried, plus two new
+    /// narrow-breast-high-shield rows
+    /// (<see cref="Profiles.NarrowBreastHighMovementProfiles.KalisRow"/>,
+    /// <see cref="Profiles.NarrowBreastHighMovementProfiles.ItakRow"/>) at
+    /// canonical indices 6 and 7. Its tall-hardwood-shield rows are not
+    /// <see cref="Profiles.TallHardwoodMovementProfiles.KalisRow"/> and
+    /// <see cref="Profiles.TallHardwoodMovementProfiles.ItakRow"/> — the rows
+    /// V6 through V13 still register unchanged — but the distinct, more
+    /// slowly paced
+    /// <see cref="Profiles.TallHardwoodMovementProfiles.KalisRowV14"/> and
+    /// <see cref="Profiles.TallHardwoodMovementProfiles.ItakRowV14"/>, so
+    /// that solo, narrow-shield, and tall-shield pace sit in the strict order
+    /// the shield-projectile-block design's section 6.1 requires for both
+    /// weapons on every pace field. It is also the first preset to register
+    /// <see cref="MovementRuleset.AppliesShieldBlockRecovery"/> as
+    /// <see langword="true"/>, opening a brief pace-capped recovery window
+    /// on a warrior whose shield has just intercepted a projectile, per
+    /// design section 6.2. See the 2026-08-15 shield-projectile-block
+    /// design and its plan.
+    /// </summary>
+    ShieldEncumbranceV14 = 14,
 }

@@ -654,6 +654,84 @@ public static class MovementPresetRegistry
         incomingDamageWeightBasisPoints: 0,
         allyCollapseWeightBasisPoints: 0);
 
+    /// <summary>
+    /// The shield-encumbrance preset. Restates
+    /// <see cref="CohortLateralSpreadV13Ruleset"/>'s cohesion, formation, and
+    /// pressure-interrupt tunables verbatim, following the "restate, do not
+    /// reference" convention every preset above uses. Like
+    /// <see cref="CohortLateralSpreadV13Ruleset"/> it registers
+    /// <c>usesEquipmentRelativeFootwork: false</c> with an empty profile
+    /// collection: the shipped movement pipeline registers no loadout
+    /// profile row for a ranged loadout, so an equipment-relative preset
+    /// throws for every ranged agent, and shield encumbrance must not
+    /// depend on that pipeline. This is the first preset to register
+    /// <see cref="MovementRuleset.AppliesShieldEncumbrance"/> as
+    /// <see langword="true"/>, scaling a warrior's raw movement speed at
+    /// spawn — in <c>BattleSimulation.CreateAgent</c>, not through a
+    /// loadout row — by the pace <see cref="MovementRuleset
+    /// .ResolveShieldPaceBasisPoints"/> resolves for its carried shield.
+    /// Per shield-projectile-block design section 6.1, the pace holds
+    /// strict order <c>solo &gt; narrow-shield &gt; tall-shield</c>: full
+    /// speed for <see cref="Combat.ShieldId.None"/>, 9,600 basis points for
+    /// <see cref="Combat.ShieldId.NarrowBreastHigh"/>, and 9,000 basis
+    /// points for <see cref="Combat.ShieldId.TallHardwood"/>. This preset
+    /// is also the first to register
+    /// <see cref="MovementRuleset.AppliesShieldBlockRecovery"/> as
+    /// <see langword="true"/>, per design section 6.2: five ticks (250
+    /// milliseconds at the 20 Hz tick rate) for the tall-hardwood shield,
+    /// three ticks (150 milliseconds) for the narrow-breast-high shield,
+    /// and a 4,000-basis-point pace ceiling while either window is open.
+    /// All values here are provisional reconstructions: gameplay tuning
+    /// under CLAUDE.md section 7, not a historical measurement. See the
+    /// 2026-08-15 shield-projectile-block design and its plan.
+    /// <para>
+    /// This preset does not register
+    /// <see cref="MovementRuleset.ExtendedCanonicalLoadoutCount"/> profile
+    /// rows and does not reference
+    /// <see cref="TallHardwoodMovementProfiles.KalisRowV14"/>,
+    /// <see cref="TallHardwoodMovementProfiles.ItakRowV14"/>,
+    /// <see cref="NarrowBreastHighMovementProfiles.KalisRow"/>, or
+    /// <see cref="NarrowBreastHighMovementProfiles.ItakRow"/>, even though
+    /// those rows exist: an earlier revision of this preset wired shield
+    /// encumbrance through equipment-relative loadout rows instead, which
+    /// crashed every ranged loadout under
+    /// <c>MovementRuleset.ResolveLoadoutProfile</c> the moment
+    /// <see cref="MovementRuleset.UsesEquipmentRelativeFootwork"/> was
+    /// <see langword="true"/> and a canonical loadout index had no ranged
+    /// entry. Those four rows are left in place, unreferenced, for a future
+    /// preset that does adopt equipment-relative footwork and wants them.
+    /// </para>
+    /// </summary>
+    private static readonly MovementRuleset ShieldEncumbranceV14Ruleset = new(
+        id: MovementPresetId.ShieldEncumbranceV14,
+        version: 1,
+        cohesionRadiusMultiplier: 24,
+        closeRadiusMultiplier: 16,
+        closeFractionNumerator: 1,
+        closeFractionDenominator: 2,
+        minimumCohesiveMembers: 3,
+        cohesionCycleTicks: 240,
+        cohesionDutyTicks: 180,
+        arrivalTaperMultiplier: 4,
+        offsetUnit: 1024,
+        narrowsCohesionScanToCohesionCapableContingents: true,
+        selectsLeaderByRank: false,
+        usesEquipmentRelativeFootwork: false,
+        immediateRadiusBodyDiametersBasisPoints: 0,
+        supportRadiusBodyDiametersBasisPoints: 0,
+        loadoutMovementProfiles: ImmutableArray<LoadoutMovementProfile>.Empty,
+        appliesPressureInterrupt: false,
+        supportPressureWeightBasisPoints: 0,
+        incomingDamageWeightBasisPoints: 0,
+        allyCollapseWeightBasisPoints: 0,
+        appliesShieldBlockRecovery: true,
+        tallShieldBlockRecoveryTicks: 5,
+        narrowShieldBlockRecoveryTicks: 3,
+        shieldBlockRecoveryPaceCeilingBasisPoints: 4_000,
+        appliesShieldEncumbrance: true,
+        narrowBreastHighShieldPaceBasisPoints: 9_600,
+        tallHardwoodShieldPaceBasisPoints: 9_000);
+
     public static bool IsRegistered(MovementPresetId id) =>
         id switch
         {
@@ -670,6 +748,7 @@ public static class MovementPresetRegistry
             MovementPresetId.LastStandEngagementV11 => true,
             MovementPresetId.ContingentShapeV12 => true,
             MovementPresetId.CohortLateralSpreadV13 => true,
+            MovementPresetId.ShieldEncumbranceV14 => true,
             _ => false,
         };
 
@@ -689,6 +768,7 @@ public static class MovementPresetRegistry
             MovementPresetId.LastStandEngagementV11 => LastStandEngagementV11Ruleset,
             MovementPresetId.ContingentShapeV12 => ContingentShapeV12Ruleset,
             MovementPresetId.CohortLateralSpreadV13 => CohortLateralSpreadV13Ruleset,
+            MovementPresetId.ShieldEncumbranceV14 => ShieldEncumbranceV14Ruleset,
             _ => throw new ArgumentOutOfRangeException(
                 nameof(id),
                 id,

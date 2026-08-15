@@ -116,6 +116,19 @@ public enum ShieldId
 {
     None = 1,
     TallHardwood = 2,
+
+    /// <summary>
+    /// Documented, form uncertain. Artieda, 1573, describes shields "breast-
+    /// high, and little more than half a <c>vara</c> wide" — roughly 42
+    /// centimeters, a tall narrow shape rather than the body-length shields
+    /// recorded elsewhere in the same period. See
+    /// docs/research/HISTORICAL_1500s_ARMOR.md section 6.1 (summary table row
+    /// "Breast-high shield, little more than half a <c>vara</c> wide") and
+    /// section 6.4 "Dimensions". No source gives this shield shape a Filipino
+    /// name, so none is invented for it here — the identifier stays the plain
+    /// English descriptor per CLAUDE.md section 7.
+    /// </summary>
+    NarrowBreastHigh = 3,
 }
 
 /// <summary>
@@ -186,6 +199,24 @@ public enum CombatPresetId
     /// measurement.
     /// </summary>
     PrecolonialPhilippinesV6 = 6,
+
+    /// <summary>
+    /// V6's roster, tables, and clash profile restated without modification,
+    /// plus a size-aware shield interception model. Adds
+    /// <see cref="ShieldId.NarrowBreastHigh"/>, roster entries pairing it with
+    /// Kalis and Itak, a per-shield base intercept and span, and a per-weapon
+    /// shield-defeat bulk (<see cref="WeaponProfile.ShieldDefeatBulkRaw"/>) so
+    /// a wide-bulk projectile such as an arquebus ball defeats a shield's
+    /// interception more than a melee blow does, and defeats a narrow shield
+    /// more than a broad one — see
+    /// docs/research/HISTORICAL_1500s_ARMOR.md section 6.2, Mactan 1521:
+    /// "the shots only passed through the shields which were made of thin
+    /// wood and the arms [of the bearers]". V1 through V6 stay registered and
+    /// unmodified so their replays remain reproducible. Every value V7
+    /// introduces is a provisional gameplay-tuning value under CLAUDE.md
+    /// section 7, never a historical measurement.
+    /// </summary>
+    PrecolonialPhilippinesV7 = 7,
 }
 
 /// <summary>

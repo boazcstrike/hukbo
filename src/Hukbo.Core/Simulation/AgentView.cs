@@ -132,6 +132,16 @@ namespace Hukbo.Core.Simulation;
 /// <see cref="Simulation.RangedPhase.Ready"/>. Defaulted for the same reason
 /// <see cref="Facing"/> is.
 /// </param>
+/// <param name="ShieldBlockRecoveryTicksRemaining">
+/// Ticks remaining in this warrior's shield block-recovery window,
+/// shield-projectile-block design section 6.2 — authoritative agent state,
+/// carried straight through from <see cref="AgentState.ShieldBlockRecoveryTicksRemaining"/>
+/// rather than derived here. Strictly positive only while the warrior's pace
+/// cap is clamped following a shield block; <c>0</c> forever under every
+/// preset whose <see cref="MovementRuleset.AppliesShieldBlockRecovery"/> is
+/// <see langword="false"/>, and cleared by death cleanup. Defaulted for the
+/// same reason <see cref="Facing"/> is.
+/// </param>
 public readonly record struct AgentView(
     ulong EntityId,
     int FactionId,
@@ -158,4 +168,5 @@ public readonly record struct AgentView(
     int PressureBasisPoints = 0,
     int PressureThresholdBasisPoints = 0,
     RangedPhase RangedPhase = RangedPhase.None,
-    int RangedPhaseTicksRemaining = 0);
+    int RangedPhaseTicksRemaining = 0,
+    int ShieldBlockRecoveryTicksRemaining = 0);

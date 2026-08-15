@@ -299,6 +299,21 @@ internal static class AgentInspectorContent
 
         lines.Add(FormatArmorLine(loadout.Armor));
         lines.Add(FormatShieldLine(loadout.Shield));
+
+        // The block-recovery window, drawn only while it is actually open.
+        // This is the one shield effect a spectator cannot infer from the
+        // silhouette: the warrior's pace is clamped for a few ticks after
+        // the shield takes a blow, and without this line the slowdown has
+        // no explanation on screen. Null while the counter is zero, so an
+        // agent that has not just blocked — and every legacy preset, which
+        // never moves the counter at all — produces byte-identical
+        // inspector output.
+        if (FormatShieldBlockRecoveryLine(
+                agent.ShieldBlockRecoveryTicksRemaining) is { } recoveryLine)
+        {
+            lines.Add(recoveryLine);
+        }
+
         lines.Add(FormatMovementLine(agent.MovementResolution));
 
         // The four weapon-relative movement rows (design section 15.2), in
@@ -1490,11 +1505,30 @@ internal static class AgentInspectorContent
                 null),
         };
 
+    /// <summary>
+    /// The open block-recovery window, in ticks, or <see langword="null"/>
+    /// when the counter is zero and the warrior is not recovering from a
+    /// block. Ticks rather than milliseconds, because the tick is the
+    /// simulation's authoritative unit and every other countdown this panel
+    /// shows is already expressed in it.
+    /// </summary>
+    internal static string? FormatShieldBlockRecoveryLine(
+        int shieldBlockRecoveryTicksRemaining)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(
+            shieldBlockRecoveryTicksRemaining);
+
+        return shieldBlockRecoveryTicksRemaining == 0
+            ? null
+            : $"Block:  recovering {shieldBlockRecoveryTicksRemaining}t";
+    }
+
     internal static string GetShieldLabel(ShieldId shield) =>
         shield switch
         {
             ShieldId.None => "None",
             ShieldId.TallHardwood => "Tall Hardwood",
+            ShieldId.NarrowBreastHigh => "Narrow Breast-High",
             _ => throw new ArgumentOutOfRangeException(
                 nameof(shield),
                 shield,

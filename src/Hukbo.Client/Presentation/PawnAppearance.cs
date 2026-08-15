@@ -27,6 +27,11 @@ internal enum PawnShieldRole
 {
     None,
     TallHardwood,
+    // T4 (shield-projectile-block-design.md): Hukbo.Core's
+    // ShieldId.NarrowBreastHigh maps here (PawnAppearanceFactory.ToShieldRole)
+    // so PawnGeometry can draw it at its own, strictly smaller footprint.
+    // Appended, matching ShieldId's own append-only order.
+    NarrowBreastHigh,
 }
 
 /// <summary>
@@ -227,6 +232,7 @@ internal readonly record struct PawnAppearance(
         {
             PawnShieldRole.None => "None",
             PawnShieldRole.TallHardwood => "Tall Hardwood Shield",
+            PawnShieldRole.NarrowBreastHigh => "Narrow Breast-High Shield",
             _ => throw new ArgumentOutOfRangeException(
                 nameof(ShieldRole),
                 ShieldRole,

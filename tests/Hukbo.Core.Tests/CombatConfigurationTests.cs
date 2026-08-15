@@ -237,7 +237,15 @@ public sealed class CombatConfigurationTests
                     copy.ResolveWeaponWeight(weapon, part));
             }
 
-            foreach (var shield in Enum.GetValues<ShieldId>())
+            // Scoped to the shields this source ruleset actually declares, for
+            // exactly the reason the weapon sweep above is scoped: a frozen
+            // preset never gains a shield ShieldId adds later, so a full-enum
+            // sweep would throw on a shield this preset was never asked to
+            // know about.
+            foreach (var shield in source.Roster
+                .Select(loadout => loadout.Shield)
+                .Distinct()
+                .OrderBy(id => (int)id))
             {
                 Assert.Equal(
                     source.ResolveDefenseMultiplier(shield, part),

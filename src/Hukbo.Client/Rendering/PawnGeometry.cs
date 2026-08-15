@@ -353,6 +353,54 @@ internal static class PawnGeometry
     /// <summary>Height floor at Medium/High tier, unchanged.</summary>
     private const int ShieldMediumOrHighMinimumHeight = 5;
 
+    // ============= Shield size axis (T4, shield-projectile-block-design.md
+    // section 8, "Drawn shield width") =============
+    //
+    // ShieldId.NarrowBreastHigh (Hukbo.Core) is a second, strictly smaller
+    // shield footprint alongside TallHardwood's existing one. The unit
+    // multipliers below replace the two magic numbers CreateShieldBlock used
+    // to apply inline (4f and 11f), named without changing their value, so
+    // PawnGeometryTests.
+    // Create_ShieldPostureOffsetAndRotationMatchThePinnedRegressionRectangle's
+    // pinned (75, 65, 10, 26) rectangle for TallHardwood stays byte-identical.
+
+    /// <summary>
+    /// <c>PawnShieldRole.TallHardwood</c>'s drawn-width unit multiplier,
+    /// unchanged from the value <see cref="CreateShieldBlock"/> always used.
+    /// </summary>
+    private const float TallShieldWidthUnits = 4f;
+
+    /// <summary>
+    /// <c>PawnShieldRole.TallHardwood</c>'s drawn-height unit multiplier,
+    /// unchanged from the value <see cref="CreateShieldBlock"/> always used.
+    /// </summary>
+    private const float TallShieldHeightUnits = 11f;
+
+    /// <summary>
+    /// PROVISIONAL. <c>PawnShieldRole.NarrowBreastHigh</c>'s drawn-width unit
+    /// multiplier: half of <see cref="TallShieldWidthUnits"/>, matching the
+    /// design's "roughly half" proportion between a breast-high board and a
+    /// body-length one (shield-projectile-block-design.md section 3.3). This
+    /// is a client-side rendering choice, independent of the Core span value
+    /// the design assigns the same shield, and never presented as a
+    /// historical measurement. Proven strictly less than
+    /// <see cref="TallShieldWidthUnits"/>'s own drawn width, floor included,
+    /// across the whole <see cref="MinimumApparentScale"/>–
+    /// <see cref="MaximumApparentScale"/> range by
+    /// <c>ShieldSizeGeometryTests</c>.
+    /// </summary>
+    private const float NarrowShieldWidthUnits = 2f;
+
+    /// <summary>
+    /// PROVISIONAL. <c>PawnShieldRole.NarrowBreastHigh</c>'s drawn-height unit
+    /// multiplier. Kept above half of <see cref="TallShieldHeightUnits"/> so
+    /// the narrow shield still reads as chest-covering rather than a token
+    /// sliver, while staying strictly shorter than the tall shield's own
+    /// drawn height, floor included, across the whole apparent-scale range
+    /// (<c>ShieldSizeGeometryTests</c>).
+    /// </summary>
+    private const float NarrowShieldHeightUnits = 6f;
+
     /// <summary>
     /// PROVISIONAL. S2 <c>morgaFullBody</c>'s "tall end of the shared
     /// envelope" delta (shield-visuals-design.md skin table): a few layout
@@ -1104,7 +1152,8 @@ internal static class PawnGeometry
                 footAnchor,
                 apparentScale,
                 appearance.ShieldSkinId,
-                detailTier),
+                detailTier,
+                appearance.ShieldRole),
             legWidth,
             legLength,
             legGap,
@@ -1923,13 +1972,33 @@ internal static class PawnGeometry
     /// base S1 proportions unchanged, so an unrecognized or fallback
     /// identifier degrades to the plain block rather than throwing.
     /// </param>
+    /// <param name="role">
+    /// T4: which of the two non-<see cref="PawnShieldRole.None"/> shields
+    /// this is — selects <see cref="TallShieldWidthUnits"/>/<see
+    /// cref="TallShieldHeightUnits"/> or <see cref="NarrowShieldWidthUnits"/>/
+    /// <see cref="NarrowShieldHeightUnits"/>. Independent of
+    /// <paramref name="shieldSkinId"/>'s own proportion delta, which still
+    /// applies on top for either role.
+    /// </param>
     private static ShieldBlock CreateShieldBlock(
         Vector2 footAnchor,
         float scale,
         string shieldSkinId,
-        PawnDetailTier detailTier)
+        PawnDetailTier detailTier,
+        PawnShieldRole role)
     {
         var (widthDelta, heightDelta) = ShieldProportionDelta(shieldSkinId);
+
+        // T4 (shield-projectile-block-design.md section 8): NarrowBreastHigh
+        // draws from its own, strictly smaller unit multipliers.
+        // TallHardwood's own multipliers are unchanged, so this branch can
+        // never rescale the shield that already ships.
+        var widthUnits = role == PawnShieldRole.NarrowBreastHigh
+            ? NarrowShieldWidthUnits
+            : TallShieldWidthUnits;
+        var heightUnits = role == PawnShieldRole.NarrowBreastHigh
+            ? NarrowShieldHeightUnits
+            : TallShieldHeightUnits;
 
         // Tall enough to read as covering chest and abdomen, which is what
         // the targeting multiplier actually does. The per-skin delta is
@@ -1938,12 +2007,12 @@ internal static class PawnGeometry
         // (R-W2.2, OD-10).
         var width = Math.Max(
             ShieldMinimumWidth,
-            ToSize(4f * scale) + widthDelta);
+            ToSize(widthUnits * scale) + widthDelta);
         var height = Math.Max(
             detailTier == PawnDetailTier.Low
                 ? ShieldLowTierMinimumHeight
                 : ShieldMediumOrHighMinimumHeight,
-            ToSize(11f * scale) + heightDelta);
+            ToSize(heightUnits * scale) + heightDelta);
 
         // S12 active posture (VIS-015): a fixed, PROVISIONAL forward offset
         // that brings the block a few layout pixels toward the torso rather

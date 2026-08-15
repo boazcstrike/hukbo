@@ -418,6 +418,12 @@ public sealed class ArmyCompositionPanelTests
             MovementPresetId.CohortLateralSpreadV13,
             panel.DraftMovementPreset);
 
+        panel.AdjustFocusedValue(direction: 1, isShiftHeld: false);
+
+        Assert.Equal(
+            MovementPresetId.ShieldEncumbranceV14,
+            panel.DraftMovementPreset);
+
         // One more forward step from the last entry wraps to the first.
         panel.AdjustFocusedValue(direction: 1, isShiftHeld: false);
 
@@ -428,7 +434,7 @@ public sealed class ArmyCompositionPanelTests
         panel.AdjustFocusedValue(direction: -1, isShiftHeld: false);
 
         Assert.Equal(
-            MovementPresetId.CohortLateralSpreadV13,
+            MovementPresetId.ShieldEncumbranceV14,
             panel.DraftMovementPreset);
     }
 

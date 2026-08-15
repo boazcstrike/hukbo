@@ -241,6 +241,48 @@ internal static class ShieldVisualCatalog
         VisayanKalasag,
     ];
 
+    // ================= NarrowBreastHigh skins =================
+
+    /// <summary>
+    /// The narrow breast-high board — the only skin declared for
+    /// <see cref="PawnShieldRole.NarrowBreastHigh"/>, so the selection
+    /// stream's modulus is 1 and every entity identifier resolves to it.
+    /// Documented, form uncertain: a shield reaching to the bearer's chest
+    /// and a little more than half a <i>vara</i> wide, roughly 42
+    /// centimetres, is described in the period record
+    /// (<c>docs/research/HISTORICAL_1500s_ARMOR.md</c>). One skin rather than
+    /// four because only that one width-and-height description is cleared for
+    /// this shape; the tall role's four anchors describe body-length shields
+    /// and none of them may be reused here. Carries the same charred-wood
+    /// face tone as the tall family default, so the two shields read as the
+    /// same material at different sizes and the size difference is the only
+    /// thing the silhouette communicates.
+    /// </summary>
+    public static readonly ShieldSkinEntry BreastHighBoard = new(
+        new VisualCatalogEntry(
+            "shield.narrowBreastHigh.breastHighBoard",
+            0,
+            "Narrow Breast-High Shield",
+            VisualEvidenceTier.DocumentedFormUncertain,
+            VisualScopeTag.NotApplicable,
+            "A shield reaching to the bearer's chest and a little more than " +
+            "half a vara wide, roughly 42 centimetres, is described in the " +
+            "period record; Documented, form uncertain. No cultural name is " +
+            "attached: kalasag is Documented for 1521 as a general word for " +
+            "shields rather than as a term distinguishing one shield size " +
+            "from another, and the other recorded shield words are open and " +
+            "not cleared for use. Straight rectangular outline; charred-wood " +
+            "face tone shared with the tall family default so size, not " +
+            "material, is what the silhouette reads as.",
+            VisualDetailTier.Low),
+        PawnShieldRole.NarrowBreastHigh,
+        FaceColor: WeaponVisualCatalog.CharredWoodBrown);
+
+    private static readonly IReadOnlyList<ShieldSkinEntry> NarrowBreastHighSkinsList =
+    [
+        BreastHighBoard,
+    ];
+
     private static readonly IReadOnlyList<ShieldSkinEntry> NoSkins = [];
 
     /// <summary>
@@ -267,6 +309,7 @@ internal static class ShieldVisualCatalog
         shield switch
         {
             PawnShieldRole.TallHardwood => TallHardwoodSkinsList,
+            PawnShieldRole.NarrowBreastHigh => NarrowBreastHighSkinsList,
             PawnShieldRole.None => NoSkins,
             _ => throw new ArgumentOutOfRangeException(nameof(shield), shield, null),
         };

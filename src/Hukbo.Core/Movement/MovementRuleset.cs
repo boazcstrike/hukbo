@@ -68,6 +68,19 @@ public sealed class MovementRuleset
     public const int CanonicalLoadoutCount = 6;
 
     /// <summary>
+    /// The number of canonical loadouts a preset with equipment-relative
+    /// footwork carries when it also registers the two narrow-breast-high
+    /// shield rows — <c>KP, WA, KA, IT, KS, IS</c> plus narrow-shield
+    /// <c>KS</c> and <c>IS</c> at indices 6 and 7 — first registered by
+    /// <see cref="MovementPresetId.ShieldEncumbranceV14"/>. A preset with
+    /// equipment-relative footwork must carry exactly
+    /// <see cref="CanonicalLoadoutCount"/> or exactly this many rows; no other
+    /// count is legal (2026-08-15 shield-projectile-block design, section
+    /// 6.1).
+    /// </summary>
+    public const int ExtendedCanonicalLoadoutCount = 8;
+
+    /// <summary>
     /// The exact basis-point total the three pressure-interrupt signal
     /// weights must sum to when <see cref="AppliesPressureInterrupt"/> is
     /// <see langword="true"/> — one whole unit, so the weighted sum stays in
@@ -75,6 +88,16 @@ public sealed class MovementRuleset
     /// A game-design choice, not a measurement.
     /// </summary>
     public const int TotalPressureInterruptWeightBasisPoints = 10_000;
+
+    /// <summary>
+    /// The pace a warrior carrying no shield, or playing under a preset
+    /// whose <see cref="AppliesShieldEncumbrance"/> is
+    /// <see langword="false"/>, moves at: full speed, unscaled. The
+    /// basis-point unit <see cref="ResolveShieldPaceBasisPoints"/> returns,
+    /// and the ceiling every registered per-shield pace must fall strictly
+    /// below.
+    /// </summary>
+    public const int FullShieldPaceBasisPoints = 10_000;
 
     public MovementRuleset(
         MovementPresetId id,
@@ -97,7 +120,14 @@ public sealed class MovementRuleset
         bool appliesPressureInterrupt = false,
         int supportPressureWeightBasisPoints = 0,
         int incomingDamageWeightBasisPoints = 0,
-        int allyCollapseWeightBasisPoints = 0)
+        int allyCollapseWeightBasisPoints = 0,
+        bool appliesShieldBlockRecovery = false,
+        int tallShieldBlockRecoveryTicks = 0,
+        int narrowShieldBlockRecoveryTicks = 0,
+        int shieldBlockRecoveryPaceCeilingBasisPoints = 0,
+        bool appliesShieldEncumbrance = false,
+        int narrowBreastHighShieldPaceBasisPoints = 0,
+        int tallHardwoodShieldPaceBasisPoints = 0)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(version, 1);
         ValidateEquipmentRelativeFootworkCoupling(
@@ -109,6 +139,15 @@ public sealed class MovementRuleset
             supportPressureWeightBasisPoints,
             incomingDamageWeightBasisPoints,
             allyCollapseWeightBasisPoints);
+        ValidateShieldBlockRecoveryCoupling(
+            appliesShieldBlockRecovery,
+            tallShieldBlockRecoveryTicks,
+            narrowShieldBlockRecoveryTicks,
+            shieldBlockRecoveryPaceCeilingBasisPoints);
+        ValidateShieldEncumbranceCoupling(
+            appliesShieldEncumbrance,
+            narrowBreastHighShieldPaceBasisPoints,
+            tallHardwoodShieldPaceBasisPoints);
 
         Id = id;
         Version = version;
@@ -129,6 +168,15 @@ public sealed class MovementRuleset
         SupportPressureWeightBasisPoints = supportPressureWeightBasisPoints;
         IncomingDamageWeightBasisPoints = incomingDamageWeightBasisPoints;
         AllyCollapseWeightBasisPoints = allyCollapseWeightBasisPoints;
+        AppliesShieldBlockRecovery = appliesShieldBlockRecovery;
+        TallShieldBlockRecoveryTicks = tallShieldBlockRecoveryTicks;
+        NarrowShieldBlockRecoveryTicks = narrowShieldBlockRecoveryTicks;
+        ShieldBlockRecoveryPaceCeilingBasisPoints =
+            shieldBlockRecoveryPaceCeilingBasisPoints;
+        AppliesShieldEncumbrance = appliesShieldEncumbrance;
+        NarrowBreastHighShieldPaceBasisPoints =
+            narrowBreastHighShieldPaceBasisPoints;
+        TallHardwoodShieldPaceBasisPoints = tallHardwoodShieldPaceBasisPoints;
         ImmediateRadiusBodyDiametersBasisPoints =
             immediateRadiusBodyDiametersBasisPoints;
         SupportRadiusBodyDiametersBasisPoints =
@@ -305,6 +353,101 @@ public sealed class MovementRuleset
     public int AllyCollapseWeightBasisPoints { get; }
 
     /// <summary>
+    /// Whether this preset opens a brief pace-cap window on a warrior whose
+    /// shield has just intercepted an attack — the block-recovery window of
+    /// the 2026-08-15 shield-projectile-block design, section 6.2. Registered
+    /// <see langword="false"/> with three zero values for every preset up to
+    /// and including <see cref="MovementPresetId.CohortLateralSpreadV13"/>, so
+    /// introducing this field moves no existing preset's behaviour; only
+    /// <see cref="MovementPresetId.ShieldEncumbranceV14"/> registers it
+    /// <see langword="true"/>. The window itself is opened, decremented, and
+    /// read by <c>BattleSimulation</c> and hashed by <c>StateHasher</c>, both
+    /// gated on this same flag; this ruleset only carries the flag and the
+    /// three values it gates. A game-design choice, not a measurement.
+    /// </summary>
+    public bool AppliesShieldBlockRecovery { get; }
+
+    /// <summary>
+    /// The block-recovery window's duration, in ticks, for a warrior carrying
+    /// <see cref="Combat.ShieldId.TallHardwood"/>. Zero for every preset whose
+    /// <see cref="AppliesShieldBlockRecovery"/> is <see langword="false"/>;
+    /// otherwise strictly greater than
+    /// <see cref="NarrowShieldBlockRecoveryTicks"/>, because a heavier board
+    /// takes longer to bring back into guard. Provisional reconstruction:
+    /// gameplay tuning under CLAUDE.md section 7; no historical measurement.
+    /// </summary>
+    public int TallShieldBlockRecoveryTicks { get; }
+
+    /// <summary>
+    /// The block-recovery window's duration, in ticks, for a warrior carrying
+    /// <see cref="Combat.ShieldId.NarrowBreastHigh"/>. Zero for every preset
+    /// whose <see cref="AppliesShieldBlockRecovery"/> is
+    /// <see langword="false"/>; otherwise strictly positive and strictly less
+    /// than <see cref="TallShieldBlockRecoveryTicks"/>. Provisional
+    /// reconstruction: gameplay tuning under CLAUDE.md section 7; no
+    /// historical measurement.
+    /// </summary>
+    public int NarrowShieldBlockRecoveryTicks { get; }
+
+    /// <summary>
+    /// The pace-cap ceiling, in basis points, applied to a warrior while its
+    /// block-recovery window is open, regardless of its resolved loadout
+    /// pace. Zero for every preset whose
+    /// <see cref="AppliesShieldBlockRecovery"/> is <see langword="false"/>;
+    /// otherwise in the inclusive range [1, 10_000]. Provisional
+    /// reconstruction: gameplay tuning under CLAUDE.md section 7; no
+    /// historical measurement.
+    /// </summary>
+    public int ShieldBlockRecoveryPaceCeilingBasisPoints { get; }
+
+    /// <summary>
+    /// Whether this preset scales a warrior's movement speed at agent
+    /// creation by the pace <see cref="ResolveShieldPaceBasisPoints"/>
+    /// resolves for its carried shield — the shield-encumbrance effect of
+    /// the 2026-08-15 shield-projectile-block design, section 6.1. This is
+    /// deliberately independent of
+    /// <see cref="UsesEquipmentRelativeFootwork"/> and of
+    /// <see cref="LoadoutMovementProfiles"/>: the shipped movement pipeline
+    /// registers no loadout profile row for a ranged loadout, so gating
+    /// shield encumbrance on the equipment-relative footwork flag or
+    /// resolving it through <see cref="ResolveLoadoutProfile"/> would throw
+    /// for every ranged agent under a preset that applies it. The scaling is
+    /// applied once, at spawn, directly to the agent's raw movement speed by
+    /// <c>BattleSimulation.CreateAgent</c>, not through a loadout row.
+    /// Registered <see langword="false"/> with two zero paces for every
+    /// preset up to and including
+    /// <see cref="MovementPresetId.CohortLateralSpreadV13"/>, so introducing
+    /// this field moves no existing preset's behaviour; only
+    /// <see cref="MovementPresetId.ShieldEncumbranceV14"/> registers it
+    /// <see langword="true"/>. A game-design choice, not a measurement.
+    /// </summary>
+    public bool AppliesShieldEncumbrance { get; }
+
+    /// <summary>
+    /// The pace, in basis points of full speed, a warrior carrying
+    /// <see cref="Combat.ShieldId.NarrowBreastHigh"/> moves at. Zero for
+    /// every preset whose <see cref="AppliesShieldEncumbrance"/> is
+    /// <see langword="false"/>; otherwise strictly between zero and
+    /// <see cref="FullShieldPaceBasisPoints"/>, exclusive, and strictly
+    /// greater than <see cref="TallHardwoodShieldPaceBasisPoints"/>, because
+    /// the narrower shield is lighter and encumbers less. Provisional
+    /// reconstruction: gameplay tuning under CLAUDE.md section 7; no
+    /// historical measurement.
+    /// </summary>
+    public int NarrowBreastHighShieldPaceBasisPoints { get; }
+
+    /// <summary>
+    /// The pace, in basis points of full speed, a warrior carrying
+    /// <see cref="Combat.ShieldId.TallHardwood"/> moves at. Zero for every
+    /// preset whose <see cref="AppliesShieldEncumbrance"/> is
+    /// <see langword="false"/>; otherwise strictly between zero and
+    /// <see cref="NarrowBreastHighShieldPaceBasisPoints"/>, exclusive.
+    /// Provisional reconstruction: gameplay tuning under CLAUDE.md section 7;
+    /// no historical measurement.
+    /// </summary>
+    public int TallHardwoodShieldPaceBasisPoints { get; }
+
+    /// <summary>
     /// Basis points of body diameter giving the immediate local-context
     /// radius — the scan inside which allies and enemies count as immediate
     /// neighbours. Zero for every preset whose
@@ -322,8 +465,10 @@ public sealed class MovementRuleset
     public int SupportRadiusBodyDiametersBasisPoints { get; }
 
     /// <summary>
-    /// The per-loadout movement profile rows, exactly six and in canonical
-    /// <c>KP, WA, KA, IT, KS, IS</c> order when
+    /// The per-loadout movement profile rows — six or eight, in canonical
+    /// <c>KP, WA, KA, IT, KS, IS</c> order, or <c>KP, WA, KA, IT, KS, IS,
+    /// KS(narrow), IS(narrow)</c> once a preset registers
+    /// <see cref="ExtendedCanonicalLoadoutCount"/> rows — when
     /// <see cref="UsesEquipmentRelativeFootwork"/> is <see langword="true"/>,
     /// otherwise empty. The stored order doubles as the fixed-size lookup
     /// <see cref="ResolveLoadoutProfile"/> indexes into, so it is validated
@@ -368,10 +513,68 @@ public sealed class MovementRuleset
     }
 
     /// <summary>
+    /// The block-recovery window's duration, in ticks, for a warrior carrying
+    /// <paramref name="shield"/> — <see cref="TallShieldBlockRecoveryTicks"/>,
+    /// <see cref="NarrowShieldBlockRecoveryTicks"/>, or zero for
+    /// <see cref="Combat.ShieldId.None"/> and for any preset whose
+    /// <see cref="AppliesShieldBlockRecovery"/> is <see langword="false"/>,
+    /// since both stored durations are themselves zero there. Unlike
+    /// <see cref="ResolveLoadoutProfile"/> this never throws: a warrior
+    /// carrying no shield, or playing under a preset that does not apply the
+    /// effect, simply never opens a window.
+    /// </summary>
+    public int ResolveShieldBlockRecoveryTicks(ShieldId shield) =>
+        shield switch
+        {
+            ShieldId.TallHardwood => TallShieldBlockRecoveryTicks,
+            ShieldId.NarrowBreastHigh => NarrowShieldBlockRecoveryTicks,
+            _ => 0,
+        };
+
+    /// <summary>
+    /// The pace, in basis points of full speed, a warrior carrying
+    /// <paramref name="shield"/> moves at —
+    /// <see cref="NarrowBreastHighShieldPaceBasisPoints"/>,
+    /// <see cref="TallHardwoodShieldPaceBasisPoints"/>, or
+    /// <see cref="FullShieldPaceBasisPoints"/> for
+    /// <see cref="Combat.ShieldId.None"/> and for any preset whose
+    /// <see cref="AppliesShieldEncumbrance"/> is <see langword="false"/>.
+    /// Unlike <see cref="ResolveLoadoutProfile"/> this never throws and is
+    /// never gated on the weapon carried, so it resolves for a ranged
+    /// loadout exactly as it does for a melee one:
+    /// <c>BattleSimulation.CreateAgent</c> calls this for every agent
+    /// regardless of loadout to scale the agent's raw movement speed at
+    /// spawn.
+    /// </summary>
+    public int ResolveShieldPaceBasisPoints(ShieldId shield)
+    {
+        if (!AppliesShieldEncumbrance)
+        {
+            return FullShieldPaceBasisPoints;
+        }
+
+        return shield switch
+        {
+            ShieldId.NarrowBreastHigh => NarrowBreastHighShieldPaceBasisPoints,
+            ShieldId.TallHardwood => TallHardwoodShieldPaceBasisPoints,
+            _ => FullShieldPaceBasisPoints,
+        };
+    }
+
+    /// <summary>
     /// Maps an equipment key to its canonical loadout index — <c>KP</c> 0,
-    /// <c>WA</c> 1, <c>KA</c> 2, <c>IT</c> 3, <c>KS</c> 4, <c>IS</c> 5 — or
-    /// -1 for a key no profile row may carry. The canonical order is binding
-    /// on the stored profile collection and on the content-hash fold.
+    /// <c>WA</c> 1, <c>KA</c> 2, <c>IT</c> 3, <c>KS</c> 4, <c>IS</c> 5, and,
+    /// only under a preset that registers
+    /// <see cref="ExtendedCanonicalLoadoutCount"/> rows, narrow-shield
+    /// <c>KS</c> 6 and narrow-shield <c>IS</c> 7 — or -1 for a key no profile
+    /// row may carry. The canonical order is binding on the stored profile
+    /// collection and on the content-hash fold. Indices 6 and 7 are mapped
+    /// unconditionally here: a preset with only six rows never reaches them
+    /// because <see cref="ResolveLoadoutProfile"/> already throws once the
+    /// index is at or past
+    /// <see cref="LoadoutMovementProfiles"/>'s length, which is exactly the
+    /// "fails loudly instead of silently inheriting another row's footwork"
+    /// behaviour that method's doc comment promises.
     /// </summary>
     private static int CanonicalLoadoutIndex(
         WeaponId weapon, ArmorId armor, ShieldId shield) =>
@@ -383,14 +586,22 @@ public sealed class MovementRuleset
             (WeaponId.Itak, ArmorId.LightOrganic, ShieldId.None) => 3,
             (WeaponId.Kalis, ArmorId.LightOrganic, ShieldId.TallHardwood) => 4,
             (WeaponId.Itak, ArmorId.LightOrganic, ShieldId.TallHardwood) => 5,
+            (WeaponId.Kalis, ArmorId.LightOrganic, ShieldId.NarrowBreastHigh)
+                => 6,
+            (WeaponId.Itak, ArmorId.LightOrganic, ShieldId.NarrowBreastHigh)
+                => 7,
             _ => -1,
         };
 
     /// <summary>
     /// The coupled validation of design section 5: a preset without
     /// equipment-relative footwork carries zero radii and no profile rows,
-    /// and a preset with it carries strictly positive radii and exactly the
-    /// six canonical rows, each appearing once, in canonical order. A
+    /// and a preset with it carries strictly positive radii and either the
+    /// six canonical rows or, since
+    /// <see cref="MovementPresetId.ShieldEncumbranceV14"/>, all eight
+    /// (<see cref="CanonicalLoadoutCount"/> or
+    /// <see cref="ExtendedCanonicalLoadoutCount"/>), each appearing once, in
+    /// canonical order. Any other row count — seven included — is rejected. A
     /// duplicate key, a missing canonical row, an unsupported shield, or an
     /// unsupported armor fails construction here.
     /// </summary>
@@ -469,11 +680,13 @@ public sealed class MovementRuleset
             supportRadiusBodyDiametersBasisPoints,
             nameof(supportRadiusBodyDiametersBasisPoints));
 
-        if (loadoutMovementProfiles.Length != CanonicalLoadoutCount)
+        if (loadoutMovementProfiles.Length != CanonicalLoadoutCount &&
+            loadoutMovementProfiles.Length != ExtendedCanonicalLoadoutCount)
         {
             throw new ArgumentException(
                 "A preset with equipment-relative footwork must register " +
-                $"exactly {CanonicalLoadoutCount} profile rows, one per " +
+                $"either {CanonicalLoadoutCount} or " +
+                $"{ExtendedCanonicalLoadoutCount} profile rows, one per " +
                 "canonical loadout.",
                 nameof(loadoutMovementProfiles));
         }
@@ -625,6 +838,148 @@ public sealed class MovementRuleset
         }
     }
 
+    /// <summary>
+    /// The shield-block-recovery half of the coupled validation, per
+    /// shield-projectile-block design section 6.2. A preset that does not
+    /// apply the effect must register three zero values, so its
+    /// <see cref="ContentHash"/> fold stays exactly what it is today. A
+    /// preset that does apply it must register a strictly positive tall
+    /// duration, a strictly positive narrow duration strictly below the tall
+    /// one — the broad shield recovers a block more slowly than the narrow
+    /// one, mirroring the pace ordering of section 6.1 — and a pace ceiling
+    /// in the inclusive range <c>[1, 10_000]</c> basis points.
+    /// </summary>
+    private static void ValidateShieldBlockRecoveryCoupling(
+        bool appliesShieldBlockRecovery,
+        int tallShieldBlockRecoveryTicks,
+        int narrowShieldBlockRecoveryTicks,
+        int shieldBlockRecoveryPaceCeilingBasisPoints)
+    {
+        if (!appliesShieldBlockRecovery)
+        {
+            if (tallShieldBlockRecoveryTicks != 0)
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(tallShieldBlockRecoveryTicks),
+                    tallShieldBlockRecoveryTicks,
+                    "A preset that does not apply shield block recovery " +
+                    "must register a zero tall-shield recovery duration.");
+            }
+
+            if (narrowShieldBlockRecoveryTicks != 0)
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(narrowShieldBlockRecoveryTicks),
+                    narrowShieldBlockRecoveryTicks,
+                    "A preset that does not apply shield block recovery " +
+                    "must register a zero narrow-shield recovery duration.");
+            }
+
+            if (shieldBlockRecoveryPaceCeilingBasisPoints != 0)
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(shieldBlockRecoveryPaceCeilingBasisPoints),
+                    shieldBlockRecoveryPaceCeilingBasisPoints,
+                    "A preset that does not apply shield block recovery " +
+                    "must register a zero pace ceiling.");
+            }
+
+            return;
+        }
+
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(
+            narrowShieldBlockRecoveryTicks,
+            nameof(narrowShieldBlockRecoveryTicks));
+
+        if (tallShieldBlockRecoveryTicks <= narrowShieldBlockRecoveryTicks)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(tallShieldBlockRecoveryTicks),
+                tallShieldBlockRecoveryTicks,
+                "A preset that applies shield block recovery must " +
+                "register a tall-shield recovery duration strictly " +
+                "greater than its narrow-shield recovery duration " +
+                $"({narrowShieldBlockRecoveryTicks}).");
+        }
+
+        if (shieldBlockRecoveryPaceCeilingBasisPoints < 1 ||
+            shieldBlockRecoveryPaceCeilingBasisPoints > 10_000)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(shieldBlockRecoveryPaceCeilingBasisPoints),
+                shieldBlockRecoveryPaceCeilingBasisPoints,
+                "A preset that applies shield block recovery must " +
+                "register a pace ceiling in the inclusive range " +
+                "[1, 10000] basis points.");
+        }
+    }
+
+    /// <summary>
+    /// The shield-encumbrance half of the coupled validation, per
+    /// shield-projectile-block design section 6.1. A preset that does not
+    /// apply the effect must register two zero paces, so its
+    /// <see cref="ContentHash"/> fold stays exactly what it is today. A
+    /// preset that does apply it must register a strictly positive
+    /// narrow-breast-high-shield pace strictly below
+    /// <see cref="FullShieldPaceBasisPoints"/>, and a strictly positive
+    /// tall-hardwood-shield pace strictly below the narrow-shield one —
+    /// the heavier board encumbers more than the narrower one, mirroring
+    /// the recovery-duration ordering of
+    /// <see cref="ValidateShieldBlockRecoveryCoupling"/>.
+    /// </summary>
+    private static void ValidateShieldEncumbranceCoupling(
+        bool appliesShieldEncumbrance,
+        int narrowBreastHighShieldPaceBasisPoints,
+        int tallHardwoodShieldPaceBasisPoints)
+    {
+        if (!appliesShieldEncumbrance)
+        {
+            if (narrowBreastHighShieldPaceBasisPoints != 0)
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(narrowBreastHighShieldPaceBasisPoints),
+                    narrowBreastHighShieldPaceBasisPoints,
+                    "A preset that does not apply shield encumbrance must " +
+                    "register a zero narrow-breast-high-shield pace.");
+            }
+
+            if (tallHardwoodShieldPaceBasisPoints != 0)
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(tallHardwoodShieldPaceBasisPoints),
+                    tallHardwoodShieldPaceBasisPoints,
+                    "A preset that does not apply shield encumbrance must " +
+                    "register a zero tall-hardwood-shield pace.");
+            }
+
+            return;
+        }
+
+        if (narrowBreastHighShieldPaceBasisPoints <= 0 ||
+            narrowBreastHighShieldPaceBasisPoints >= FullShieldPaceBasisPoints)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(narrowBreastHighShieldPaceBasisPoints),
+                narrowBreastHighShieldPaceBasisPoints,
+                "A preset that applies shield encumbrance must register a " +
+                "narrow-breast-high-shield pace strictly between zero and " +
+                $"{FullShieldPaceBasisPoints} basis points.");
+        }
+
+        if (tallHardwoodShieldPaceBasisPoints <= 0 ||
+            tallHardwoodShieldPaceBasisPoints >=
+                narrowBreastHighShieldPaceBasisPoints)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(tallHardwoodShieldPaceBasisPoints),
+                tallHardwoodShieldPaceBasisPoints,
+                "A preset that applies shield encumbrance must register a " +
+                "tall-hardwood-shield pace strictly between zero and its " +
+                "narrow-breast-high-shield pace " +
+                $"({narrowBreastHighShieldPaceBasisPoints}).");
+        }
+    }
+
     private ulong ComputeContentHash()
     {
         var hash = Fnv1a.OffsetBasis;
@@ -660,6 +1015,38 @@ public sealed class MovementRuleset
             Fnv1a.Add(ref hash, (ulong)SupportPressureWeightBasisPoints);
             Fnv1a.Add(ref hash, (ulong)IncomingDamageWeightBasisPoints);
             Fnv1a.Add(ref hash, (ulong)AllyCollapseWeightBasisPoints);
+        }
+
+        if (AppliesShieldBlockRecovery)
+        {
+            // Shield-projectile-block design section 6.2: the same version
+            // gate as the pressure-interrupt fold above. Every preset that
+            // does not apply shield block recovery writes nothing here at
+            // all, so V1 through V13 keep the exact byte sequence they fold
+            // today, and their pinned ContentHash literals and frozen
+            // trajectory digests do not move. The flag itself is never
+            // folded: inside this branch it is always true, so folding it
+            // would contribute a constant that discriminates nothing — the
+            // branch's presence is what records the distinction. The three
+            // values fold here in declaration order.
+            Fnv1a.Add(ref hash, (ulong)TallShieldBlockRecoveryTicks);
+            Fnv1a.Add(ref hash, (ulong)NarrowShieldBlockRecoveryTicks);
+            Fnv1a.Add(
+                ref hash,
+                (ulong)ShieldBlockRecoveryPaceCeilingBasisPoints);
+        }
+
+        if (AppliesShieldEncumbrance)
+        {
+            // Shield-projectile-block design section 6.1: the same version
+            // gate as the block-recovery fold above. Every preset that does
+            // not apply shield encumbrance writes nothing here at all, so
+            // V1 through V13 keep the exact byte sequence they fold today,
+            // and their pinned ContentHash literals and frozen trajectory
+            // digests do not move. The flag itself is never folded, for the
+            // same reason as every other gate in this method.
+            Fnv1a.Add(ref hash, (ulong)NarrowBreastHighShieldPaceBasisPoints);
+            Fnv1a.Add(ref hash, (ulong)TallHardwoodShieldPaceBasisPoints);
         }
 
         Fnv1a.Add(ref hash, (ulong)ImmediateRadiusBodyDiametersBasisPoints);
