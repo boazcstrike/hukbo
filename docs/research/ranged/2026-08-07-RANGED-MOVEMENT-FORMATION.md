@@ -775,8 +775,9 @@ The document titled "Formation blocking at 500 agents — backlog entry and
 measured baseline" was archived on 2026-08-15 and is reference only. Before it
 moved, its own status line read: "Backlog. This document authorizes no
 implementation. It records a measured baseline." It is also the one entry
-under "From the second-round lag report (2026-07-30)" in
-`docs/plans/TODO.md:32-40`. The figures below were transcribed from that
+under "From the second-round lag report (2026-07-30)" in `docs/plans/TODO.md`,
+and that entry was rewritten when the baseline was archived so that it carries
+the figures itself. The figures below were transcribed from the baseline
 document before it moved.
 
 Both runs are `./scripts/benchmark.ps1 -Agents 500 -Ticks 2000` in `Release`
