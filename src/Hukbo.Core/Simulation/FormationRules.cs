@@ -584,6 +584,77 @@ public static class FormationRules
     }
 
     /// <summary>
+    /// The map-edge open-ground test, taking the claimed half-side directly
+    /// instead of deriving it from a jitter radius. Reports whether a
+    /// contingent's bias square — centred on its unclamped trail base,
+    /// half-side <paramref name="marginRaw"/> — fits inside the legal interval
+    /// <see cref="CollisionGeometry.ClampCenterToBounds"/> enforces on both
+    /// axes.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This is the same four comparisons
+    /// <see cref="IsCohesionSquareWithinBounds"/> makes, with the same
+    /// non-strict convention and the same <see cref="long"/> arithmetic, and
+    /// for <c>marginRaw == jitterRaw + bodyRadiusRaw</c> the two report the
+    /// same answer for every input. It exists because a preset may claim less
+    /// ground than the packing bound alone would give it — see
+    /// <see cref="Movement.MovementRuleset.CohesionSquareMarginBasisPoints"/> —
+    /// and in that case the caller has already computed the half-side and
+    /// must hand the very same value to this test and to
+    /// <see cref="DoCohesionSquaresOverlap"/>, so the map-edge gate and the
+    /// cross-contingent gate can never disagree about how large the square is.
+    /// </para>
+    /// <para>
+    /// It carries its own name rather than being an overload because a
+    /// margin-taking overload would have the identical parameter list —
+    /// six <see cref="int"/> values — and could not be distinguished from the
+    /// jitter-taking form at a call site at all.
+    /// </para>
+    /// <para>
+    /// <paramref name="bodyRadiusRaw"/> is still required, and is still the
+    /// clamp inset rather than part of the half-side: the legal interval for a
+    /// centre is inset by one body radius from each map edge whatever a
+    /// contingent claims around its trail base.
+    /// </para>
+    /// </remarks>
+    /// <param name="trailBaseXRaw">
+    /// The contingent's unclamped trail base X, in raw fixed-point units.
+    /// </param>
+    /// <param name="trailBaseYRaw">
+    /// The contingent's unclamped trail base Y, in raw fixed-point units.
+    /// </param>
+    /// <param name="marginRaw">
+    /// The contingent's bias-square half-side, in raw fixed-point units — the
+    /// same value the caller passes to <see cref="DoCohesionSquaresOverlap"/>
+    /// for this contingent.
+    /// </param>
+    /// <param name="bodyRadiusRaw">
+    /// The living body radius, in raw fixed-point units.
+    /// </param>
+    /// <param name="mapWidthRaw">The map width, in raw fixed-point units.</param>
+    /// <param name="mapHeightRaw">The map height, in raw fixed-point units.</param>
+    /// <returns>
+    /// <see langword="true"/> when the contingent's bias square fits inside
+    /// the map on both axes.
+    /// </returns>
+    public static bool IsCohesionSquareWithinBoundsForMargin(
+        int trailBaseXRaw,
+        int trailBaseYRaw,
+        int marginRaw,
+        int bodyRadiusRaw,
+        int mapWidthRaw,
+        int mapHeightRaw)
+    {
+        var halfSideRaw = (long)marginRaw;
+
+        return (long)trailBaseXRaw - halfSideRaw >= bodyRadiusRaw &&
+            (long)trailBaseXRaw + halfSideRaw <= (long)mapWidthRaw - bodyRadiusRaw &&
+            (long)trailBaseYRaw - halfSideRaw >= bodyRadiusRaw &&
+            (long)trailBaseYRaw + halfSideRaw <= (long)mapHeightRaw - bodyRadiusRaw;
+    }
+
+    /// <summary>
     /// The cross-contingent test. Reports whether two same-faction
     /// contingents' bias squares — each centred on its own unclamped trail
     /// base, half-side its own margin — overlap. See

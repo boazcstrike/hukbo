@@ -1793,22 +1793,60 @@ public sealed class BattleSimulation
             _contingentJitterRaw[slot] = jitterRaw;
             _contingentTrailBaseXRaw[slot] = trailBaseXRaw;
             _contingentTrailBaseYRaw[slot] = trailBaseYRaw;
-            _contingentMarginRaw[slot] = checked(jitterRaw + Scenario.BodyRadiusRaw);
 
-            _contingentSquareFitsMap[slot] = FormationRules.IsCohesionSquareWithinBounds(
-                trailBaseXRaw,
-                trailBaseYRaw,
-                jitterRaw,
-                Scenario.BodyRadiusRaw,
-                mapWidthRaw,
-                mapHeightRaw);
+            // The half-side of the square this contingent claims. Without the
+            // gate it is the unscaled packing margin -- the jitter radius plus
+            // one body radius -- which is what every preset up to V13 claims.
+            // With the gate it is a basis-point fraction of that margin, so a
+            // contingent claims less ground than the packing bound alone would
+            // give it and Hold stays reachable under a crowded deployment. The
+            // arithmetic is a long multiply followed by an integer divide, so a
+            // registered UnscaledCohesionSquareMarginBasisPoints reproduces the
+            // unscaled margin exactly rather than approximately.
+            //
+            // Only the claimed margin is scaled. _contingentJitterRaw above is
+            // left alone deliberately: it feeds the per-member offset in
+            // ResolveContingentDestinations, and scaling it would change how
+            // far apart members stand, which this change is expressly not
+            // allowed to do.
+            var unscaledMarginRaw = checked(jitterRaw + Scenario.BodyRadiusRaw);
+            var marginRaw = _movementRules.GathersContingentsBeforeContact
+                ? (int)((long)unscaledMarginRaw *
+                        _movementRules.CohesionSquareMarginBasisPoints /
+                    MovementRuleset.UnscaledCohesionSquareMarginBasisPoints)
+                : unscaledMarginRaw;
+
+            _contingentMarginRaw[slot] = marginRaw;
+
+            // Gate 5 is handed the same half-side gate 6 reads out of
+            // _contingentMarginRaw below, so the map-edge test and the
+            // cross-contingent test cannot disagree about the square's size.
+            _contingentSquareFitsMap[slot] =
+                FormationRules.IsCohesionSquareWithinBoundsForMargin(
+                    trailBaseXRaw,
+                    trailBaseYRaw,
+                    marginRaw,
+                    Scenario.BodyRadiusRaw,
+                    mapWidthRaw,
+                    mapHeightRaw);
         }
 
-        // A slot the narrowed scan excludes is also denied outright. It is
+        // A slot the narrowed scan excludes is also denied outright, and the
+        // excluded set is exactly two states wide: a tick-start state of Close
+        // or Break, and nothing else. MovementRules
+        // .ParticipatesInCrossContingentScan tests those two values and no
+        // other condition, so this loop is not a blanket denial that happens
+        // to catch the two states -- it marks Close and Break slots, and there
+        // is no third reason a living slot is ever marked here. Such a slot is
         // never tested against anyone, so granting it a cohesion destination
         // would park aim points inside a square no pair ever measured, which
-        // is exactly the combined-density statement gate 6 exists to hold. The
-        // denial resolves it to Advance through transition rule 4 -- rules 1
+        // is exactly the combined-density statement gate 6 exists to hold.
+        // Marking it costs its neighbours nothing: a square absent from the
+        // pairwise loop below can only ever produce fewer overlap findings for
+        // its neighbours, never more. The denial answers for the excluded
+        // slot's own square alone.
+        //
+        // The denial resolves it to Advance through transition rule 4 -- rules 1
         // and 3 still win first, so a Break stays Break and a latched Close
         // stays Close -- and an Advance takes part in the scan normally on the
         // next tick. Under a preset that does not narrow the scan this loop
@@ -3701,8 +3739,30 @@ public sealed class BattleSimulation
             // overflowed, and for the inputs that would have overflowed it
             // returns the answer implied by unbounded integer arithmetic — a
             // member that far from its leader is unambiguously straggling.
-            straggling = (Int128)16 * memberSquared >
-                (Int128)9 * cohesionRadiusRaw * cohesionRadiusRaw;
+            if (_movementRules.GathersContingentsBeforeContact)
+            {
+                // The registered band replaces the hardcoded three-quarters
+                // fraction: a member is straggling while its squared distance
+                // from its leader exceeds the square of the band fraction of
+                // the cohesion radius. Cross-multiplying by the squared
+                // denominator keeps the test in exact integers instead of
+                // dividing, exactly as the unregistered statement below does.
+                // The widening argument above covers this form too: the
+                // denominator is an int, so its square is below 2^62, and the
+                // product with memberSquared stays far inside Int128's range.
+                var bandNumerator = (Int128)_movementRules.CohesionBandNumerator;
+                var bandDenominator =
+                    (Int128)_movementRules.CohesionBandDenominator;
+
+                straggling = bandDenominator * bandDenominator * memberSquared >
+                    bandNumerator * bandNumerator *
+                        cohesionRadiusRaw * cohesionRadiusRaw;
+            }
+            else
+            {
+                straggling = (Int128)16 * memberSquared >
+                    (Int128)9 * cohesionRadiusRaw * cohesionRadiusRaw;
+            }
         }
 
         if (!MovementRules.IsCohesionEligible(
