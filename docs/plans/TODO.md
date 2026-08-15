@@ -69,8 +69,13 @@ not have before.
 - **The body radius is no longer pinned by this bug, and that is new
   information.** The whole reason `DefaultBodyRadiusRaw` sits at 4.25 is that
   4.5 hung seed 12 in a 2026-07-28 measurement. That measurement was repeated on
-  2026-08-15 against current code: seed 12 at 4.5 now reaches a decision at tick
-  739, and **0 of 200 seeds reach the tick limit at that radius**. The
+  2026-08-15 against current code, and again on 2026-08-16: seed 12 at 4.5 now
+  reaches a decision at tick 739, and **0 of 200 seeds reach the tick limit at
+  that radius** at the last-stand threshold of 9 that the regression test uses.
+  That result does not carry to the shipping threshold of 6, where the
+  2026-08-16 survey found 4.5 stalling 1 seed in 200 (seed 166) against 4.25's
+  0. Summed over thresholds 6 through 9 it is 3 stalls for 4.5 and 5 for 4.25,
+  so neither radius is clean and the argument for either is a tuning argument. The
   intent-layer escape closed the 4.5 case as thoroughly as it closed 4.25. What
   the body radius should be is therefore a tuning question that can be argued on
   its own merits, and nobody has argued it. Changing the constant still moves

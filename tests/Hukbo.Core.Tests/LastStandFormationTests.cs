@@ -758,7 +758,12 @@ public sealed class LastStandFormationTests
     /// guards against occurs on a low single-digit percentage of seeds: a
     /// 200-seed survey of the same configuration at neighbouring last-stand
     /// thresholds found 5 stalls in 200 at a threshold of 7 and 8 in 200 at a
-    /// threshold of 8. A twenty-seed sweep has better-than-even odds of missing
+    /// threshold of 8. Those two figures predate the intent-layer stall escape
+    /// in <c>b9003a9</c>; re-measured 2026-08-16 they are 2 in 200 at a
+    /// threshold of 7 (seeds 160 and 161) and 3 in 200 at a threshold of 8
+    /// (seeds 95, 157 and 177), which is still a low single-digit percentage and
+    /// still more than twenty seeds can see. A twenty-seed sweep has
+    /// better-than-even odds of missing
     /// a defect at that rate entirely, so a pass proved close to nothing and the
     /// test was passing partly on luck.
     /// </para>
