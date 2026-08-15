@@ -654,6 +654,63 @@ public static class MovementPresetRegistry
         incomingDamageWeightBasisPoints: 0,
         allyCollapseWeightBasisPoints: 0);
 
+    /// <summary>
+    /// The contingent-cohesion-before-contact preset. Every field down to
+    /// <c>allyCollapseWeightBasisPoints</c> is a verbatim restatement of
+    /// <see cref="LastStandEngagementV11Ruleset"/>'s registered values under
+    /// its own <c>id</c>, exactly as
+    /// <see cref="ContingentShapeV12Ruleset"/> and
+    /// <see cref="CohortLateralSpreadV13Ruleset"/> restate them. Unlike those
+    /// two it does carry fields of its own: it is the first preset to register
+    /// <see cref="MovementRuleset.GathersContingentsBeforeContact"/> as
+    /// <see langword="true"/>, which is also the gate that admits the three
+    /// tunables below into <see cref="MovementRuleset.ContentHash"/>. Every
+    /// preset above leaves that gate <see langword="false"/> and registers the
+    /// three tunables at zero, so none of their content hashes moves. See the
+    /// "Contingent cohesion before contact — plan".
+    /// </summary>
+    /// <remarks>
+    /// The three tunables are <b>provisional starting values</b>, and they are
+    /// gameplay tuning with no evidentiary basis whatever: no source describes
+    /// how close a warrior stood to the man leading his contingent, or how
+    /// much ground such a group claimed, and none of these numbers is offered
+    /// as a historical measurement. They are placeholders chosen only so the
+    /// preset is well formed and registrable, and the plan replaces all three
+    /// by measurement — the calibration harness reports the hold share, the
+    /// granted-cohesion share, the tick of first contact, and the terminal
+    /// tick per seed for this preset and for
+    /// <see cref="MovementPresetId.CohortLateralSpreadV13"/>, and the values
+    /// registered here are then chosen from that table rather than from taste.
+    /// Until that happens, no behavioural claim rests on the specific figures
+    /// one half and 7500 basis points.
+    /// </remarks>
+    private static readonly MovementRuleset ContingentCohesionBeforeContactV14Ruleset = new(
+        id: MovementPresetId.ContingentCohesionBeforeContactV14,
+        version: 1,
+        cohesionRadiusMultiplier: 24,
+        closeRadiusMultiplier: 16,
+        closeFractionNumerator: 1,
+        closeFractionDenominator: 2,
+        minimumCohesiveMembers: 3,
+        cohesionCycleTicks: 240,
+        cohesionDutyTicks: 180,
+        arrivalTaperMultiplier: 4,
+        offsetUnit: 1024,
+        narrowsCohesionScanToCohesionCapableContingents: true,
+        selectsLeaderByRank: false,
+        usesEquipmentRelativeFootwork: false,
+        immediateRadiusBodyDiametersBasisPoints: 0,
+        supportRadiusBodyDiametersBasisPoints: 0,
+        loadoutMovementProfiles: ImmutableArray<LoadoutMovementProfile>.Empty,
+        appliesPressureInterrupt: false,
+        supportPressureWeightBasisPoints: 0,
+        incomingDamageWeightBasisPoints: 0,
+        allyCollapseWeightBasisPoints: 0,
+        gathersContingentsBeforeContact: true,
+        cohesionBandNumerator: 1,
+        cohesionBandDenominator: 2,
+        cohesionSquareMarginBasisPoints: 7500);
+
     public static bool IsRegistered(MovementPresetId id) =>
         id switch
         {
@@ -670,6 +727,7 @@ public static class MovementPresetRegistry
             MovementPresetId.LastStandEngagementV11 => true,
             MovementPresetId.ContingentShapeV12 => true,
             MovementPresetId.CohortLateralSpreadV13 => true,
+            MovementPresetId.ContingentCohesionBeforeContactV14 => true,
             _ => false,
         };
 
@@ -689,6 +747,8 @@ public static class MovementPresetRegistry
             MovementPresetId.LastStandEngagementV11 => LastStandEngagementV11Ruleset,
             MovementPresetId.ContingentShapeV12 => ContingentShapeV12Ruleset,
             MovementPresetId.CohortLateralSpreadV13 => CohortLateralSpreadV13Ruleset,
+            MovementPresetId.ContingentCohesionBeforeContactV14 =>
+                ContingentCohesionBeforeContactV14Ruleset,
             _ => throw new ArgumentOutOfRangeException(
                 nameof(id),
                 id,

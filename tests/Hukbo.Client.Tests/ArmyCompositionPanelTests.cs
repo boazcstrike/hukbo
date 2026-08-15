@@ -393,6 +393,13 @@ public sealed class ArmyCompositionPanelTests
     /// assumption that broke twice on 2026-08-14, once when
     /// <see cref="MovementPresetId.ContingentShapeV12"/> was appended and once
     /// when <see cref="MovementPresetId.CohortLateralSpreadV13"/> was.
+    /// <para>
+    /// Extended again on 2026-08-15 when
+    /// <see cref="MovementPresetId.ContingentCohesionBeforeContactV14"/> was
+    /// appended to the selector. Every future append owes this walk one more
+    /// forward step, so that the wrap assertion keeps landing on the real last
+    /// entry rather than on whatever entry used to be last.
+    /// </para>
     /// </summary>
     [Fact]
     public void ArrowKeysCycleTheDraftMovementPresetWhileFocusedOnItsRow()
@@ -418,6 +425,12 @@ public sealed class ArmyCompositionPanelTests
             MovementPresetId.CohortLateralSpreadV13,
             panel.DraftMovementPreset);
 
+        panel.AdjustFocusedValue(direction: 1, isShiftHeld: false);
+
+        Assert.Equal(
+            MovementPresetId.ContingentCohesionBeforeContactV14,
+            panel.DraftMovementPreset);
+
         // One more forward step from the last entry wraps to the first.
         panel.AdjustFocusedValue(direction: 1, isShiftHeld: false);
 
@@ -428,7 +441,7 @@ public sealed class ArmyCompositionPanelTests
         panel.AdjustFocusedValue(direction: -1, isShiftHeld: false);
 
         Assert.Equal(
-            MovementPresetId.CohortLateralSpreadV13,
+            MovementPresetId.ContingentCohesionBeforeContactV14,
             panel.DraftMovementPreset);
     }
 

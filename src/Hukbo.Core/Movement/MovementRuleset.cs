@@ -76,6 +76,17 @@ public sealed class MovementRuleset
     /// </summary>
     public const int TotalPressureInterruptWeightBasisPoints = 10_000;
 
+    /// <summary>
+    /// The basis-point value of
+    /// <see cref="CohesionSquareMarginBasisPoints"/> that leaves a
+    /// contingent's claimed square exactly the size every preset without
+    /// <see cref="GathersContingentsBeforeContact"/> claims today — one whole
+    /// unit, and therefore also the ceiling, because the tunable exists to
+    /// shrink the claimed square and never to widen it. A game-design choice,
+    /// not a measurement.
+    /// </summary>
+    public const int UnscaledCohesionSquareMarginBasisPoints = 10_000;
+
     public MovementRuleset(
         MovementPresetId id,
         int version,
@@ -97,7 +108,11 @@ public sealed class MovementRuleset
         bool appliesPressureInterrupt = false,
         int supportPressureWeightBasisPoints = 0,
         int incomingDamageWeightBasisPoints = 0,
-        int allyCollapseWeightBasisPoints = 0)
+        int allyCollapseWeightBasisPoints = 0,
+        bool gathersContingentsBeforeContact = false,
+        int cohesionBandNumerator = 0,
+        int cohesionBandDenominator = 0,
+        int cohesionSquareMarginBasisPoints = 0)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(version, 1);
         ValidateEquipmentRelativeFootworkCoupling(
@@ -109,6 +124,11 @@ public sealed class MovementRuleset
             supportPressureWeightBasisPoints,
             incomingDamageWeightBasisPoints,
             allyCollapseWeightBasisPoints);
+        ValidateContingentCohesionCoupling(
+            gathersContingentsBeforeContact,
+            cohesionBandNumerator,
+            cohesionBandDenominator,
+            cohesionSquareMarginBasisPoints);
 
         Id = id;
         Version = version;
@@ -134,6 +154,10 @@ public sealed class MovementRuleset
         SupportRadiusBodyDiametersBasisPoints =
             supportRadiusBodyDiametersBasisPoints;
         LoadoutMovementProfiles = loadoutMovementProfiles;
+        GathersContingentsBeforeContact = gathersContingentsBeforeContact;
+        CohesionBandNumerator = cohesionBandNumerator;
+        CohesionBandDenominator = cohesionBandDenominator;
+        CohesionSquareMarginBasisPoints = cohesionSquareMarginBasisPoints;
         ContentHash = ComputeContentHash();
     }
 
@@ -330,6 +354,71 @@ public sealed class MovementRuleset
     /// at construction and never sorted again.
     /// </summary>
     public ImmutableArray<LoadoutMovementProfile> LoadoutMovementProfiles { get; }
+
+    /// <summary>
+    /// Whether this preset gathers its contingents before contact, per the
+    /// "Contingent cohesion before contact — plan". Registered
+    /// <see langword="false"/> with three zero tunables for every preset up to
+    /// and including
+    /// <see cref="MovementPresetId.CohortLateralSpreadV13"/>, so introducing
+    /// this field moves no existing preset's behaviour. A game-design choice,
+    /// not a measurement.
+    /// </summary>
+    /// <remarks>
+    /// This member and the three tunables below are trailing optional
+    /// constructor parameters defaulting to <see langword="false"/> and zero,
+    /// so every construction site that predates them keeps compiling and keeps
+    /// the legacy behaviour. They are declared here, in the position their
+    /// <see cref="ContentHash"/> fold occupies, because that fold runs in
+    /// declaration order. Only the three numerics are folded, and only inside
+    /// <c>if (GathersContingentsBeforeContact)</c>; the gate itself is not
+    /// folded, because inside its own branch it is always
+    /// <see langword="true"/> and would discriminate nothing. That is what
+    /// keeps the pinned <c>ContentHash</c> literals of every earlier preset
+    /// exactly where they are.
+    /// </remarks>
+    public bool GathersContingentsBeforeContact { get; }
+
+    /// <summary>
+    /// The numerator of the fraction of the cohesion radius inside which a
+    /// member is close enough to its leader to stop counting as a straggler,
+    /// replacing the hardcoded three-quarters comparison when
+    /// <see cref="GathersContingentsBeforeContact"/> is
+    /// <see langword="true"/>. Zero for every preset whose gate is
+    /// <see langword="false"/>; otherwise non-negative and no greater than
+    /// <see cref="CohesionBandDenominator"/>. A provisional reconstruction of
+    /// gameplay tuning, not a historical measurement. See the "Contingent
+    /// cohesion before contact — plan".
+    /// </summary>
+    public int CohesionBandNumerator { get; }
+
+    /// <summary>
+    /// The denominator of the cohesion band fraction described on
+    /// <see cref="CohesionBandNumerator"/>. Zero for every preset whose
+    /// <see cref="GathersContingentsBeforeContact"/> is
+    /// <see langword="false"/>; otherwise at least one, so the band is a
+    /// well-formed fraction and the comparison never divides by zero. A
+    /// provisional reconstruction of gameplay tuning, not a historical
+    /// measurement. See the "Contingent cohesion before contact — plan".
+    /// </summary>
+    public int CohesionBandDenominator { get; }
+
+    /// <summary>
+    /// The scale, in basis points, applied to the half-side of the square a
+    /// contingent claims in the cross-contingent overlap test, so a contingent
+    /// claims less ground than the packing bound alone would give it and
+    /// <c>ContingentState.Hold</c> stays reachable under a crowded deployment.
+    /// Zero for every preset whose
+    /// <see cref="GathersContingentsBeforeContact"/> is
+    /// <see langword="false"/>; otherwise in the inclusive range
+    /// <c>[1, 10000]</c>, where 10000 is bit-identical to the unscaled margin
+    /// every earlier preset uses. It scales the claimed margin only and never
+    /// the per-member jitter, because changing jitter would change member
+    /// spacing. A provisional reconstruction of gameplay tuning, not a
+    /// historical measurement. See the "Contingent cohesion before contact —
+    /// plan".
+    /// </summary>
+    public int CohesionSquareMarginBasisPoints { get; }
 
     /// <summary>
     /// Content hash over every field above, folded in declaration order with
@@ -625,6 +714,90 @@ public sealed class MovementRuleset
         }
     }
 
+    /// <summary>
+    /// The coupled validation for the contingent cohesion tunables of the
+    /// "Contingent cohesion before contact — plan", mirroring the shape
+    /// <see cref="ValidateEquipmentRelativeFootworkCoupling"/> uses. A preset
+    /// that does not gather its contingents before contact must register three
+    /// zero tunables, so its <see cref="ContentHash"/> fold stays exactly what
+    /// it is today and a half-configured ruleset cannot exist. A preset that
+    /// does gather must register a well-formed band fraction and a margin
+    /// scale inside the inclusive range
+    /// <c>[1, UnscaledCohesionSquareMarginBasisPoints]</c>, so the band can
+    /// never divide by zero, can never exceed the whole cohesion radius, and
+    /// the margin scale can never widen the claimed square beyond the
+    /// unscaled one every earlier preset uses.
+    /// </summary>
+    private static void ValidateContingentCohesionCoupling(
+        bool gathersContingentsBeforeContact,
+        int cohesionBandNumerator,
+        int cohesionBandDenominator,
+        int cohesionSquareMarginBasisPoints)
+    {
+        if (!gathersContingentsBeforeContact)
+        {
+            if (cohesionBandNumerator != 0)
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(cohesionBandNumerator),
+                    cohesionBandNumerator,
+                    "A preset that does not gather its contingents before " +
+                    "contact must register a zero cohesion band numerator.");
+            }
+
+            if (cohesionBandDenominator != 0)
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(cohesionBandDenominator),
+                    cohesionBandDenominator,
+                    "A preset that does not gather its contingents before " +
+                    "contact must register a zero cohesion band denominator.");
+            }
+
+            if (cohesionSquareMarginBasisPoints != 0)
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(cohesionSquareMarginBasisPoints),
+                    cohesionSquareMarginBasisPoints,
+                    "A preset that does not gather its contingents before " +
+                    "contact must register a zero cohesion square margin " +
+                    "scale.");
+            }
+
+            return;
+        }
+
+        ArgumentOutOfRangeException.ThrowIfLessThan(
+            cohesionBandDenominator,
+            1,
+            nameof(cohesionBandDenominator));
+        ArgumentOutOfRangeException.ThrowIfNegative(
+            cohesionBandNumerator,
+            nameof(cohesionBandNumerator));
+
+        if (cohesionBandNumerator > cohesionBandDenominator)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(cohesionBandNumerator),
+                cohesionBandNumerator,
+                "A preset that gathers its contingents before contact must " +
+                "register a cohesion band numerator no greater than its " +
+                $"denominator; this numerator exceeds {cohesionBandDenominator}.");
+        }
+
+        if (cohesionSquareMarginBasisPoints < 1 ||
+            cohesionSquareMarginBasisPoints >
+                UnscaledCohesionSquareMarginBasisPoints)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(cohesionSquareMarginBasisPoints),
+                cohesionSquareMarginBasisPoints,
+                "A preset that gathers its contingents before contact must " +
+                "register a cohesion square margin scale in the inclusive " +
+                $"range [1, {UnscaledCohesionSquareMarginBasisPoints}].");
+        }
+    }
+
     private ulong ComputeContentHash()
     {
         var hash = Fnv1a.OffsetBasis;
@@ -714,6 +887,25 @@ public sealed class MovementRuleset
                     ref hash,
                     (ulong)profile.PressureInterruptThresholdBasisPoints);
             }
+        }
+
+        if (GathersContingentsBeforeContact)
+        {
+            // The same version gate the pressure interrupt above uses, for the
+            // same reason. Every preset that does not gather its contingents
+            // before contact writes nothing here at all, so V1 through V13
+            // keep the exact byte sequence they fold today, and their pinned
+            // ContentHash literals and frozen trajectory digests do not move.
+            // Folding these values unconditionally would move all seven pinned
+            // identity literals at once.
+            //
+            // The flag itself is not folded. Inside this branch it is always
+            // true, so folding it would contribute a constant and discriminate
+            // nothing; the branch is what records it. Only the three numeric
+            // tunables fold here.
+            Fnv1a.Add(ref hash, (ulong)CohesionBandNumerator);
+            Fnv1a.Add(ref hash, (ulong)CohesionBandDenominator);
+            Fnv1a.Add(ref hash, (ulong)CohesionSquareMarginBasisPoints);
         }
 
         return hash;

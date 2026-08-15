@@ -280,4 +280,61 @@ public enum MovementPresetId
     /// the cohort lateral spread plan.
     /// </summary>
     CohortLateralSpreadV13 = 13,
+
+    /// <summary>
+    /// The contingent-cohesion-before-contact preset. A verbatim restatement
+    /// of <see cref="LastStandEngagementV11"/>'s registered field values under
+    /// its own <c>id</c>, exactly as
+    /// <see cref="ContingentShapeV12"/> and
+    /// <see cref="CohortLateralSpreadV13"/> restate them, plus the first four
+    /// fields any preset above V11 carries in the ruleset itself rather than
+    /// at a preset-identity call site:
+    /// <see cref="MovementRuleset.GathersContingentsBeforeContact"/> set to
+    /// <see langword="true"/> and the three tunables it gates —
+    /// <see cref="MovementRuleset.CohesionBandNumerator"/>,
+    /// <see cref="MovementRuleset.CohesionBandDenominator"/>, and
+    /// <see cref="MovementRuleset.CohesionSquareMarginBasisPoints"/>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// What this changes relative to <see cref="CohortLateralSpreadV13"/>.
+    /// V13 is inherited whole — this value is admitted to the same
+    /// weapon-grouped-cohort-deployment gate, the same last-stand-engagement
+    /// gate, and the same lateral-riffle deployment predicate, so an A/B
+    /// against the shipped default isolates the cohesion change rather than
+    /// also re-testing the riffle. On top of that inheritance, three things
+    /// differ, and all three are read from the ruleset rather than from a
+    /// preset-identity test. First, the straggler test that decides whether an
+    /// advancing member is granted a cohesion destination compares the
+    /// member's distance from its leader against the registered band fraction
+    /// of the cohesion radius instead of the hardcoded three quarters every
+    /// earlier preset uses, so a contingent gathers members that were already
+    /// close rather than only the ones that had fallen well behind. Second,
+    /// the half-side of the square a contingent claims in the cross-contingent
+    /// overlap test is scaled by the registered basis-point margin, so a
+    /// contingent claims less ground than the packing bound alone would give
+    /// it and holding stays reachable under a crowded eight-contingent
+    /// deployment. Third, the cross-contingent scan's exclusion set is pinned
+    /// rather than changed: it already excludes exactly the closing and
+    /// breaking states and nothing else, so no executable line moves there.
+    /// </para>
+    /// <para>
+    /// What this does not change. Member spacing, per-member jitter, lane
+    /// geometry, anchors, and contingent sizing are all untouched, which is
+    /// deliberate: the corpus describes irregular spacing and attests no
+    /// dressing, ranks, files, fixed frontage, or command signal. This preset
+    /// makes a contingent stay together; it does not make it tidy, and it
+    /// synchronizes nothing across an army — each contingent decides for
+    /// itself, tick by tick, from its own state.
+    /// </para>
+    /// <para>
+    /// It is reachable only through explicit selection. The shipped client
+    /// default stays <see cref="CohortLateralSpreadV13"/> and the canonical
+    /// gate's benchmark blocks are unchanged, following the precedent
+    /// <see cref="ContingentShapeV12"/> set for an opt-in preset. See the
+    /// "Contingent cohesion before contact — plan" and the "Contingent
+    /// cohesion before contact — design".
+    /// </para>
+    /// </remarks>
+    ContingentCohesionBeforeContactV14 = 14,
 }

@@ -344,3 +344,51 @@ but it changes which file an implementer opens.
 history: `CohortLateralSpreadV13` has landed on `main`, and the value to append is
 14. Task 15 records the correction in the design itself so the next reader is not
 misled by a block that no longer exists.
+
+## Results
+
+### Task 1 — the pre-change freeze baseline, 2026-08-15
+
+Captured at `d610990`, on branch `hukbo-cohesion-v14`, in an isolated worktree,
+before a single line of source was edited. Two other sessions were working in the
+main checkout at the time, which is why this package runs in a worktree at all.
+
+```
+dotnet test tests/Hukbo.Core.Tests/Hukbo.Core.Tests.csproj -c Release
+Passed!  - Failed: 0, Passed: 2568, Skipped: 0, Total: 2568, Duration: 23 s
+```
+
+The nineteen frozen facts, named individually rather than summarized, every one
+of them `Passed`:
+
+The nine movement replay digests in `MovementPresetFreezeTests` —
+`IndependentPursuitV1`, `PersistentContingentsV2`, `PersistentContingentsV3`,
+`PersistentContingentsV4`, `PersistentContingentsV5`,
+`EquipmentRelativeFootworkV6`, `EquipmentRelativeFootworkV7`,
+`RangedStandoffV8`, and `MonotoneAllyClearanceV9`, each
+`_ReproducesTheFrozenTrajectoryDigest`.
+
+The five deployment cases in `FormationDeploymentFreezeTests` — `Default200`,
+`EightContingentCeiling`, `MinimumMap`, `HalfNarrowerThanOneBody`, and
+`DenseBlockFallback`, each `_MatchesTheFrozenDeployment` and the last of them
+also asserting the stream is left untouched.
+
+The five preset-identity facts for V10 through V13 —
+`BattlefieldRealismV10FullBattleReproducesItsPinnedTrajectory` and
+`LastStandEngagementV11FullBattleReproducesItsPinnedTrajectory`, both of which
+live in `ContingentShapeV12Tests.cs`;
+`CohortLateralSpreadV13FullBattleReproducesItsPinnedTrajectory`; and V12's two
+byte-identity facts,
+`ContingentShapeV12ProducesAByteIdenticalFullBattleToLastStandEngagementV11` and
+`WithNoLastStandContingentShapeV12RunsByteIdenticallyToLastStandEngagementV11`.
+
+**One correction to this plan's own wording, found while capturing the
+baseline.** The verification criteria describe "the four pinned full-battle
+trajectories for V10, V11, V12, and V13". There are three: V12 has no
+four-literal trajectory of its own and pins byte-identity against V11 instead.
+The count of nineteen is right — nine plus five plus three plus V12's two
+identity facts — but the composition is not what the criteria say, and an
+implementer looking for a `ContingentShapeV12FullBattleReproducesItsPinnedTrajectory`
+will not find one. There is no `BattlefieldRealismV10Tests.cs` trajectory test
+and no `LastStandEngagementV11Tests.cs` trajectory test either; both of those
+literals live in `ContingentShapeV12Tests.cs`.
