@@ -282,32 +282,130 @@ public enum MovementPresetId
     CohortLateralSpreadV13 = 13,
 
     /// <summary>
-    /// The shield-encumbrance preset. Carries every one of
-    /// <see cref="CohortLateralSpreadV13"/>'s cohesion, formation, and
-    /// pressure-interrupt tunables forward unchanged, and is the first
-    /// preset to register
-    /// <see cref="MovementRuleset.ExtendedCanonicalLoadoutCount"/> profile
-    /// rows instead of <see cref="MovementRuleset.CanonicalLoadoutCount"/>:
-    /// the six rows every preset since
-    /// <see cref="EquipmentRelativeFootworkV6"/> has carried, plus two new
-    /// narrow-breast-high-shield rows
-    /// (<see cref="Profiles.NarrowBreastHighMovementProfiles.KalisRow"/>,
-    /// <see cref="Profiles.NarrowBreastHighMovementProfiles.ItakRow"/>) at
-    /// canonical indices 6 and 7. Its tall-hardwood-shield rows are not
-    /// <see cref="Profiles.TallHardwoodMovementProfiles.KalisRow"/> and
-    /// <see cref="Profiles.TallHardwoodMovementProfiles.ItakRow"/> — the rows
-    /// V6 through V13 still register unchanged — but the distinct, more
-    /// slowly paced
-    /// <see cref="Profiles.TallHardwoodMovementProfiles.KalisRowV14"/> and
-    /// <see cref="Profiles.TallHardwoodMovementProfiles.ItakRowV14"/>, so
-    /// that solo, narrow-shield, and tall-shield pace sit in the strict order
-    /// the shield-projectile-block design's section 6.1 requires for both
-    /// weapons on every pace field. It is also the first preset to register
-    /// <see cref="MovementRuleset.AppliesShieldBlockRecovery"/> as
-    /// <see langword="true"/>, opening a brief pace-capped recovery window
-    /// on a warrior whose shield has just intercepted a projectile, per
-    /// design section 6.2. See the 2026-08-15 shield-projectile-block
-    /// design and its plan.
+    /// The in-fight evasive footwork preset. A verbatim restatement of
+    /// <see cref="CohortLateralSpreadV13"/>'s registered field values under its
+    /// own <c>id</c>, following the convention
+    /// <see cref="ContingentShapeV12"/> and <see cref="CohortLateralSpreadV13"/>
+    /// both use: the behaviour is gated on preset identity at its own call
+    /// site, so this value carries no new ruleset field of its own. In
+    /// particular <see cref="MovementRuleset.UsesEquipmentRelativeFootwork"/>
+    /// stays <see langword="false"/> — this preset does not revive the
+    /// equipment-relative route pipeline, and no
+    /// <see cref="FootworkPhase"/> or <see cref="TacticalPosture"/> value is
+    /// resolved under it.
+    /// <para>
+    /// It is admitted to all three of the identity gates
+    /// <see cref="CohortLateralSpreadV13"/> reaches — the battlefield-realism
+    /// gate, the last-stand-engagement gate, and the lateral-riffle cohort
+    /// traversal — so it inherits V13's behaviour whole. It is not admitted to
+    /// the <see cref="ContingentShapeV12"/> branch of
+    /// <see cref="Simulation.FormationPlanner.ResolveContingentSizes"/>, so it
+    /// takes the square-root sizing path V11 and V13 take.
+    /// </para>
+    /// <para>
+    /// What it adds is a post-pass at the tail of the movement-proposal stage
+    /// that lets a warrior already engaged with a living enemy weave while
+    /// closing, circle after a blow is turned aside, step off the line of an
+    /// inbound missile, and yield a foot when the press pins it — without ever
+    /// writing <see cref="Simulation.AgentIntent"/>, dropping its target, or
+    /// leaving the fight. The resolved value is published on
+    /// <c>AgentState.EvasiveAction</c> and folded into the state hash behind a
+    /// gate of its own.
+    /// </para>
+    /// <para>
+    /// One consequence is deliberate and is not a defect. A projectile's clash
+    /// outcome is resolved from its launch tick, so a warrior that visibly
+    /// leaps off the line of an arrow can still be recorded as hit. That is
+    /// what the sixteenth-century account this rung is drawn from describes:
+    /// the men at Mactan leaped about and were struck through shield and arm
+    /// regardless. See the 2026-08-15 in-fight evasion design.
+    /// </para>
     /// </summary>
-    ShieldEncumbranceV14 = 14,
+    EvasiveFootworkV14 = 14,
+    /// The contingent-cohesion-before-contact preset. A verbatim restatement
+    /// of <see cref="LastStandEngagementV11"/>'s registered field values under
+    /// its own <c>id</c>, exactly as
+    /// <see cref="ContingentShapeV12"/> and
+    /// <see cref="CohortLateralSpreadV13"/> restate them, plus the first four
+    /// fields any preset above V11 carries in the ruleset itself rather than
+    /// at a preset-identity call site:
+    /// <see cref="MovementRuleset.GathersContingentsBeforeContact"/> set to
+    /// <see langword="true"/> and the three tunables it gates —
+    /// <see cref="MovementRuleset.CohesionBandNumerator"/>,
+    /// <see cref="MovementRuleset.CohesionBandDenominator"/>, and
+    /// <see cref="MovementRuleset.CohesionSquareMarginBasisPoints"/>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// What this changes relative to <see cref="CohortLateralSpreadV13"/>.
+    /// V13 is inherited whole — this value is admitted to the same
+    /// weapon-grouped-cohort-deployment gate, the same last-stand-engagement
+    /// gate, and the same lateral-riffle deployment predicate, so an A/B
+    /// against the shipped default isolates the cohesion change rather than
+    /// also re-testing the riffle. On top of that inheritance, three things
+    /// differ, and all three are read from the ruleset rather than from a
+    /// preset-identity test. First, the straggler test that decides whether an
+    /// advancing member is granted a cohesion destination compares the
+    /// member's distance from its leader against the registered band fraction
+    /// of the cohesion radius instead of the hardcoded three quarters every
+    /// earlier preset uses, so a contingent gathers members that were already
+    /// close rather than only the ones that had fallen well behind. Second,
+    /// the half-side of the square a contingent claims in the cross-contingent
+    /// overlap test is scaled by the registered basis-point margin, so a
+    /// contingent claims less ground than the packing bound alone would give
+    /// it and holding stays reachable under a crowded eight-contingent
+    /// deployment. Third, the cross-contingent scan's exclusion set is pinned
+    /// rather than changed: it already excludes exactly the closing and
+    /// breaking states and nothing else, so no executable line moves there.
+    /// </para>
+    /// <para>
+    /// What this does not change. Member spacing, per-member jitter, lane
+    /// geometry, anchors, and contingent sizing are all untouched, which is
+    /// deliberate: the corpus describes irregular spacing and attests no
+    /// dressing, ranks, files, fixed frontage, or command signal. This preset
+    /// makes a contingent stay together; it does not make it tidy, and it
+    /// synchronizes nothing across an army — each contingent decides for
+    /// itself, tick by tick, from its own state.
+    /// </para>
+    /// <para>
+    /// It is reachable only through explicit selection. The shipped client
+    /// default stays <see cref="CohortLateralSpreadV13"/> and the canonical
+    /// gate's benchmark blocks are unchanged, following the precedent
+    /// <see cref="ContingentShapeV12"/> set for an opt-in preset. See the
+    /// "Contingent cohesion before contact — plan" and the "Contingent
+    /// cohesion before contact — design".
+    /// </para>
+    /// </remarks>
+    ContingentCohesionBeforeContactV15 = 15,
+
+    /// <summary>
+    /// The shield-encumbrance preset, from the 2026-08-15
+    /// shield-projectile-block design. A verbatim restatement of
+    /// <see cref="CohortLateralSpreadV13"/>'s registered field values under
+    /// its own <c>id</c> — in particular
+    /// <see cref="MovementRuleset.UsesEquipmentRelativeFootwork"/> stays
+    /// <see langword="false"/> and it registers no loadout movement rows at
+    /// all — plus two gates of its own.
+    /// <para>
+    /// <see cref="MovementRuleset.AppliesShieldEncumbrance"/> scales a
+    /// warrior's movement speed once, at agent creation, by the pace basis
+    /// points their shield authors, so an unshielded warrior outpaces a
+    /// narrow-shield bearer who outpaces a tall-shield bearer. That is what a
+    /// bigger shield costs.
+    /// </para>
+    /// <para>
+    /// <see cref="MovementRuleset.AppliesShieldBlockRecovery"/> opens a brief
+    /// pace-capped window on a warrior whose shield has just taken a blow,
+    /// longer for the heavier board, per design section 6.2.
+    /// </para>
+    /// <para>
+    /// Encumbrance is expressed as a speed scale rather than as
+    /// <c>LoadoutMovementProfile</c> rows because the shipped pipeline
+    /// registers none. The design's first draft built this preset as
+    /// equipment-relative with eight rows and crashed on the first ranged
+    /// warrior, since no canonical loadout index maps a ranged weapon; the
+    /// isolation is recorded in the design's section 6.1.
+    /// </para>
+    /// </summary>
+    ShieldEncumbranceV16 = 16,
 }

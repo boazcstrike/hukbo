@@ -57,4 +57,17 @@ internal enum ClientCommand
     // to the "Events" control-bar button, sitting beside ToggleSoundLog's F9
     // and "Sounds" button.
     ToggleEventLog,
+
+    // Appended, never inserted, for the same reason: no existing member's
+    // ordinal moves.
+    //
+    // Flips Settings.WeaponVisualStyle between Procedural and Sprite and
+    // persists the result (the 2026-08-15 weapon sprite design, section 12).
+    // Bound to V rather than a menu row for the same reason ToggleWarriorBody
+    // is: the menu panel's content budget is 657 pixels and both columns
+    // already stand at 634, while one more selector costs 104. B is taken by
+    // ToggleWarriorBody and W is camera panning, so V ("visuals") is the free
+    // key on both branches -- section 12 of that design records the full
+    // search.
+    ToggleWeaponSprites,
 }

@@ -34,7 +34,7 @@ public sealed class ShieldBlockRecoveryTests
 
     /// <summary>The shipped movement preset since the same package.</summary>
     private const MovementPresetId ShippedMovement =
-        MovementPresetId.ShieldEncumbranceV14;
+        MovementPresetId.ShieldEncumbranceV16;
 
     [Fact]
     public void TheShippedPresetAppliesTheWindowAndAuthorsALongerOneForTheBiggerShield()

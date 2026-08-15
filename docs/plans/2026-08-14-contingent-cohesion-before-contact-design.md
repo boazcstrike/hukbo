@@ -1,8 +1,19 @@
 # Contingent cohesion before contact — design
 
-Status: proposed, and **deliberately not yet planned**. A design document does
-not authorize implementation, and this one is additionally blocked: it edits
-files another workstream is holding. See section 7.
+Status: **executed on 2026-08-15**, as
+`MovementPresetId.ContingentCohesionBeforeContactV15`. The preset is registered,
+selectable from the Army Composition panel, and opt-in; the shipped client
+default stays `CohortLateralSpreadV13`, because this design's section 5 puts the
+flip behind a person watching a battle first. R1 shipped as written, and R2 and
+R3 shipped in the reshaped form their plan established after both of their
+premises turned out to be false against the code. See section 7 for the block
+that no longer exists, and the plan titled "Contingent cohesion before contact —
+plan" for the task-by-task record and the calibration table.
+
+**The value is 15, not the 14 this document and its plan both predicted.** The
+in-fight evasion package merged to `main` while this one was being built and took
+`EvasiveFootworkV14 = 14`. Appending after the real last member gives 15, and no
+shipped value was renumbered to get there.
 
 **The row that motivated this document has since closed, and none of this
 document was built.** `BR-1` was re-run by a person at an interactive desktop on
@@ -11,12 +22,20 @@ is the archived document titled "Battlefield realism cohort smoke — closed
 2026-08-14". What changed between the failing run and the passing one was
 `CohortLateralSpreadV13` becoming the client's default movement preset, which
 changes how the army is laid out laterally, not how a contingent coheres. The
-two remedies below, R1 and R2, were checked against the code on 2026-08-14 and
-are both still absent: `MovementRules.IsCohesionEligible` still applies the
-binary straggler test under `ContingentState.Advance`, and `BattleSimulation`
-still marks every excluded slot as overlapping regardless of state. This
-document therefore stays live as a standing diagnosis of gates that have not
-moved — not as work anybody is waiting on.
+remedy R1 was checked against the code again on 2026-08-15 and is still absent:
+`MovementRules.IsCohesionEligible` still applies the binary straggler test under
+`ContingentState.Advance`, at `src/Hukbo.Core/Movement/MovementRules.cs:444-447`.
+R2's and R3's premises did not survive that re-reading, and this document's plan
+reshapes both around what is actually on disk rather than dropping them. The
+blanket denial R2 would narrow is
+already narrow — `src/Hukbo.Core/Simulation/BattleSimulation.cs:1803-1810` marks
+a living slot only when `!TakesPartInCrossContingentScan(slot)`, and that
+predicate already excludes exactly `Close` and `Break` — and the square R3 would
+size to the contingent is already sized to it, because the margin at
+`src/Hukbo.Core/Simulation/BattleSimulation.cs:1783` is built from a jitter
+radius computed from the slot's own living member count. This document therefore
+stays live as a standing diagnosis of the one gate that has not moved — not as
+work anybody is waiting on.
 
 ## 1. What a person reported
 
@@ -86,17 +105,30 @@ if (_contingentLivingCounts[slot] != 0 &&
 }
 ```
 
-Any living slot the narrowed scan excludes is marked as overlapping outright,
-and the comment above it states the consequence plainly — the denial "resolves it
-to Advance through transition rule 4". Contingents in `Close` or `Break` are
-excluded from the scan, so they deny themselves, and their squares are then
-unavailable to relieve anyone else's overlap either.
+A living slot the narrowed scan excludes is marked as overlapping outright, and
+the comment above it states the consequence plainly — the denial "resolves it to
+Advance through transition rule 4". The exclusion set is not open-ended:
+`TakesPartInCrossContingentScan` at
+`src/Hukbo.Core/Simulation/BattleSimulation.cs:1934-1943` returns true for every
+slot under a preset that does not narrow the scan, and otherwise defers to
+`MovementRules.ParticipatesInCrossContingentScan`
+(`src/Hukbo.Core/Movement/MovementRules.cs:355-360`), which excludes exactly
+`Close` and `Break`. So the contingents that deny themselves are the ones already
+fighting, and their squares are then unavailable to relieve anyone else's overlap
+either. That second-order effect is real; the blanket denial this section
+originally described is not.
 
-The cohesion square is sized by `CohesionRadiusMultiplier`, which is **24** body
-radii under the shipped `LastStandEngagementV11`. Eight contingents each claiming
-a square of that size inside one half of the map overlap readily. Every
-overlapping pair is denied `Hold`, resolves to `Advance`, and under gate 4
-`Advance` gathers only stragglers.
+The cohesion square is not sized by a constant either. Its margin is
+`_contingentMarginRaw[slot] = checked(jitterRaw + Scenario.BodyRadiusRaw)` at
+`src/Hukbo.Core/Simulation/BattleSimulation.cs:1783`, where `jitterRaw` comes
+from `FormationRules.ComputeContingentJitterRaw` applied to the slot's own living
+member count, so a large contingent already claims a larger square than a small
+one. `CohesionRadiusMultiplier`, which is **24** body radii under the shipped
+`LastStandEngagementV11`, sizes something else: the straggler radius that gate 4
+compares against. Squares still overlap when several contingents deploy into one
+half of the map, and every overlapping pair is denied `Hold`, resolves to
+`Advance`, and under gate 4 gathers only stragglers — but the cause is deployment
+density, not a fixed twenty-four-radius claim.
 
 The composed result: contingents spend most of the approach in `Advance`, and in
 `Advance` most members are charging individually. The cohesion machinery is
@@ -143,39 +175,52 @@ hash and both freeze suites stay as they are.
 
 **R1 — `Advance` pulls in more than stragglers.** Replace gate 4's binary
 straggler test with a proportional one: under `Advance`, a member is cohesion-
-eligible while its distance from the contingent's aim point exceeds a *cohesion
-band* rather than while it exceeds three-quarters of the full radius. The band is
-a ruleset field so it is tunable without a code change. This is the single
-highest-value change and it alone would move the reported symptom.
+eligible while its distance from its leader — which is what
+`SquaredDistance(agent, leader)` at
+`src/Hukbo.Core/Simulation/BattleSimulation.cs:3679` actually measures — exceeds
+a *cohesion band* rather than while it exceeds three-quarters of the full radius.
+The band is a ruleset field so it is tunable without a code change. This is the
+single highest-value change and it alone would move the reported symptom. It is
+also the only one of the three whose premise survived re-reading the code.
 
-**R2 — the blanket narrowed-scan denial is narrowed.** A slot excluded from the
-scan because it is in `Close` or `Break` is genuinely fighting and should not
-gather; that denial is correct. A slot excluded for any other reason is denied
-today for an implementation convenience rather than a gameplay reason. Restrict
-the blanket marking to the `Close` and `Break` cases and let the rest be tested
-normally.
+**R2 — the premise is false; what survives is a pin and two comment
+corrections.** The premise was that a slot excluded from the scan for a reason
+other than `Close` or `Break` was being denied for implementation convenience.
+There is no such slot: `TakesPartInCrossContingentScan` excludes exactly `Close`
+and `Break`, and both of those denials are the correct gameplay behaviour by this
+design's own reasoning — a contingent that is genuinely fighting should not
+gather. R2 therefore changes no executable statement. Its plan carries it as a
+test pinning that excluded set, plus corrections to the two comments that read as
+though the denial were broader than the two states.
 
-**R3 — the cohesion square is sized to the contingent, not to a constant.** A
-24-body-radius square is claimed by a contingent of three and a contingent of
-forty alike, which is what makes overlap the common case rather than the
-exception. Size the square from the contingent's own living member count so that
-small contingents stop denying their neighbours. This is the change that makes
-`Hold` reachable at all under a realistic eight-contingent deployment.
+**R3 — the premise is false; what survives is the stated purpose, by another
+mechanism.** The premise was that a contingent of three and a contingent of forty
+claim the same square. They do not: the margin is a jitter radius computed from
+the slot's own living member count plus one body radius, so a large contingent
+already claims a larger square. R3's purpose — making `Hold` reachable under a
+realistic eight-contingent deployment — is not served by the mechanism this
+section originally described, because that mechanism does not exist. Its plan
+delivers the purpose instead as a ruleset-tunable scale on the claimed margin
+alone, leaving the jitter that sets member spacing untouched, because scaling
+spacing is what R4 and section 3 forbid.
 
 **R4 — nothing about spacing, jitter, or slot geometry changes.** Section 3
 forbids it. `FormationPlanner` is not edited by this design at all.
 
 ## 5. Versioning and determinism
 
-Any of R1 through R3 moves agent positions, so all three land behind one new
-`MovementPresetId` value, appended, never renumbered. That preset gets its own
-registry entry, its own registration test, and new golden expectations. The
-shipped client default is flipped to it only after a person has watched a battle
-and confirmed the effect, not as part of the implementation.
+R1 and R3 both move agent positions — R1 by widening which members gather, R3 by
+scaling the claimed margin — so they land behind one new `MovementPresetId`
+value, appended, never renumbered, which is 14, since `CohortLateralSpreadV13 = 13` at
+`src/Hukbo.Core/Movement/MovementPresetId.cs:282` is the last member today. That
+preset gets its own registry entry, its own registration test, and new golden
+expectations. The shipped client default is flipped to it only after a person has
+watched a battle and confirmed the effect, not as part of the implementation.
 
-`SplitMix64` draw counts must not change: R1 through R3 all read state that
-already exists and none of them draws. If an implementation finds itself needing
-a draw, that is a design change and comes back here first.
+`SplitMix64` draw counts must not change: R1 reads state that already exists and
+does not draw, R2 changes no executable statement, and R3 scales a margin that is
+already computed. If an implementation finds itself needing a draw, that is a
+design change and comes back here first.
 
 Termination is the risk this change carries. A contingent that gathers more
 eagerly closes with the enemy later, and the twenty-seed termination sweep that
@@ -200,21 +245,49 @@ movement preset V7 was.
 7. **Historical claim?** Per-contingent local pause, labelled **Provisional
    reconstruction**. No claim of ranks, dressing, or signals. Section 3 is the
    authority and it constrains the rule rather than decorating it.
-8. **Per-tick cost?** No new allocation and no new scan; R3 changes an existing
-   square's dimensions, R2 removes work, R1 changes a comparison.
+8. **Per-tick cost?** No new allocation and no new scan; R1 changes a comparison,
+   R2 changes no executable statement, and R3 scales an existing margin.
 9. **How verified?** Core suite, the twenty-seed termination sweep, the canonical
    gate, and then a person at a desktop for `BR-1`.
 
-## 7. Why this is blocked, and on what
+## 7. Why this was blocked, and why it no longer is
 
-`src/Hukbo.Core/Simulation/BattleSimulation.cs` is currently modified in the
-working tree by the cohort lateral spread workstream, which registers
+This design was blocked while `src/Hukbo.Core/Simulation/BattleSimulation.cs` was
+held in the working tree by the cohort lateral spread workstream, which registers
 `MovementPresetId.CohortLateralSpreadV13` and edits the same
-`UsesBattlefieldRealism` region this design would touch. Implementing R2 and R3
-into that file concurrently is a merge conflict created on purpose.
+`UsesBattlefieldRealism` region this design would touch. Implementing into that
+file concurrently would have been a merge conflict created on purpose.
 
-**This design waits until `CohortLateralSpreadV13` has landed.** Its own preset
-value must then be appended after 13, not assigned now.
+**`CohortLateralSpreadV13` has landed, so the block is gone.** It is
+`MovementPresetId.CohortLateralSpreadV13 = 13` at
+`src/Hukbo.Core/Movement/MovementPresetId.cs:282` and is the last member of the
+enum; it is the shipped client default at
+`src/Hukbo.Client/Settings/ClientSettingsStore.cs:113-114`; and the canonical gate
+blocks on it at `scripts/verify.ps1:105-113`. This design's own preset value is
+therefore 14, and 14 does not exist yet.
+
+**Correction, 2026-08-15: the block is gone and the work is done, and the value
+is 15 rather than the 14 stated above.** The paragraph above computed 14 against
+a tree where `CohortLateralSpreadV13` was the last member of the enum, which was
+true when it was written. The in-fight evasion package then merged to `main` and
+took `EvasiveFootworkV14 = 14` while this package was being built in its own
+worktree — two packages appending after 13 at the same time, in separate trees.
+Appending after the real last member gives `ContingentCohesionBeforeContactV15 =
+15`, and no value that had ever shipped was renumbered to get there, which is
+what that rule protects.
+
+The findings the plan recorded were carried into the implementation rather than
+silently built as this document first described them. R1's reference point is the
+member's distance from its leader, not from the contingent aim point, because
+this document's own section 2 and the code agree against its section 4. R2 turned
+out to change no executable statement, because the exclusion set it wanted was
+already exactly `Close` and `Break`, so it shipped as a test pinning that set plus
+two comment corrections — one of which had the effect inverted, since an excluded
+square relieves a neighbour's overlap rather than causing one. R3's premise that a
+24-body-radius square is claimed by every contingent alike was false — the margin
+is already proportional to living headcount — so it shipped as a basis-point scale
+on the claimed margin alone, delivering R3's stated purpose through a mechanism
+that exists.
 
 ## 8. Out of scope
 

@@ -34,7 +34,7 @@ public sealed class ClientSettingsStoreTests
                 StartupDisplayMode.Windowed,
                 settings.StartupDisplayMode);
             Assert.Equal(
-                MovementPresetId.ShieldEncumbranceV14,
+                MovementPresetId.EvasiveFootworkV14,
                 settings.MovementPreset);
         });
     }
@@ -370,6 +370,11 @@ public sealed class ClientSettingsStoreTests
     /// be allowed to survive a load. The 10-to-11 bump widened the window
     /// back to <c>[10, 11]</c> without moving any version in this theory,
     /// because it only adds an independently defaulted chrome-style field.
+    /// Version 10 moved into this theory in turn when the 11-to-12 bump
+    /// narrowed the accepted window to <c>[11, 12]</c>: that bump only adds
+    /// an independently defaulted weapon-visual-style field too, but the
+    /// window still slides forward by one rather than widening, on the same
+    /// terms every field-adding bump before it has followed.
     /// </summary>
     [Theory]
     [InlineData(2)]
@@ -781,7 +786,7 @@ public sealed class ClientSettingsStoreTests
             // loads cleanly.
             Assert.Equal("signal", settings.SelectedThemeId);
             Assert.Equal(
-                MovementPresetId.ShieldEncumbranceV14,
+                MovementPresetId.EvasiveFootworkV14,
                 settings.MovementPreset);
         });
     }
@@ -807,7 +812,7 @@ public sealed class ClientSettingsStoreTests
             Assert.Equal(80, settings.Composition.UnitsPerTeam);
             Assert.Equal(GoreIntensity.Full, settings.GoreIntensity);
             Assert.Equal(
-                MovementPresetId.ShieldEncumbranceV14,
+                MovementPresetId.EvasiveFootworkV14,
                 settings.MovementPreset);
         });
     }
@@ -881,7 +886,7 @@ public sealed class ClientSettingsStoreTests
             Assert.Equal("command", settings.SelectedThemeId);
             Assert.Equal(ArmyComposition.Default, settings.Composition);
             Assert.Equal(
-                MovementPresetId.ShieldEncumbranceV14,
+                MovementPresetId.EvasiveFootworkV14,
                 settings.MovementPreset);
         });
     }
@@ -910,6 +915,49 @@ public sealed class ClientSettingsStoreTests
             Assert.Equal("signal", settings.SelectedThemeId);
             Assert.Equal(SampleComposition, settings.Composition);
             Assert.Equal(uiChromeStyle, settings.UiChromeStyle);
+        });
+    }
+
+    /// <summary>
+    /// A version 11 file predates both <c>PawnVisualStyle</c> and
+    /// <c>WeaponVisualStyle</c>, and loads with both at their defaults. The
+    /// version 10 case, which additionally predates <see cref="UiChromeStyle"/>,
+    /// is covered by
+    /// <see cref="AVersionTenFileLoadsCleanlyAndDefaultsTheChromeStyle"/>;
+    /// widening the accepted window with each field-adding bump is what keeps
+    /// both of them loadable rather than discarded.
+    /// </summary>
+    [Fact]
+    public void AVersionElevenFileLoadsCleanlyAndDefaultsTheWeaponVisualStyle()
+    {
+        WithTemporarySettings((store, settingsPath) =>
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(settingsPath)!);
+            File.WriteAllText(
+                settingsPath,
+                "{\"schemaVersion\":11,\"selectedThemeId\":\"signal\"," +
+                ValidCompositionJson +
+                ",\"goreIntensity\":2,\"motionIntensity\":0," +
+                "\"autoCameraMode\":2,\"uiScale\":2," +
+                "\"startupDisplayMode\":1,\"movementPreset\":11," +
+                "\"uiChromeStyle\":1}");
+
+            var settings = store.Load("command");
+
+            // An absent field defaults rather than rejecting the file, so a
+            // version 11 file — written before this field existed — still
+            // loads cleanly.
+            Assert.Equal(
+                ClientSettingsStore.SupportedSchemaVersion,
+                settings.SchemaVersion);
+            Assert.Equal("signal", settings.SelectedThemeId);
+            Assert.Equal(
+                MovementPresetId.LastStandEngagementV11,
+                settings.MovementPreset);
+            Assert.Equal(UiChromeStyle.NineSlice, settings.UiChromeStyle);
+            Assert.Equal(
+                WeaponVisualStyle.Procedural,
+                settings.WeaponVisualStyle);
         });
     }
 
@@ -975,14 +1023,18 @@ public sealed class ClientSettingsStoreTests
     }
 
     /// <summary>
-    /// The literal <c>12</c> rather than
+    /// The literal <c>13</c> rather than
     /// <see cref="ClientSettingsStore.SupportedSchemaVersion"/> is asserted
     /// against here, so this test still catches the schema window narrowing
-    /// unexpectedly even if the constant itself moves in the same change.
-    /// The input file itself stays at schema version 11 - a load always
-    /// normalizes the loaded settings' <c>SchemaVersion</c> to whatever is
-    /// currently supported, so the source file predating the pawn visual
-    /// style field is what this test still exercises.
+    /// unexpectedly even if the constant itself moves in the same change. It
+    /// was literal <c>12</c> before the 12-to-13 bump added the weapon
+    /// visual style field, and literal <c>11</c> before that, before the
+    /// 11-to-12 bump added the pawn visual style field. The input file
+    /// itself stays at schema version 11 - a load always normalizes the
+    /// loaded settings' <c>SchemaVersion</c> to whatever is currently
+    /// supported, so the source file predating both the pawn visual style
+    /// field and the weapon visual style field is what this test still
+    /// exercises.
     /// </summary>
     [Fact]
     public void ASchemaVersionElevenFileLoadsAndRoundTripsTheChromeStyle()
@@ -999,7 +1051,7 @@ public sealed class ClientSettingsStoreTests
 
             var settings = store.Load("command");
 
-            Assert.Equal(12, settings.SchemaVersion);
+            Assert.Equal(13, settings.SchemaVersion);
             Assert.Equal("signal", settings.SelectedThemeId);
             Assert.Equal(UiChromeStyle.NineSlice, settings.UiChromeStyle);
         });
@@ -1030,6 +1082,34 @@ public sealed class ClientSettingsStoreTests
             Assert.Equal("signal", settings.SelectedThemeId);
             Assert.Equal(SampleComposition, settings.Composition);
             Assert.Equal(pawnVisualStyle, settings.PawnVisualStyle);
+        });
+    }
+
+    [Theory]
+    [InlineData(WeaponVisualStyle.Procedural)]
+    [InlineData(WeaponVisualStyle.Sprite)]
+    public void EveryWeaponVisualStyleValueSurvivesARoundTrip(
+        WeaponVisualStyle weaponVisualStyle)
+    {
+        WithTemporarySettings((store, _) =>
+        {
+            Assert.True(store.TrySave(
+                "signal",
+                SampleComposition,
+                GoreIntensity.Full,
+                MotionIntensity.Reduced,
+                AutoCameraMode.Follow,
+                UiScale.Percent150,
+                StartupDisplayMode.Fullscreen,
+                MovementPresetId.LastStandEngagementV11,
+                UiChromeStyle.Procedural,
+                weaponVisualStyle: weaponVisualStyle));
+
+            var settings = store.Load("command");
+
+            Assert.Equal("signal", settings.SelectedThemeId);
+            Assert.Equal(SampleComposition, settings.Composition);
+            Assert.Equal(weaponVisualStyle, settings.WeaponVisualStyle);
         });
     }
 
@@ -1068,6 +1148,41 @@ public sealed class ClientSettingsStoreTests
         });
     }
 
+    /// <summary>
+    /// A file at the current schema version but written before the weapon
+    /// visual style field existed looks exactly like one with the field
+    /// absent: it loads cleanly rather than being discarded, and the style
+    /// defaults to <see cref="WeaponVisualStyle.Procedural"/> without
+    /// disturbing any sibling field.
+    /// </summary>
+    [Fact]
+    public void AFileMissingWeaponVisualStyleLoadsCleanlyAndDefaultsItToProcedural()
+    {
+        WithTemporarySettings((store, settingsPath) =>
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(settingsPath)!);
+            File.WriteAllText(
+                settingsPath,
+                "{\"schemaVersion\":" +
+                ClientSettingsStore.SupportedSchemaVersion +
+                ",\"selectedThemeId\":\"signal\"," +
+                ValidCompositionJson +
+                ",\"goreIntensity\":2,\"motionIntensity\":0," +
+                "\"autoCameraMode\":2,\"uiChromeStyle\":1}");
+
+            var settings = store.Load("command");
+
+            // An absent field defaults rather than rejecting the file, so a
+            // future field addition can be a backward-compatible bump again.
+            Assert.Equal("signal", settings.SelectedThemeId);
+            Assert.Equal(80, settings.Composition.UnitsPerTeam);
+            Assert.Equal(UiChromeStyle.NineSlice, settings.UiChromeStyle);
+            Assert.Equal(
+                WeaponVisualStyle.Procedural,
+                settings.WeaponVisualStyle);
+        });
+    }
+
     [Fact]
     public void AnOutOfRangePawnVisualStyleResetsOnlyThatField()
     {
@@ -1095,6 +1210,36 @@ public sealed class ClientSettingsStoreTests
             Assert.Equal(
                 PawnVisualStyle.Procedural,
                 settings.PawnVisualStyle);
+        });
+    }
+
+    [Fact]
+    public void AnOutOfRangeWeaponVisualStyleResetsOnlyThatField()
+    {
+        WithTemporarySettings((store, settingsPath) =>
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(settingsPath)!);
+            File.WriteAllText(
+                settingsPath,
+                "{\"schemaVersion\":" +
+                ClientSettingsStore.SupportedSchemaVersion +
+                ",\"selectedThemeId\":\"signal\"," +
+                ValidCompositionJson +
+                ",\"goreIntensity\":2,\"motionIntensity\":0," +
+                "\"autoCameraMode\":2,\"uiChromeStyle\":1," +
+                "\"weaponVisualStyle\":99}");
+
+            var settings = store.Load("command");
+
+            Assert.Equal("signal", settings.SelectedThemeId);
+            Assert.Equal(80, settings.Composition.UnitsPerTeam);
+            Assert.Equal(GoreIntensity.Full, settings.GoreIntensity);
+            Assert.Equal(MotionIntensity.Off, settings.MotionIntensity);
+            Assert.Equal(AutoCameraMode.Follow, settings.AutoCameraMode);
+            Assert.Equal(UiChromeStyle.NineSlice, settings.UiChromeStyle);
+            Assert.Equal(
+                WeaponVisualStyle.Procedural,
+                settings.WeaponVisualStyle);
         });
     }
 

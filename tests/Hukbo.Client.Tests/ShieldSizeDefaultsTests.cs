@@ -11,7 +11,7 @@ namespace Hukbo.Client.Tests;
 /// The shield size against projectile size design's section 8 "shipped
 /// defaults" requirement: the client actually fields combat preset
 /// <see cref="CombatPresetId.PrecolonialPhilippinesV7"/> and movement preset
-/// <see cref="MovementPresetId.ShieldEncumbranceV14"/>, and the default army
+/// <see cref="MovementPresetId.ShieldEncumbranceV16"/>, and the default army
 /// composition fields the new <see cref="ShieldId.NarrowBreastHigh"/> rows
 /// for Kalis and Itak, because a shield nobody carries cannot be discovered
 /// by watching. Every assertion here uses the pure-helper pattern: no
@@ -48,18 +48,51 @@ public sealed class ShieldSizeDefaultsTests
     /// spectator reaches it: <see cref="ClientSettingsStore.Load"/> against a
     /// settings path that has no file yet.
     /// </summary>
+    /// <remarks>
+    /// The shipped movement default is <b>not</b> this package's preset. The
+    /// in-fight evasive footwork package landed
+    /// <see cref="MovementPresetId.EvasiveFootworkV14"/> as the client default
+    /// first, and the two are mutually exclusive: both restate
+    /// <see cref="MovementPresetId.CohortLateralSpreadV13"/> and only one
+    /// preset can be selected at a time. Overriding another package's shipped
+    /// default would silently remove its feature from the only build a
+    /// spectator runs, so this package leaves it alone and ships
+    /// <see cref="MovementPresetId.ShieldEncumbranceV16"/> as a selectable
+    /// option instead.
+    /// <para>
+    /// What this costs is only the movement half of the shield package —
+    /// encumbrance and the block-recovery window. Shield sizes, the
+    /// size-aware interception rule, and projectile bulk all live in combat
+    /// preset <see cref="CombatPresetId.PrecolonialPhilippinesV7"/>, which the
+    /// client does ship, so the blocking behaviour itself is live by default.
+    /// </para>
+    /// </remarks>
     [Fact]
-    public void ShippedMovementPresetIsV14()
+    public void ShippedMovementPresetIsTheEvasivePresetAndNotTheShieldPreset()
     {
         WithTemporarySettings((store, _) =>
         {
             var settings = store.Load("command");
 
             Assert.Equal(
-                MovementPresetId.ShieldEncumbranceV14,
+                MovementPresetId.EvasiveFootworkV14,
                 settings.MovementPreset);
-            Assert.Equal(14, (int)settings.MovementPreset);
         });
+    }
+
+    /// <summary>
+    /// The shield-encumbrance preset must at least be reachable, or the
+    /// movement half of this package could never be seen at all.
+    /// </summary>
+    [Fact]
+    public void TheShieldEncumbrancePresetIsRegisteredAndSelectable()
+    {
+        Assert.True(
+            MovementPresetRegistry.IsRegistered(
+                MovementPresetId.ShieldEncumbranceV16));
+        Assert.Contains(
+            MovementPresetId.ShieldEncumbranceV16,
+            Hukbo.Client.UI.ArmyCompositionPanel.MovementPresetOptions);
     }
 
     [Fact]
@@ -146,7 +179,7 @@ public sealed class ShieldSizeDefaultsTests
     public void TheShippedMovementPresetCarriesNoLoadoutRowsAndIsNotEquipmentRelative()
     {
         var movement = MovementPresetRegistry.Get(
-            MovementPresetId.ShieldEncumbranceV14);
+            MovementPresetId.ShieldEncumbranceV16);
         var shipped = MovementPresetRegistry.Get(
             MovementPresetId.CohortLateralSpreadV13);
 
@@ -267,9 +300,13 @@ public sealed class ShieldSizeDefaultsTests
                 exception is null,
                 $"Loading a stale V6 settings file threw: {exception}");
 
+            // Falls back to whatever the client's shipped default is, which
+            // is the evasive preset rather than this package's — see the
+            // remarks on ShippedMovementPresetIsTheEvasivePresetAndNotThe
+            // ShieldPreset for why this package does not claim that default.
             var settings = store.Load("command");
             Assert.Equal(
-                MovementPresetId.ShieldEncumbranceV14,
+                MovementPresetId.EvasiveFootworkV14,
                 settings.MovementPreset);
         });
     }

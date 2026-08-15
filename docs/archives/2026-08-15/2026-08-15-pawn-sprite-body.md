@@ -1,5 +1,19 @@
 # Pawn sprite body — plan
 
+**Archived: reference only.** This is a finished plan. All fourteen tasks were
+built, tested, and merged to `main` in the feature commit `21e1abb`, and the
+eight `SB` smoke rows it owed were run and passed by a person at an interactive
+desktop on 2026-08-15. Never execute it, never treat it as a live task list, and
+never cite it as the reason to make a change. The live contract for this project
+remains `CLAUDE.md`, `SIMULATION-GAME-STANDARDS.md`,
+`docs/development/testing.md`, and `docs/development/smoke-checklist.md`. The
+record of those eight rows is the archive titled "Pawn sprite body smoke",
+alongside this file.
+
+One thing survives the build and is not closed by it: the `B` toggle has no
+on-screen announcement, because the menu panel is full. The design's section 9
+records that as an open discoverability gap.
+
 Date: 2026-08-15
 Design: `2026-08-15-pawn-sprite-body-design.md` (binding; this plan does not
 override it)

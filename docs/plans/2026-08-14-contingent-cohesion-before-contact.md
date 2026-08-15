@@ -61,7 +61,7 @@ Client, in `Hukbo.Client`:
 
 Tests:
 
-- `tests/Hukbo.Core.Tests/Movement/ContingentCohesionBeforeContactV14Tests.cs` —
+- `tests/Hukbo.Core.Tests/Movement/ContingentCohesionBeforeContactV15Tests.cs` —
   new file.
 - `tests/Hukbo.Core.Tests/Movement/ContingentCohesionCalibrationHarness.cs` — new
   file, compiled only behind the `HUKBO_CALIBRATION` preprocessor symbol.
@@ -144,18 +144,18 @@ Forbidden always:
 | --- | --- | --- | --- | --- |
 | 1 | Establish the pre-change freeze baseline. Run the full `Hukbo.Core.Tests` suite at `HEAD` and record, in this plan's own results section, that all nine movement replay facts, all five formation deployment cases, and all four pinned-trajectory tests for V10 through V13 are green before a single line is edited. This is the oracle every later task replays against; capturing it after the first edit would prove only that the build is consistent with itself. | None. Read-only measurement. | The suite is green at `HEAD` and the nineteen freeze facts are named individually in the results section, not summarized as "tests pass". | — |
 | 2 | Add the four new ruleset fields, gated. Append `gathersContingentsBeforeContact` (bool), `cohesionBandNumerator`, `cohesionBandDenominator`, and `cohesionSquareMarginBasisPoints` (int) as trailing optional constructor parameters defaulting to `false, 0, 0, 0`, so not one of the thirteen existing registry call sites changes. In `ComputeContentHash`, fold the three numeric fields **inside** `if (GathersContingentsBeforeContact)` and do not fold the gate itself, following the `AppliesPressureInterrupt` precedent at `src/Hukbo.Core/Movement/MovementRuleset.cs:647-663` exactly. Add constructor validation that throws when the gate is true and any numeric is outside its legal range, mirroring `ValidateEquipmentRelativeFootworkCoupling`. | `src/Hukbo.Core/Movement/MovementRuleset.cs` | The four properties exist; the three numerics fold only behind the gate; the seven pinned `ContentHash` literals at `tests/Hukbo.Core.Tests/MovementPresetRegistryTests.cs:33-106` are unedited and green; all nine movement replay facts and all five deployment cases still reproduce byte-identically. | 1 |
-| 3 | Append the enum value and register the ruleset **in one change**. Add `ContingentCohesionBeforeContactV14 = 14` with a doc comment stating what it changes relative to V13 and naming this plan, and declare `ContingentCohesionBeforeContactV14Ruleset` restating every one of V11's registered field values verbatim (`src/Hukbo.Core/Movement/MovementPresetRegistry.cs:573-594`) plus the gate `true` and the three new values at provisional starting settings. Add both switch arms. These cannot be split across two tasks: `ExactlyOneLivingLeaderPerNonEmptyContingentAcrossEveryRegisteredMovementPreset` at `tests/Hukbo.Core.Tests/BattleSimulationTests.cs:1732-1744` enumerates `Enum.GetValues<MovementPresetId>()` and asserts every value is registered, so the suite is red in between. | `src/Hukbo.Core/Movement/MovementPresetId.cs`, `src/Hukbo.Core/Movement/MovementPresetRegistry.cs` | Value 14 exists; both switches resolve it; every field except `Id` and the four new ones equals V11's; the enum-enumerating leader test is green; the nineteen freeze facts are unmoved. | 2 |
+| 3 | Append the enum value and register the ruleset **in one change**. Add `ContingentCohesionBeforeContactV15 = 14` with a doc comment stating what it changes relative to V13 and naming this plan, and declare `ContingentCohesionBeforeContactV15Ruleset` restating every one of V11's registered field values verbatim (`src/Hukbo.Core/Movement/MovementPresetRegistry.cs:573-594`) plus the gate `true` and the three new values at provisional starting settings. Add both switch arms. These cannot be split across two tasks: `ExactlyOneLivingLeaderPerNonEmptyContingentAcrossEveryRegisteredMovementPreset` at `tests/Hukbo.Core.Tests/BattleSimulationTests.cs:1732-1744` enumerates `Enum.GetValues<MovementPresetId>()` and asserts every value is registered, so the suite is red in between. | `src/Hukbo.Core/Movement/MovementPresetId.cs`, `src/Hukbo.Core/Movement/MovementPresetRegistry.cs` | Value 14 exists; both switches resolve it; every field except `Id` and the four new ones equals V11's; the enum-enumerating leader test is green; the nineteen freeze facts are unmoved. | 2 |
 | 4 | Admit V14 to the three preset-identity gates V13 already passes, so V14 is a strict superset of the shipped default and an A/B against it isolates R1 through R3 rather than also re-testing the lateral riffle. Add V14 to `UsesBattlefieldRealism` (`src/Hukbo.Core/Simulation/BattleSimulation.cs:5214-5218`), to `YieldsLastStandEngagement` (`src/Hukbo.Core/Simulation/BattleSimulation.cs:1532-1535`), and to the `spreadCohortsLaterally` predicate (`src/Hukbo.Core/Simulation/BattleSimulation.cs:708-709`). Extend each of the three doc comments with the same one-sentence justification the V13 admission already carries. Widening a predicate from a closed set to a larger closed set cannot change any member of the old set. | `src/Hukbo.Core/Simulation/BattleSimulation.cs` | All three predicates admit V14; V13's own pinned trajectory at `tests/Hukbo.Core.Tests/Movement/CohortLateralSpreadV13Tests.cs:604-614` reproduces its four literals unchanged; V10, V11, and V12's pinned trajectories are unmoved; the nineteen freeze facts are unmoved. | 3 |
 | 5 | **R1 — `Advance` pulls in more than stragglers.** In `TryResolveContingentCohesionAimPoint`, replace the hardcoded three-quarters comparison at `src/Hukbo.Core/Simulation/BattleSimulation.cs:3676-3693` with the ruleset band when `GathersContingentsBeforeContact` is true, and execute the byte-identical existing `(Int128)16 * memberSquared > (Int128)9 * cohesionRadiusRaw * cohesionRadiusRaw` statement when it is false. Keep the `Int128` widening and its comment; the overflow argument is unchanged and still load-bearing. Do **not** change `MovementRules.IsCohesionEligible`'s signature — it is called directly from `tests/Hukbo.Core.Tests/ContingentStateMachineTests.cs` and `tests/Hukbo.Core.Tests/PersistentContingentTests.cs`, and gate 4's semantics at `src/Hukbo.Core/Movement/MovementRules.cs:444-447` are correct as written; only the boolean the caller computes changes. Leave `ResolveContingentState`'s rule 5 hysteresis at `src/Hukbo.Core/Movement/MovementRules.cs:303-305` alone — that is a contingent-spread band, not a member-distance band, and R1 does not name it. All arithmetic stays integer or `Int128`; no `float`, no `double`, no `System.Random`, no new draw. | `src/Hukbo.Core/Simulation/BattleSimulation.cs` | Under V14 a member inside three-quarters of the cohesion radius but outside the registered band is cohesion-eligible in `Advance`; under V1 through V13 the emitted comparison is unchanged; the nineteen freeze facts and the four pinned trajectories for V10 through V13 are unmoved. | 4 |
-| 6 | **R2 — narrow the blanket denial, and record that it is already narrow.** Read `TakesPartInCrossContingentScan` (`src/Hukbo.Core/Simulation/BattleSimulation.cs:1934-1943`) against `MovementRules.ParticipatesInCrossContingentScan` (`src/Hukbo.Core/Movement/MovementRules.cs:355-360`) and confirm the excluded set is already exactly `{Close, Break}` and nothing else. Because it is, R2's behavioural half is already satisfied and **no executable statement changes**. Deliver R2 as a pin plus two comment corrections: correct the blanket-denial comment at `src/Hukbo.Core/Simulation/BattleSimulation.cs:1794-1802`, which reads as though the denial were broader than the two states, and correct the second remarks paragraph at `src/Hukbo.Core/Movement/MovementRules.cs:336-345`, which says an excluded square makes a neighbour's grant unsafe when exclusion can only ever relieve a neighbour's overlap, never create one. | `src/Hukbo.Core/Movement/MovementRules.cs`, `src/Hukbo.Core/Simulation/BattleSimulation.cs` (comments only), `tests/Hukbo.Core.Tests/Movement/ContingentCohesionBeforeContactV14Tests.cs` | A test asserts `ParticipatesInCrossContingentScan` returns false for exactly `Close` and `Break` and true for every other `ContingentState` including `None`; `git diff` on the two source files contains no changed executable line; the nineteen freeze facts are unmoved. | 4 |
+| 6 | **R2 — narrow the blanket denial, and record that it is already narrow.** Read `TakesPartInCrossContingentScan` (`src/Hukbo.Core/Simulation/BattleSimulation.cs:1934-1943`) against `MovementRules.ParticipatesInCrossContingentScan` (`src/Hukbo.Core/Movement/MovementRules.cs:355-360`) and confirm the excluded set is already exactly `{Close, Break}` and nothing else. Because it is, R2's behavioural half is already satisfied and **no executable statement changes**. Deliver R2 as a pin plus two comment corrections: correct the blanket-denial comment at `src/Hukbo.Core/Simulation/BattleSimulation.cs:1794-1802`, which reads as though the denial were broader than the two states, and correct the second remarks paragraph at `src/Hukbo.Core/Movement/MovementRules.cs:336-345`, which says an excluded square makes a neighbour's grant unsafe when exclusion can only ever relieve a neighbour's overlap, never create one. | `src/Hukbo.Core/Movement/MovementRules.cs`, `src/Hukbo.Core/Simulation/BattleSimulation.cs` (comments only), `tests/Hukbo.Core.Tests/Movement/ContingentCohesionBeforeContactV15Tests.cs` | A test asserts `ParticipatesInCrossContingentScan` returns false for exactly `Close` and `Break` and true for every other `ContingentState` including `None`; `git diff` on the two source files contains no changed executable line; the nineteen freeze facts are unmoved. | 4 |
 | 7 | **R3 — size the claimed square below the packing bound, without touching spacing.** The square is already contingent-sized (see finding 1), so R3 is delivered as a ruleset-tunable scale on the *claimed margin only*. Add a margin-taking form of `IsCohesionSquareWithinBounds` beside the existing one at `src/Hukbo.Core/Simulation/FormationRules.cs:570-584`, leaving that method's signature and body untouched. In `ResolveContingentStates`, compute `_contingentMarginRaw[slot]` (`src/Hukbo.Core/Simulation/BattleSimulation.cs:1783`) through `cohesionSquareMarginBasisPoints` when the gate is true, and pass that margin to both gate 5 (`src/Hukbo.Core/Simulation/BattleSimulation.cs:1785-1791`) and gate 6 (`src/Hukbo.Core/Simulation/BattleSimulation.cs:1840-1846`) so the two gates cannot disagree about the square's size. `_contingentJitterRaw[slot]` is **not** scaled: it feeds `ContingentOffset.Compute` at `src/Hukbo.Core/Simulation/BattleSimulation.cs:3716-3719`, and scaling it would change member spacing, which R4 and design section 3 forbid outright. Basis-point arithmetic in `long`; a registered value of `10_000` must be bit-identical to today. | `src/Hukbo.Core/Simulation/FormationRules.cs`, `src/Hukbo.Core/Simulation/BattleSimulation.cs` | At `10_000` basis points every preset's square is bit-identical and the nineteen freeze facts are unmoved; under V14's registered value the square's half-side is strictly smaller for every living count from 1 to 200; `_contingentJitterRaw` and every offset derived from it are byte-identical under every preset; `FormationPlanner.cs` is untouched. | 4 |
 | 8 | Build the calibration harness, gated behind `HUKBO_CALIBRATION` so it adds zero tests to any ordinary build or gate stage — the same shape `tests/Hukbo.Core.Tests/Movement/PressureInterruptCalibrationHarness.cs` and the capture routine at `tests/Hukbo.Core.Tests/MovementPresetFreezeTests.cs:571-700` already use. It must report, per seed across seeds 1 through 20 and for both V13 and V14: the share of living-contingent-ticks resolved to `Hold`, the share of `Advance` members granted a cohesion destination, the tick of first contact, and the terminal tick and outcome. Those four numbers are what turn the band and margin from guesses into measurements. | `tests/Hukbo.Core.Tests/Movement/ContingentCohesionCalibrationHarness.cs` (new) | A clean ordinary build discovers no new test; a `HUKBO_CALIBRATION` build runs the harness and prints the four measures per seed per preset. | 5, 6, 7 |
 | 9 | Settle the three tunables from measurement, not from taste. Run task 8's harness and choose `cohesionBandNumerator`, `cohesionBandDenominator`, and `cohesionSquareMarginBasisPoints` so that V14's `Hold` share strictly exceeds V13's and its granted-cohesion share under `Advance` strictly exceeds V13's, while the twenty-seed termination clauses still hold. Record the measured table in this plan's results section and label the chosen values a provisional reconstruction for gameplay tuning, per the design's section 6 question 7 — they are game-design choices, not historical measurements, and no source describes either quantity. If no setting satisfies both the cohesion clause and the termination clause, stop and report rather than loosening the termination clause. | `src/Hukbo.Core/Movement/MovementPresetRegistry.cs` | The three values are registered; the measured before-and-after table is in the results section; the cohesion clause and the termination clause both hold at the chosen values. | 8 |
-| 10 | Write the V14 registry facts and property tests, mirroring the shape of `tests/Hukbo.Core.Tests/Movement/CohortLateralSpreadV13Tests.cs:40-80`. Registry facts: numeric value 14, registered, own identity, every V11 field carried forward, the gate `true`, and the three new values equal to what task 9 registered. Property tests: a member at a distance between the registered band and three-quarters of the cohesion radius is cohesion-eligible under `Advance` on V14 and not on V13; V14's claimed square half-side is strictly below V13's for the same living count; and V14's `_contingentJitterRaw` equals V13's for the same living count, which is the mechanical proof that spacing did not change. | `tests/Hukbo.Core.Tests/Movement/ContingentCohesionBeforeContactV14Tests.cs` | All registry facts and all three property tests pass; the spacing-invariance test is present and passing, because it is the regression guard for design section 3's prohibition. | 9 |
+| 10 | Write the V14 registry facts and property tests, mirroring the shape of `tests/Hukbo.Core.Tests/Movement/CohortLateralSpreadV13Tests.cs:40-80`. Registry facts: numeric value 14, registered, own identity, every V11 field carried forward, the gate `true`, and the three new values equal to what task 9 registered. Property tests: a member at a distance between the registered band and three-quarters of the cohesion radius is cohesion-eligible under `Advance` on V14 and not on V13; V14's claimed square half-side is strictly below V13's for the same living count; and V14's `_contingentJitterRaw` equals V13's for the same living count, which is the mechanical proof that spacing did not change. | `tests/Hukbo.Core.Tests/Movement/ContingentCohesionBeforeContactV15Tests.cs` | All registry facts and all three property tests pass; the spacing-invariance test is present and passing, because it is the regression guard for design section 3's prohibition. | 9 |
 | 11 | Add the twenty-seed termination sweep. This is the gate on the whole change, and the design's section 5 names it so. Mirror `SeedsOneThroughTwentyProduceVictoriesForBothFactionsUnderBattlefieldRealism` at `tests/Hukbo.Core.Tests/RangedTerminationTests.cs:179-265` exactly — the same `RangedRosterShareWeights`, the same `PrecolonialPhilippinesV5` pairing, the same tick cap, the same three clauses — changing only the movement preset, so V10's result and V14's are read against one yardstick. | `tests/Hukbo.Core.Tests/RangedTerminationTests.cs` | At least nineteen of twenty seeds decide before the cap, the median decisive tick is at or under the cap, and each faction wins at least four seeds. A preset that gathers and never resolves fails here, which is the outcome movement preset V7 was allowed to have and this one is not. | 9 |
-| 12 | Add the blocked-streak deadlock guard. A preset that gathers more eagerly parks more aim points closer together, so the failure mode is a warrior walking to tangency and pushing forever, not only a slow battle. Sweep seeds 1 through 20 under V14 and assert the worst blocked streak stays under the same bound `AMaximumSizedLastStandNeverLeavesAWarriorBlockedTooLongAcrossSeedsOneThroughTwenty` uses at `tests/Hukbo.Core.Tests/LastStandFormationTests.cs:691-693`. Record in the test's own remarks that twenty seeds is a sample and not a proof, in the same honest register that test already uses. | `tests/Hukbo.Core.Tests/Movement/ContingentCohesionBeforeContactV14Tests.cs` | The worst streak across twenty seeds is below the bound, and the sample's limitation is written down rather than implied. | 9 |
-| 13 | Capture and pin V14's full-battle trajectory. Four literals — terminal tick, outcome, state hash, event fold — from a real run of the built code, following `CohortLateralSpreadV13FullBattleReproducesItsPinnedTrajectory` at `tests/Hukbo.Core.Tests/Movement/CohortLateralSpreadV13Tests.cs:604-637`, including the pinned body radius of four world units and the explicit `PrecolonialPhilippinesV2` selection, so the fixture cannot drift when a shipped default moves. This task is last among the simulation tasks by necessity: R1, R2, and R3 each move the trajectory, so a literal captured before task 9 settles the tunables is stale the moment it is written. Never hand-calculate a hash. | `tests/Hukbo.Core.Tests/Movement/ContingentCohesionBeforeContactV14Tests.cs` | The four literals are captured from the built tree and reproduce on a second clean run; the test's remarks name the commit the capture came from. | 9, 10, 11, 12 |
-| 14 | Make V14 selectable without flipping the default. Append `MovementPresetId.ContingentCohesionBeforeContactV14` to `MovementPresetOptions` (`src/Hukbo.Client/UI/ArmyCompositionPanel.cs:126-138`) and `"V14 Contingent Cohesion Before Contact"` to `MovementPresetNames` (`src/Hukbo.Client/UI/ArmyCompositionPanel.cs:148-160`), in the same position in both. Extend the arrow-cycle walk at `tests/Hukbo.Client.Tests/ArmyCompositionPanelTests.cs:397-433` by one step so its wrap assertion still lands on the real last entry — that assertion has broken twice already for exactly this reason and its own comment says so. `ClientSettingsStore.DefaultMovementPreset` stays at V13; a tester picks V14 from the panel. | `src/Hukbo.Client/UI/ArmyCompositionPanel.cs`, `tests/Hukbo.Client.Tests/ArmyCompositionPanelTests.cs` | `EveryRegisteredMovementPresetHasAMatchingDisplayName` at `tests/Hukbo.Client.Tests/ArmyCompositionPanelTests.cs:355-386` is green, which is a full sequence equality against the registry and therefore fails if V14 is registered but unselectable; the arrow-cycle test is green; `ClientSettingsStore.cs` is unedited and `ScriptDefaultsTests` is green untouched. | 3 |
+| 12 | Add the blocked-streak deadlock guard. A preset that gathers more eagerly parks more aim points closer together, so the failure mode is a warrior walking to tangency and pushing forever, not only a slow battle. Sweep seeds 1 through 20 under V14 and assert the worst blocked streak stays under the same bound `AMaximumSizedLastStandNeverLeavesAWarriorBlockedTooLongAcrossSeedsOneThroughTwenty` uses at `tests/Hukbo.Core.Tests/LastStandFormationTests.cs:691-693`. Record in the test's own remarks that twenty seeds is a sample and not a proof, in the same honest register that test already uses. | `tests/Hukbo.Core.Tests/Movement/ContingentCohesionBeforeContactV15Tests.cs` | The worst streak across twenty seeds is below the bound, and the sample's limitation is written down rather than implied. | 9 |
+| 13 | Capture and pin V14's full-battle trajectory. Four literals — terminal tick, outcome, state hash, event fold — from a real run of the built code, following `CohortLateralSpreadV13FullBattleReproducesItsPinnedTrajectory` at `tests/Hukbo.Core.Tests/Movement/CohortLateralSpreadV13Tests.cs:604-637`, including the pinned body radius of four world units and the explicit `PrecolonialPhilippinesV2` selection, so the fixture cannot drift when a shipped default moves. This task is last among the simulation tasks by necessity: R1, R2, and R3 each move the trajectory, so a literal captured before task 9 settles the tunables is stale the moment it is written. Never hand-calculate a hash. | `tests/Hukbo.Core.Tests/Movement/ContingentCohesionBeforeContactV15Tests.cs` | The four literals are captured from the built tree and reproduce on a second clean run; the test's remarks name the commit the capture came from. | 9, 10, 11, 12 |
+| 14 | Make V14 selectable without flipping the default. Append `MovementPresetId.ContingentCohesionBeforeContactV15` to `MovementPresetOptions` (`src/Hukbo.Client/UI/ArmyCompositionPanel.cs:126-138`) and `"V15 Contingent Cohesion Before Contact"` to `MovementPresetNames` (`src/Hukbo.Client/UI/ArmyCompositionPanel.cs:148-160`), in the same position in both. Extend the arrow-cycle walk at `tests/Hukbo.Client.Tests/ArmyCompositionPanelTests.cs:397-433` by one step so its wrap assertion still lands on the real last entry — that assertion has broken twice already for exactly this reason and its own comment says so. `ClientSettingsStore.DefaultMovementPreset` stays at V13; a tester picks V14 from the panel. | `src/Hukbo.Client/UI/ArmyCompositionPanel.cs`, `tests/Hukbo.Client.Tests/ArmyCompositionPanelTests.cs` | `EveryRegisteredMovementPresetHasAMatchingDisplayName` at `tests/Hukbo.Client.Tests/ArmyCompositionPanelTests.cs:355-386` is green, which is a full sequence equality against the registry and therefore fails if V14 is registered but unselectable; the arrow-cycle test is green; `ClientSettingsStore.cs` is unedited and `ScriptDefaultsTests` is green untouched. | 3 |
 | 15 | Documentation. Set the design's status line to executed and add a correction note in its section 7 recording that the block is lifted, that the value is 14, and that the findings below were carried into this plan rather than silently implemented as written. Register both documents in `docs/plans/README.md`. Add a smoke row asking a person to watch a V14 battle and answer the `BR-1` question — do contingents cross the field as bodies — and leave it `PENDING`, because only a person at an interactive desktop may close it. Record the gate and the measured termination numbers in `docs/development/testing.md`. | `docs/plans/2026-08-14-contingent-cohesion-before-contact-design.md`, `docs/plans/README.md`, `docs/development/smoke-checklist.md`, `docs/development/testing.md` | The design no longer claims to be blocked; both documents appear in the README table; the new smoke row exists and is `PENDING`, not `PASS`. | 13, 14 |
 | 16 | Run the canonical gate and record the result honestly. `./scripts/verify.ps1` in full, all five stages, with the five benchmark blocks unchanged. Record the outcome in `docs/development/testing.md` whether it is green or red, naming the commit. | `docs/development/testing.md` | The gate is green at a named commit, and the record says so with evidence rather than assertion. | 15 |
 
@@ -344,3 +344,188 @@ but it changes which file an implementer opens.
 history: `CohortLateralSpreadV13` has landed on `main`, and the value to append is
 14. Task 15 records the correction in the design itself so the next reader is not
 misled by a block that no longer exists.
+
+## Results
+
+### Task 1 — the pre-change freeze baseline, 2026-08-15
+
+Captured at `d610990`, on branch `hukbo-cohesion-v14`, in an isolated worktree,
+before a single line of source was edited. Two other sessions were working in the
+main checkout at the time, which is why this package runs in a worktree at all.
+
+```
+dotnet test tests/Hukbo.Core.Tests/Hukbo.Core.Tests.csproj -c Release
+Passed!  - Failed: 0, Passed: 2568, Skipped: 0, Total: 2568, Duration: 23 s
+```
+
+The nineteen frozen facts, named individually rather than summarized, every one
+of them `Passed`:
+
+The nine movement replay digests in `MovementPresetFreezeTests` —
+`IndependentPursuitV1`, `PersistentContingentsV2`, `PersistentContingentsV3`,
+`PersistentContingentsV4`, `PersistentContingentsV5`,
+`EquipmentRelativeFootworkV6`, `EquipmentRelativeFootworkV7`,
+`RangedStandoffV8`, and `MonotoneAllyClearanceV9`, each
+`_ReproducesTheFrozenTrajectoryDigest`.
+
+The five deployment cases in `FormationDeploymentFreezeTests` — `Default200`,
+`EightContingentCeiling`, `MinimumMap`, `HalfNarrowerThanOneBody`, and
+`DenseBlockFallback`, each `_MatchesTheFrozenDeployment` and the last of them
+also asserting the stream is left untouched.
+
+The five preset-identity facts for V10 through V13 —
+`BattlefieldRealismV10FullBattleReproducesItsPinnedTrajectory` and
+`LastStandEngagementV11FullBattleReproducesItsPinnedTrajectory`, both of which
+live in `ContingentShapeV12Tests.cs`;
+`CohortLateralSpreadV13FullBattleReproducesItsPinnedTrajectory`; and V12's two
+byte-identity facts,
+`ContingentShapeV12ProducesAByteIdenticalFullBattleToLastStandEngagementV11` and
+`WithNoLastStandContingentShapeV12RunsByteIdenticallyToLastStandEngagementV11`.
+
+**One correction to this plan's own wording, found while capturing the
+baseline.** The verification criteria describe "the four pinned full-battle
+trajectories for V10, V11, V12, and V13". There are three: V12 has no
+four-literal trajectory of its own and pins byte-identity against V11 instead.
+The count of nineteen is right — nine plus five plus three plus V12's two
+identity facts — but the composition is not what the criteria say, and an
+implementer looking for a `ContingentShapeV12FullBattleReproducesItsPinnedTrajectory`
+will not find one. There is no `BattlefieldRealismV10Tests.cs` trajectory test
+and no `LastStandEngagementV11Tests.cs` trajectory test either; both of those
+literals live in `ContingentShapeV12Tests.cs`.
+
+### Tasks 8 and 9 — the calibration sweep and the chosen tunables, 2026-08-15
+
+The harness is `tests/Hukbo.Core.Tests/Movement/ContingentCohesionCalibrationHarness.cs`,
+compiled only behind `HUKBO_CALIBRATION`, so an ordinary build and every gate
+stage discover zero new tests. It runs with:
+
+```powershell
+dotnet test tests/Hukbo.Core.Tests/Hukbo.Core.Tests.csproj -c Release `
+  -p:DefineConstants=HUKBO_CALIBRATION `
+  --filter FullyQualifiedName~ContingentCohesionCalibrationRun `
+  --logger "console;verbosity=detailed"
+```
+
+It measures the scenario shape the twenty-seed termination sweep uses — 200
+agents, `PrecolonialPhilippinesV5`, the same roster share weights, the same tick
+cap — so task 9's choice and task 11's gate are read against one yardstick.
+
+**V13, the shipped default, measured as the control in every run below:** hold
+share 10.04 per cent, granted-cohesion share 1.83 per cent, median first contact
+tick 60, median terminal tick 2328, 20 of 20 seeds decided.
+
+Seven candidate settings for V14, each a full twenty-seed sweep:
+
+| Band | Margin (bp) | Hold share | Granted share | Median terminal | Decided |
+| --- | --- | --- | --- | --- | --- |
+| 1/2 | 9000 | 10.18 % | 5.75 % | 1996 | 20 / 20 |
+| 1/2 | 7500 | 10.25 % | 5.99 % | 2169 | 20 / 20 |
+| 1/2 | 5000 | 10.51 % | 7.42 % | 2184 | 20 / 20 |
+| 2/3 | 6000 | 10.70 % | 3.81 % | 2071 | 20 / 20 |
+| **1/3** | **6000** | **11.65 %** | **13.37 %** | **2058** | **20 / 20** |
+| 1/3 | 5000 | 11.82 % | 14.39 % | 2236 | 20 / 20 |
+| 1/3 | 4000 | 12.89 % | 13.83 % | 2117 | 20 / 20 |
+| 1/4 | 6000 | 12.11 % | 19.59 % | 2025 | 20 / 20 |
+
+**Registered: `cohesionBandNumerator: 1`, `cohesionBandDenominator: 3`,
+`cohesionSquareMarginBasisPoints: 6000`.** Both of task 9's clauses hold at that
+setting — the hold share strictly exceeds V13's, 11.65 against 10.04, and the
+granted-cohesion share strictly exceeds it by a factor of seven, 13.37 against
+1.83 — and every seed still decides before the cap, with the median battle
+finishing 270 ticks *sooner* than under V13 rather than later.
+
+**Three settings scored better on the raw shares and were rejected, which is
+worth stating because the metric alone would have chosen one of them.** A band
+of one quarter reaches 19.59 per cent granted, but at that width nearly every
+member of an advancing contingent is eligible on nearly every tick: the rule
+stops meaning "close up when the group is spread" and starts meaning "always
+walk to the aim point". That is the degenerate twin of the behaviour this preset
+exists to produce, and a spectator would see contingents that never advance
+freely rather than contingents that cross the field as bodies. One third leaves
+the inner third of each contingent exempt, which keeps the rule a cohesion band
+rather than a permanent gather.
+
+A margin of 4000 or 5000 basis points raises the hold share further by shrinking
+the claimed square further below the packing bound that
+`FormationRules.ComputeContingentJitterRaw` derives. Finding 1 above records that
+this shrink is a real trade rather than free, and task 12's blocked-streak guard
+is in the plan precisely because of it, so the smallest margin that clears both
+clauses comfortably was preferred over the smallest margin that maximised one of
+them.
+
+These three numbers are a provisional reconstruction for gameplay purposes. No
+source describes how close a warrior stood to his contingent's leader or how much
+ground such a group claimed, and none of these figures is offered as a historical
+measurement.
+
+### The preset is 15, not 14 — merge finding, 2026-08-15
+
+**Everything above this section says V14, and the preset shipped as
+`ContingentCohesionBeforeContactV15 = 15`.** The plan's preconditions section
+computed 14 correctly against the tree it was written on, where
+`CohortLateralSpreadV13 = 13` was the last member. While this package was being
+built in its own worktree, the in-fight evasion package merged to `main` and
+took `EvasiveFootworkV14 = 14`. Both packages were appending after 13 at the
+same time, in separate worktrees, and the collision surfaced at the merge rather
+than at either author's desk.
+
+Taking 15 does not break the rule that a preset value is never renumbered. That
+rule protects values that have been registered and shipped, because a replay
+recorded under one number must keep resolving to the same ruleset forever. This
+value had never reached `main`, so nothing had ever been recorded under it.
+
+What the renumber cost, exactly:
+
+- Every identifier and display string was renamed, including the test file.
+- **The pinned trajectory had to be re-captured**, because `Scenario.MovementPreset`
+  folds into the state hash. The terminal tick stayed 1351, the outcome stayed
+  `Faction0Victory`, and the event fold stayed `2A6460285A85B335`; only the state
+  hash moved, from `6E4EDC28DBAC39F8` to `635E8E6FEB982961`. That is the correct
+  signature: the preset value reaches authoritative state and does not reach the
+  event stream, so exactly one of the two hashes had to move and the other had to
+  stay. Both were re-run from a clean build.
+- Nothing else changed. The band, the margin, the calibration table, the
+  termination sweep, and the blocked-streak guard are all unaffected by the
+  number the preset carries.
+
+The three identity gates now admit three presets rather than two —
+`CohortLateralSpreadV13`, `EvasiveFootworkV14`, and this one — because the
+evasion package admitted itself to the same gates for the same reason. The two
+presets are independent: neither reads the other's ruleset fields, and a battle
+runs one or the other.
+
+### Tasks 15 and 16 — documentation and the canonical gate, 2026-08-15
+
+The gate ran once, after integration, and was not delegated:
+`./scripts/verify.ps1 -SkipBootstrap` on this branch with `main` merged in at
+`63dca5e`, exit code 0. A bare invocation runs both games and they stay two
+results. The full record, including the seven reproduced baselines, is in
+`docs/development/testing.md` under the 2026-08-15 both-games entry.
+
+Suites: Hukbo Core 2,672 passed, Hukbo Client 4,065, Sandata Core 1,176, Sandata
+Client 325. Zero failed and zero skipped in all four.
+
+Every one of the six Hukbo baselines and the Sandata baseline reproduced
+byte-identically. That is the evidence for the claim this whole package rests
+on: V15 registers new ruleset fields behind a gate every earlier preset leaves
+clear, so the seven pinned content hashes and all nineteen frozen facts are
+unmoved and no fixture was re-recorded.
+
+Documentation delivered: the design's status line now reads executed and its
+section 7 carries the correction recording that the block is gone, that the value
+is 15, and that the findings were carried into the implementation rather than
+silently built as first written; both documents' rows in `docs/plans/README.md`
+are updated; smoke row `CC-1` was added as `PENDING`.
+
+**`CC-1` is the row that decides whether this package worked.** Every measurement
+here is a proxy. The hold share rose, the granted share rose sevenfold, spacing
+is provably unchanged, and battles finish sooner — and none of that establishes
+that a spectator sees contingents crossing the field as bodies, which is what
+`BR-1` reported missing. Only a person at an interactive desktop can close it,
+and no agent may.
+
+**What this package deliberately did not do.** It did not flip the client
+default, which stays `CohortLateralSpreadV13` until a person has watched a V15
+battle. It did not add a benchmark block to `scripts/verify.ps1`. It did not
+touch `FormationPlanner`, `ContingentOffset`, lane geometry, or contingent
+sizing. It did not re-record a frozen fixture.

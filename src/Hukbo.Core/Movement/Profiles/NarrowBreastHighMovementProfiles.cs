@@ -6,7 +6,7 @@ namespace Hukbo.Core.Movement.Profiles;
 /// The two narrow-breast-high-shield equipment-relative movement rows:
 /// shielded Kalis (<c>KS</c>, canonical loadout index 6) and shielded Itak
 /// (<c>IS</c>, canonical loadout index 7). Registered only by
-/// <see cref="MovementPresetId.ShieldEncumbranceV14"/>, the first movement
+/// <see cref="MovementPresetId.ShieldEncumbranceV16"/>, the first movement
 /// preset to carry eight canonical rows instead of six
 /// (<see cref="MovementRuleset.ExtendedCanonicalLoadoutCount"/>). Every value
 /// is a provisional reconstruction: gameplay tuning; no historical

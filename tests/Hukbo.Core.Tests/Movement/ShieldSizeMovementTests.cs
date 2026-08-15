@@ -13,7 +13,7 @@ namespace Hukbo.Core.Tests.Movement;
 /// CLAUDE.md section 7.
 /// </summary>
 /// <remarks>
-/// <see cref="MovementPresetId.ShieldEncumbranceV14"/> does not carry shield
+/// <see cref="MovementPresetId.ShieldEncumbranceV16"/> does not carry shield
 /// encumbrance through <see cref="MovementRuleset.LoadoutMovementProfiles"/>
 /// or <see cref="MovementRuleset.UsesEquipmentRelativeFootwork"/>. An earlier
 /// revision wired it that way, which crashed every ranged loadout under
@@ -46,7 +46,7 @@ public sealed class ShieldSizeMovementTests
         new(WeaponId.Itak, ArmorId.LightOrganic, ShieldId.TallHardwood, rank);
 
     private static MovementRuleset V14 =>
-        MovementPresetRegistry.Get(MovementPresetId.ShieldEncumbranceV14);
+        MovementPresetRegistry.Get(MovementPresetId.ShieldEncumbranceV16);
 
     private static MovementRuleset V13 =>
         MovementPresetRegistry.Get(MovementPresetId.CohortLateralSpreadV13);
@@ -123,7 +123,7 @@ public sealed class ShieldSizeMovementTests
         Assert.Equal(7, sevenRows.Length);
 
         Assert.Throws<ArgumentException>(() => new MovementRuleset(
-            id: MovementPresetId.ShieldEncumbranceV14,
+            id: MovementPresetId.ShieldEncumbranceV16,
             version: 1,
             cohesionRadiusMultiplier: 24,
             closeRadiusMultiplier: 16,
@@ -228,16 +228,18 @@ public sealed class ShieldSizeMovementTests
     }
 
     [Fact]
-    public void PresetFourteenContentHashIsRecorded()
+    public void PresetSixteenContentHashIsRecorded()
     {
         // Recorded from an actual run against the built code, never
         // hand-computed; this pin exists so a later, unnoticed change to
         // preset 14's fields is caught the same way every other preset's
         // pinned literal catches one. This literal moved when preset 14's
         // wrongly-wired equipment-relative loadout rows were replaced with
-        // the movement-speed-scale fields, which is the expected signature
-        // of that fix.
-        Assert.Equal(0xC505664A1A1F3296UL, V14.ContentHash);
+        // the movement-speed-scale fields, and again when the preset was
+        // renumbered from 14 to 16 on merging with main, which had already
+        // taken both 14 and 15. The identifier folds into the content
+        // hash, so a renumber moving it is the expected signature.
+        Assert.Equal(0x0BA523CCF7C4B83CUL, V14.ContentHash);
     }
 
     // -----------------------------------------------------------------
@@ -307,7 +309,7 @@ public sealed class ShieldSizeMovementTests
         bool applies, int tallTicks, int narrowTicks, int ceiling)
     {
         Assert.ThrowsAny<ArgumentException>(() => new MovementRuleset(
-            id: MovementPresetId.ShieldEncumbranceV14,
+            id: MovementPresetId.ShieldEncumbranceV16,
             version: 1,
             cohesionRadiusMultiplier: 24,
             closeRadiusMultiplier: 16,
@@ -346,7 +348,7 @@ public sealed class ShieldSizeMovementTests
         bool applies, int narrowPace, int tallPace)
     {
         Assert.ThrowsAny<ArgumentException>(() => new MovementRuleset(
-            id: MovementPresetId.ShieldEncumbranceV14,
+            id: MovementPresetId.ShieldEncumbranceV16,
             version: 1,
             cohesionRadiusMultiplier: 24,
             closeRadiusMultiplier: 16,

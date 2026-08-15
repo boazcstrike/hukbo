@@ -73,7 +73,7 @@ public static class TallHardwoodMovementProfiles
 
     /// <summary>
     /// The shielded Kalis (<c>KS</c>) row used only by
-    /// <see cref="MovementPresetId.ShieldEncumbranceV14"/>, canonical loadout
+    /// <see cref="MovementPresetId.ShieldEncumbranceV16"/>, canonical loadout
     /// index 4 there as in every earlier equipment-relative preset.
     /// Provisional reconstruction: gameplay tuning; no historical measurement.
     /// It is a distinct row from <see cref="KalisRow"/>, not an edit to it:
@@ -112,7 +112,7 @@ public static class TallHardwoodMovementProfiles
 
     /// <summary>
     /// The shielded Itak (<c>IS</c>) row used only by
-    /// <see cref="MovementPresetId.ShieldEncumbranceV14"/>, canonical loadout
+    /// <see cref="MovementPresetId.ShieldEncumbranceV16"/>, canonical loadout
     /// index 5 there as in every earlier equipment-relative preset.
     /// Provisional reconstruction: gameplay tuning; no historical measurement.
     /// It is a distinct row from <see cref="ItakRow"/>, not an edit to it, for

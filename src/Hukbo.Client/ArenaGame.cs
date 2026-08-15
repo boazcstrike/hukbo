@@ -153,6 +153,7 @@ public sealed partial class ArenaGame : Game
     private StartupDisplayMode _startupDisplayMode;
     private UiChromeStyle _configuredUiChromeStyle;
     private PawnVisualStyle _configuredPawnVisualStyle;
+    private WeaponVisualStyle _configuredWeaponVisualStyle;
 
     /// <summary>
     /// Reused each frame so the draw path allocates nothing. Contacts are
@@ -224,6 +225,7 @@ public sealed partial class ArenaGame : Game
     private Texture2D? _pixel;
     private Texture2D? _chromeAtlas;
     private Texture2D? _pawnBodyAtlas;
+    private Texture2D? _weaponSpriteAtlas;
     private UiFontSet? _fonts;
     private MonoGameSoundPlayer? _soundPlayer;
     private Settings.ArmyComposition _activeComposition;
@@ -341,6 +343,7 @@ public sealed partial class ArenaGame : Game
         _startupDisplayMode = initialSettings.StartupDisplayMode;
         _configuredUiChromeStyle = initialSettings.UiChromeStyle;
         _configuredPawnVisualStyle = initialSettings.PawnVisualStyle;
+        _configuredWeaponVisualStyle = initialSettings.WeaponVisualStyle;
 
         // Resolved here, ahead of the coordinator below, because the
         // coordinator's appearance cache reports through it. _renderProbeEnabled
@@ -661,6 +664,47 @@ public sealed partial class ArenaGame : Game
                 PawnVisualStyle = value,
             });
 
+    /// <summary>
+    /// Flips the armed warrior's weapon and tall hardwood shield between the
+    /// procedural lines and quads and the authored weapon sprite atlas, and
+    /// persists the result so the choice survives a restart.
+    /// </summary>
+    /// <remarks>
+    /// Takes effect on the very next frame, because
+    /// <c>ArenaGame.Rendering</c> reads the field on every pawn it submits.
+    /// That is the point of a live toggle rather than a startup switch: the
+    /// two styles can be compared against the same battle, at the same tick,
+    /// without relaunching. This is a separate setting from
+    /// <see cref="ToggleWarriorBodyStyle"/> — the 2026-08-15 weapon sprite
+    /// design, section 12.
+    /// </remarks>
+    private void ToggleWeaponSpriteStyle()
+    {
+        var previous = _configuredWeaponVisualStyle;
+        _configuredWeaponVisualStyle =
+            previous == WeaponVisualStyle.Sprite
+                ? WeaponVisualStyle.Procedural
+                : WeaponVisualStyle.Sprite;
+        TryPersistWeaponVisualStyle(
+            _defaultThemeId,
+            _configuredWeaponVisualStyle);
+        LogSettingChanged(
+            "weaponVisualStyle",
+            previous.ToString(),
+            _configuredWeaponVisualStyle.ToString());
+    }
+
+    private bool TryPersistWeaponVisualStyle(
+        string defaultThemeId,
+        WeaponVisualStyle value) =>
+        _settingsStore.TryUpdate(
+            defaultThemeId,
+            current => current with
+            {
+                SelectedThemeId = _themeManager.ActiveTheme.Id,
+                WeaponVisualStyle = value,
+            });
+
     protected override void Initialize()
     {
         base.Initialize();
@@ -723,6 +767,12 @@ public sealed partial class ArenaGame : Game
         // 50 authored head-and-torso cells PawnSpriteAtlas indexes, drawn only
         // under PawnVisualStyle.SpriteBody and tinted per warrior at draw time.
         _pawnBodyAtlas = Content.Load<Texture2D>("Textures/PawnBodies");
+
+        // Loaded once here on the same terms as the two atlases above: the
+        // eighty authored weapon and shield cells WeaponSpriteAtlas indexes,
+        // drawn only under WeaponVisualStyle.Sprite and tinted per warrior at
+        // draw time. The 2026-08-15 weapon sprite design, section 4.
+        _weaponSpriteAtlas = Content.Load<Texture2D>("Textures/WeaponSprites");
 
         _soundPlayer = MonoGameSoundPlayer.Load(
             SoundLibrary.GetDefaultDirectoryPath());
@@ -1297,6 +1347,11 @@ public sealed partial class ArenaGame : Game
             return LogKeyCommand("B", ClientCommand.ToggleWarriorBody);
         }
 
+        if (_input.WasPressed(Keys.V))
+        {
+            return LogKeyCommand("V", ClientCommand.ToggleWeaponSprites);
+        }
+
         return ClientCommand.None;
     }
 
@@ -1420,6 +1475,9 @@ public sealed partial class ArenaGame : Game
                 return;
             case ClientCommand.ToggleWarriorBody:
                 ToggleWarriorBodyStyle();
+                return;
+            case ClientCommand.ToggleWeaponSprites:
+                ToggleWeaponSpriteStyle();
                 return;
             case ClientCommand.Minimize:
                 SDL_MinimizeWindow(Window.Handle);

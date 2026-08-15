@@ -263,4 +263,124 @@ public sealed class RangedTerminationTests
             $"The median decisive tick was {median}, above the " +
             $"{MedianDecisiveTickLimit} tick clause.");
     }
+
+    /// <summary>
+    /// The contingent-cohesion package's task 11: the same both-factions-win
+    /// bar the two sweeps above apply to
+    /// <see cref="MovementPresetId.RangedStandoffV8"/> and
+    /// <see cref="MovementPresetId.BattlefieldRealismV10"/>, applied instead to
+    /// <see cref="MovementPresetId.ContingentCohesionBeforeContactV15"/>. This
+    /// is the gate on the whole cohesion change: a preset that makes warriors
+    /// wait for their contingent before contact is a preset that can make them
+    /// wait forever, and a gather that never resolves shows up here as seeds
+    /// running out the tick cap rather than as anything the cohesion property
+    /// tests would notice.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The shape mirrors
+    /// <see cref="SeedsOneThroughTwentyProduceVictoriesForBothFactionsUnderBattlefieldRealism"/>
+    /// exactly — the same <see cref="RangedRosterShareWeights"/> roster split,
+    /// the same <see cref="CombatPresetId.PrecolonialPhilippinesV5"/> pairing,
+    /// the same tick cap, and the same three clauses — so that V10's result and
+    /// V15's are read against one yardstick. Only the movement preset differs.
+    /// </para>
+    /// <para>
+    /// Movement preset V7 is the precedent this test exists to refuse to
+    /// repeat: a preset whose behaviour was interesting, whose termination bar
+    /// was never met, and which shipped anyway with a frozen draw on the
+    /// ten-thousandth tick still recorded in the tree. V15 is not permitted
+    /// that outcome, so if these clauses ever fail the correct response is to
+    /// change the preset, never to loosen the clause.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void SeedsOneThroughTwentyProduceVictoriesForBothFactionsUnderContingentCohesion()
+    {
+        const int Seeds = 20;
+        const int MinimumDecisiveSeeds = 19;
+        const int MedianDecisiveTickLimit = 5_000;
+        const int MinimumVictoriesPerFaction = 4;
+        const int TotalAgents = 200;
+
+        Assert.Equal(
+            PhilippineCombatPresetV5.Rules.Roster.Count,
+            RangedRosterShareWeights.Length);
+
+        var agentsPerFaction = TotalAgents / 2;
+        var rosterCounts = RangedCalibrationHarness.BuildRosterCounts(
+            agentsPerFaction,
+            RangedRosterShareWeights);
+
+        var faction0Victories = 0;
+        var faction1Victories = 0;
+        var decisiveTicks = new List<long>(Seeds);
+
+        for (ulong seed = 1; seed <= Seeds; seed++)
+        {
+            var scenario = Scenario.CreateDefault(seed, TotalAgents) with
+            {
+                CombatPreset = CombatPresetId.PrecolonialPhilippinesV5,
+                MovementPreset =
+                    MovementPresetId.ContingentCohesionBeforeContactV15,
+                RosterCounts = rosterCounts,
+                TickLimit = MedianDecisiveTickLimit,
+            };
+            scenario.Validate();
+
+            var simulation = BattleSimulation.Create(scenario);
+
+            // Bounded. An unbounded loop turns a stall into a suite that
+            // hangs with no diagnosis rather than a test that fails and
+            // names the seed, which would defeat the whole point of the
+            // criterion.
+            while (simulation.Outcome == BattleOutcome.Ongoing &&
+                simulation.Tick < scenario.TickLimit)
+            {
+                simulation.AdvanceOneTick();
+            }
+
+            switch (simulation.Outcome)
+            {
+                case BattleOutcome.Faction0Victory:
+                    faction0Victories++;
+                    break;
+
+                case BattleOutcome.Faction1Victory:
+                    faction1Victories++;
+                    break;
+
+                case BattleOutcome.Ongoing:
+                case BattleOutcome.Draw:
+                default:
+                    break;
+            }
+
+            if (simulation.Outcome is BattleOutcome.Faction0Victory or
+                BattleOutcome.Faction1Victory or
+                BattleOutcome.Draw)
+            {
+                decisiveTicks.Add(simulation.Tick);
+            }
+        }
+
+        Assert.True(
+            faction0Victories >= MinimumVictoriesPerFaction &&
+            faction1Victories >= MinimumVictoriesPerFaction,
+            $"Faction 0 won {faction0Victories} of 20 seeds and faction 1 won " +
+            $"{faction1Victories}. Each faction must win at least " +
+            $"{MinimumVictoriesPerFaction}.");
+
+        Assert.True(
+            decisiveTicks.Count >= MinimumDecisiveSeeds,
+            $"Only {decisiveTicks.Count} of {Seeds} seeds decided before " +
+            $"the tick cap; at least {MinimumDecisiveSeeds} are required.");
+
+        var sorted = decisiveTicks.Order().ToArray();
+        var median = sorted[sorted.Length / 2];
+        Assert.True(
+            median <= MedianDecisiveTickLimit,
+            $"The median decisive tick was {median}, above the " +
+            $"{MedianDecisiveTickLimit} tick clause.");
+    }
 }

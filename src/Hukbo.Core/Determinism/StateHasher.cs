@@ -118,7 +118,8 @@ internal static class StateHasher
         bool appliesPressureInterrupt = false,
         bool appliesShieldBlockRecovery = false,
         bool hasRangedWeapon = false,
-        ReadOnlySpan<Projectile> projectiles = default)
+        ReadOnlySpan<Projectile> projectiles = default,
+        bool foldsEvasiveAction = false)
     {
         var hash = Fnv1a.OffsetBasis;
         Add(ref hash, scenario.Seed);
@@ -196,6 +197,28 @@ internal static class StateHasher
                 Add(ref hash, agent.BrokeOffUnderPressure ? 1 : 0);
             }
 
+            // A gate of its own, and deliberately not a reuse of either gate
+            // above. V6 already passes a movement content hash, so folding
+            // inside that block would move V6's per-agent byte layout and
+            // break its frozen digest. When this gate is false nothing is
+            // written at all, not even a zero, which is what keeps every
+            // pinned hash from V1 to V13 exactly where it is.
+            //
+            // It must also stay inside this loop. The projectile block below
+            // folds after the loop closes, and a per-agent value placed there
+            // would interleave agent data with projectile data.
+            if (foldsEvasiveAction)
+            {
+                Add(ref hash, (int)agent.EvasiveAction);
+            }
+
+            // The shield block-recovery window, under a third gate, folded
+            // after the evasive action for exactly the reason that one folds
+            // after the footwork and pressure blocks: every earlier layout is
+            // frozen by a shipped digest, so a new per-agent value may only
+            // ever be appended behind its own gate. Nothing is written when
+            // the gate is false, which is what leaves all five recorded
+            // baselines unmoved.
             if (appliesShieldBlockRecovery)
             {
                 Add(ref hash, agent.ShieldBlockRecoveryTicksRemaining);

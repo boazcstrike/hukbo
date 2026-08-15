@@ -655,55 +655,134 @@ public static class MovementPresetRegistry
         allyCollapseWeightBasisPoints: 0);
 
     /// <summary>
-    /// The shield-encumbrance preset. Restates
-    /// <see cref="CohortLateralSpreadV13Ruleset"/>'s cohesion, formation, and
-    /// pressure-interrupt tunables verbatim, following the "restate, do not
-    /// reference" convention every preset above uses. Like
-    /// <see cref="CohortLateralSpreadV13Ruleset"/> it registers
-    /// <c>usesEquipmentRelativeFootwork: false</c> with an empty profile
-    /// collection: the shipped movement pipeline registers no loadout
-    /// profile row for a ranged loadout, so an equipment-relative preset
-    /// throws for every ranged agent, and shield encumbrance must not
-    /// depend on that pipeline. This is the first preset to register
-    /// <see cref="MovementRuleset.AppliesShieldEncumbrance"/> as
-    /// <see langword="true"/>, scaling a warrior's raw movement speed at
-    /// spawn — in <c>BattleSimulation.CreateAgent</c>, not through a
-    /// loadout row — by the pace <see cref="MovementRuleset
-    /// .ResolveShieldPaceBasisPoints"/> resolves for its carried shield.
-    /// Per shield-projectile-block design section 6.1, the pace holds
-    /// strict order <c>solo &gt; narrow-shield &gt; tall-shield</c>: full
-    /// speed for <see cref="Combat.ShieldId.None"/>, 9,600 basis points for
-    /// <see cref="Combat.ShieldId.NarrowBreastHigh"/>, and 9,000 basis
-    /// points for <see cref="Combat.ShieldId.TallHardwood"/>. This preset
-    /// is also the first to register
-    /// <see cref="MovementRuleset.AppliesShieldBlockRecovery"/> as
-    /// <see langword="true"/>, per design section 6.2: five ticks (250
-    /// milliseconds at the 20 Hz tick rate) for the tall-hardwood shield,
-    /// three ticks (150 milliseconds) for the narrow-breast-high shield,
-    /// and a 4,000-basis-point pace ceiling while either window is open.
-    /// All values here are provisional reconstructions: gameplay tuning
-    /// under CLAUDE.md section 7, not a historical measurement. See the
-    /// 2026-08-15 shield-projectile-block design and its plan.
+    /// The in-fight evasive footwork preset. A verbatim restatement of
+    /// <see cref="CohortLateralSpreadV13Ruleset"/>'s field values under its own
+    /// <c>id</c>, for the same reason that ruleset restates V11's: the
+    /// behaviour it gates is gated on preset identity at its own call site, so
+    /// it carries no new field of its own.
     /// <para>
-    /// This preset does not register
-    /// <see cref="MovementRuleset.ExtendedCanonicalLoadoutCount"/> profile
-    /// rows and does not reference
-    /// <see cref="TallHardwoodMovementProfiles.KalisRowV14"/>,
-    /// <see cref="TallHardwoodMovementProfiles.ItakRowV14"/>,
-    /// <see cref="NarrowBreastHighMovementProfiles.KalisRow"/>, or
-    /// <see cref="NarrowBreastHighMovementProfiles.ItakRow"/>, even though
-    /// those rows exist: an earlier revision of this preset wired shield
-    /// encumbrance through equipment-relative loadout rows instead, which
-    /// crashed every ranged loadout under
-    /// <c>MovementRuleset.ResolveLoadoutProfile</c> the moment
-    /// <see cref="MovementRuleset.UsesEquipmentRelativeFootwork"/> was
-    /// <see langword="true"/> and a canonical loadout index had no ranged
-    /// entry. Those four rows are left in place, unreferenced, for a future
-    /// preset that does adopt equipment-relative footwork and wants them.
+    /// <c>usesEquipmentRelativeFootwork</c> stays <see langword="false"/> and
+    /// the loadout profile array stays empty. This preset adds movement
+    /// <i>during</i> an engagement; it does not revive the equipment-relative
+    /// route pipeline, which is a separate and much larger change. See the
+    /// 2026-08-15 in-fight evasion design.
     /// </para>
     /// </summary>
-    private static readonly MovementRuleset ShieldEncumbranceV14Ruleset = new(
-        id: MovementPresetId.ShieldEncumbranceV14,
+    private static readonly MovementRuleset EvasiveFootworkV14Ruleset = new(
+        id: MovementPresetId.EvasiveFootworkV14,
+        version: 1,
+        cohesionRadiusMultiplier: 24,
+        closeRadiusMultiplier: 16,
+        closeFractionNumerator: 1,
+        closeFractionDenominator: 2,
+        minimumCohesiveMembers: 3,
+        cohesionCycleTicks: 240,
+        cohesionDutyTicks: 180,
+        arrivalTaperMultiplier: 4,
+        offsetUnit: 1024,
+        narrowsCohesionScanToCohesionCapableContingents: true,
+        selectsLeaderByRank: false,
+        usesEquipmentRelativeFootwork: false,
+        immediateRadiusBodyDiametersBasisPoints: 0,
+        supportRadiusBodyDiametersBasisPoints: 0,
+        loadoutMovementProfiles: ImmutableArray<LoadoutMovementProfile>.Empty,
+        appliesPressureInterrupt: false,
+        supportPressureWeightBasisPoints: 0,
+        incomingDamageWeightBasisPoints: 0,
+        allyCollapseWeightBasisPoints: 0);
+
+    /// <summary>
+    /// The contingent-cohesion-before-contact preset. Every field down to
+    /// <c>allyCollapseWeightBasisPoints</c> is a verbatim restatement of
+    /// <see cref="LastStandEngagementV11Ruleset"/>'s registered values under
+    /// its own <c>id</c>, exactly as
+    /// <see cref="ContingentShapeV12Ruleset"/> and
+    /// <see cref="CohortLateralSpreadV13Ruleset"/> restate them. Unlike those
+    /// two it does carry fields of its own: it is the first preset to register
+    /// <see cref="MovementRuleset.GathersContingentsBeforeContact"/> as
+    /// <see langword="true"/>, which is also the gate that admits the three
+    /// tunables below into <see cref="MovementRuleset.ContentHash"/>. Every
+    /// preset above leaves that gate <see langword="false"/> and registers the
+    /// three tunables at zero, so none of their content hashes moves. See the
+    /// "Contingent cohesion before contact — plan".
+    /// </summary>
+    /// <remarks>
+    /// The three tunables are a <b>provisional reconstruction</b> for gameplay
+    /// purposes and carry no evidentiary basis whatever: no source describes
+    /// how close a warrior stood to the man leading his contingent, or how
+    /// much ground such a group claimed, and none of these numbers is offered
+    /// as a historical measurement.
+    /// <para>
+    /// They were chosen from measurement rather than from taste. The
+    /// calibration harness swept seeds 1 through 20 under this preset and
+    /// under <see cref="MovementPresetId.CohortLateralSpreadV13"/> at seven
+    /// candidate settings, reporting the hold share, the granted-cohesion
+    /// share, the tick of first contact, and the terminal tick for each. At
+    /// the registered one third and 6000 basis points, the share of
+    /// living-contingent-ticks resolved to Hold rises from 10.04 to 11.65 per
+    /// cent and the share of Advance members granted a cohesion destination
+    /// rises from 1.83 to 13.37 per cent, with all twenty seeds still decided
+    /// before the cap and a median terminal tick of 2058 against V13's 2328 —
+    /// so contingents gather more and battles finish sooner rather than later.
+    /// The full table is in the plan's results section.
+    /// </para>
+    /// <para>
+    /// Wider bands measured better still on both shares and were rejected
+    /// deliberately. At one quarter, nearly every member of an advancing
+    /// contingent is eligible on nearly every tick, which stops being "close
+    /// up when the group is spread" and becomes "always walk to the aim
+    /// point" — the degenerate twin of the behaviour this preset exists to
+    /// produce, and one that would read on screen as a contingent that never
+    /// advances freely at all. One third leaves the inner third of each
+    /// contingent exempt.
+    /// </para>
+    /// </remarks>
+    private static readonly MovementRuleset ContingentCohesionBeforeContactV15Ruleset = new(
+        id: MovementPresetId.ContingentCohesionBeforeContactV15,
+        version: 1,
+        cohesionRadiusMultiplier: 24,
+        closeRadiusMultiplier: 16,
+        closeFractionNumerator: 1,
+        closeFractionDenominator: 2,
+        minimumCohesiveMembers: 3,
+        cohesionCycleTicks: 240,
+        cohesionDutyTicks: 180,
+        arrivalTaperMultiplier: 4,
+        offsetUnit: 1024,
+        narrowsCohesionScanToCohesionCapableContingents: true,
+        selectsLeaderByRank: false,
+        usesEquipmentRelativeFootwork: false,
+        immediateRadiusBodyDiametersBasisPoints: 0,
+        supportRadiusBodyDiametersBasisPoints: 0,
+        loadoutMovementProfiles: ImmutableArray<LoadoutMovementProfile>.Empty,
+        appliesPressureInterrupt: false,
+        supportPressureWeightBasisPoints: 0,
+        incomingDamageWeightBasisPoints: 0,
+        allyCollapseWeightBasisPoints: 0,
+        gathersContingentsBeforeContact: true,
+        cohesionBandNumerator: 1,
+        cohesionBandDenominator: 3,
+        cohesionSquareMarginBasisPoints: 6000);
+
+    /// <summary>
+    /// The shield-encumbrance preset, from the 2026-08-15
+    /// shield-projectile-block design.
+    /// <see cref="CohortLateralSpreadV13Ruleset"/>'s registered field values
+    /// restated verbatim under its own <c>id</c>, following the "restate, do
+    /// not reference" convention every preset above uses, plus two gates of
+    /// its own and nothing else.
+    /// <para>
+    /// It keeps <c>usesEquipmentRelativeFootwork: false</c> and an empty
+    /// profile collection, exactly as V13 does. Shield pace is therefore not
+    /// expressed as loadout rows — it is a scale applied to a warrior's
+    /// movement speed once, at agent creation. The design's first draft did
+    /// author rows and turned that flag on, and it crashed on the first
+    /// ranged warrior, because no canonical loadout index maps a ranged
+    /// weapon.
+    /// </para>
+    /// </summary>
+    private static readonly MovementRuleset ShieldEncumbranceV16Ruleset = new(
+        id: MovementPresetId.ShieldEncumbranceV16,
         version: 1,
         cohesionRadiusMultiplier: 24,
         closeRadiusMultiplier: 16,
@@ -748,7 +827,9 @@ public static class MovementPresetRegistry
             MovementPresetId.LastStandEngagementV11 => true,
             MovementPresetId.ContingentShapeV12 => true,
             MovementPresetId.CohortLateralSpreadV13 => true,
-            MovementPresetId.ShieldEncumbranceV14 => true,
+            MovementPresetId.EvasiveFootworkV14 => true,
+            MovementPresetId.ContingentCohesionBeforeContactV15 => true,
+            MovementPresetId.ShieldEncumbranceV16 => true,
             _ => false,
         };
 
@@ -768,7 +849,11 @@ public static class MovementPresetRegistry
             MovementPresetId.LastStandEngagementV11 => LastStandEngagementV11Ruleset,
             MovementPresetId.ContingentShapeV12 => ContingentShapeV12Ruleset,
             MovementPresetId.CohortLateralSpreadV13 => CohortLateralSpreadV13Ruleset,
-            MovementPresetId.ShieldEncumbranceV14 => ShieldEncumbranceV14Ruleset,
+            MovementPresetId.EvasiveFootworkV14 => EvasiveFootworkV14Ruleset,
+            MovementPresetId.ContingentCohesionBeforeContactV15 =>
+                ContingentCohesionBeforeContactV15Ruleset,
+            MovementPresetId.ShieldEncumbranceV16 =>
+                ShieldEncumbranceV16Ruleset,
             _ => throw new ArgumentOutOfRangeException(
                 nameof(id),
                 id,

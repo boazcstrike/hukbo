@@ -162,6 +162,21 @@ public sealed class SourceHygieneTests
     /// The rule above is unchanged by it: a twenty-seventh entry still fails
     /// this test, and still needs its own decision.
     /// </para>
+    ///
+    /// <para>
+    /// The twenty-seventh entry, <c>Textures/WeaponSprites.png</c>, is that
+    /// decision, taken on 2026-08-15 and recorded in sections 2 and 4 of the
+    /// weapon sprite design — find it by its title, "Weapon sprite — design".
+    /// It is one atlas holding all eighty authored weapon and shield cells
+    /// rather than eighty separate entries, for the same reason the pawn body
+    /// atlas is one entry rather than fifty: eighty entries would be eighty
+    /// separate decisions and one texture switch per warrior drawn.
+    /// </para>
+    ///
+    /// <para>
+    /// The rule above is unchanged by it too: a twenty-eighth entry still
+    /// fails this test, and still needs its own decision.
+    /// </para>
     /// </summary>
     private static readonly string[] PinnedContentPipelineEntries =
     [
@@ -191,18 +206,20 @@ public sealed class SourceHygieneTests
         "Fonts/UiDisplay200.spritefont",
         "Textures/UiChrome.png",
         "Textures/PawnBodies.png",
+        "Textures/WeaponSprites.png",
     ];
 
     /// <summary>
     /// The only non-font content pipeline entries the client is allowed to
-    /// build. Two entries: the placeholder nine-slice chrome atlas, and the
-    /// pawn body atlas. Anything
+    /// build. Three entries: the placeholder nine-slice chrome atlas, the
+    /// pawn body atlas, and the weapon and shield sprite atlas. Anything
     /// else fails <see cref="ContentPipelineEntriesAreUnchangedFromThePinnedSpritefonts"/>.
     /// </summary>
     private static readonly string[] PinnedNonFontContentPipelineEntries =
     [
         "Textures/UiChrome.png",
         "Textures/PawnBodies.png",
+        "Textures/WeaponSprites.png",
     ];
 
     /// <summary>

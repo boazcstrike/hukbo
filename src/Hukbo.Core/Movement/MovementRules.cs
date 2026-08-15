@@ -334,14 +334,25 @@ internal static class MovementRules
     /// </para>
     /// <para>
     /// The one tick of latency runs the other way too, and the caller has to
-    /// answer for it: a contingent that leaves <see cref="ContingentState.Close"/>
+    /// answer for it, though only on the excluded contingent's own behalf: a
+    /// contingent that leaves <see cref="ContingentState.Close"/>
     /// on this tick was skipped by the scan on the strength of a state it no
-    /// longer holds, so granting it cohesion would park aim points in a square
-    /// no pair ever measured. <c>BattleSimulation</c> therefore denies every
-    /// slot this predicate excludes, which resolves it to
+    /// longer holds, so granting it cohesion would park its own aim points in
+    /// a square no pair ever measured. <c>BattleSimulation</c> therefore
+    /// denies every slot this predicate excludes, which resolves it to
     /// <see cref="ContingentState.Advance"/> and lets it rejoin the scan on the
     /// following tick. Exclusion from the scan and denial of the grant are one
-    /// decision, never two.
+    /// decision, never two, and both are exactly as narrow as the body below:
+    /// it tests <see cref="ContingentState.Close"/> and
+    /// <see cref="ContingentState.Break"/> and no other condition, so a slot is
+    /// never excluded, and never denied, for any other reason.
+    /// </para>
+    /// <para>
+    /// A neighbour is never at risk from the same skip, and the denial is not
+    /// there to protect one. A square absent from the pairwise test cannot be
+    /// found to overlap anything, so a neighbour records fewer overlap findings
+    /// than it would have with that square present, never more: exclusion
+    /// relieves a neighbour's overlap and can never create one.
     /// </para>
     /// </remarks>
     /// <param name="tickStartState">

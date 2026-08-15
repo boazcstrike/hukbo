@@ -210,6 +210,104 @@ public sealed class MovementStateHashTests
         Assert.Equal(expected, hash);
     }
 
+    /// <summary>
+    /// The evasive-action gate folds nothing at all when it is false — not even
+    /// a zero. This is the property that keeps every pinned hash from V1 to V13
+    /// exactly where it is, and it is stated as an equality against a call that
+    /// omits the parameter entirely rather than as a recorded literal, so it
+    /// stays true no matter what else moves.
+    /// </summary>
+    [Fact]
+    public void TheFalseEvasiveActionGateFoldsNothing()
+    {
+        var scenario = CreateScenario(MovementPresetId.CohortLateralSpreadV13);
+
+        var withoutParameter = StateHasher.Compute(
+            scenario,
+            tick: 11,
+            BattleOutcome.Ongoing,
+            eventSequence: 4,
+            agents: [CreateAgent(scenario)],
+            contentHash: CombatContentHash,
+            hasRankLevels: false);
+
+        var withExplicitFalse = StateHasher.Compute(
+            scenario,
+            tick: 11,
+            BattleOutcome.Ongoing,
+            eventSequence: 4,
+            agents: [CreateAgent(scenario)],
+            contentHash: CombatContentHash,
+            hasRankLevels: false,
+            foldsEvasiveAction: false);
+
+        Assert.Equal(withoutParameter, withExplicitFalse);
+    }
+
+    /// <summary>
+    /// With the gate open, the fold is sensitive to the value — including to
+    /// <see cref="EvasiveAction.None"/>, which still folds its zero. A gate that
+    /// folded nothing for <c>None</c> would make a warrior that stood still
+    /// indistinguishable from one the preset never considered, and the metrics
+    /// derived from the view would disagree with the hash.
+    /// </summary>
+    [Fact]
+    public void TheOpenEvasiveActionGateDistinguishesEveryValue()
+    {
+        var scenario = CreateScenario(MovementPresetId.EvasiveFootworkV14);
+        var seen = new List<ulong>();
+
+        foreach (var action in Enum.GetValues<EvasiveAction>())
+        {
+            var agent = CreateAgent(scenario);
+            agent.EvasiveAction = action;
+
+            var hash = StateHasher.Compute(
+                scenario,
+                tick: 11,
+                BattleOutcome.Ongoing,
+                eventSequence: 4,
+                agents: [agent],
+                contentHash: CombatContentHash,
+                hasRankLevels: false,
+                foldsEvasiveAction: true);
+
+            Assert.DoesNotContain(hash, seen);
+            seen.Add(hash);
+        }
+
+        Assert.Equal(Enum.GetValues<EvasiveAction>().Length, seen.Count);
+    }
+
+    /// <summary>
+    /// The open gate folds after the pressure-interrupt block and inside the
+    /// per-agent loop. Pinned as a recorded literal on the same tiny
+    /// deterministic input the V6 and V7 fold-order tests use, so moving the
+    /// fold out of the loop, above the pressure block, or into either existing
+    /// gate fails here. Captured from a real run of this exact input against
+    /// this build.
+    /// </summary>
+    [Fact]
+    public void TheEvasiveActionFoldOrderIsPinned()
+    {
+        var scenario = CreateScenario(MovementPresetId.EvasiveFootworkV14);
+        var agent = CreateAgent(scenario);
+        WriteDistinctiveFootworkFields(agent);
+        agent.EvasiveAction = EvasiveAction.GiveGround;
+
+        var hash = StateHasher.Compute(
+            scenario,
+            tick: 11,
+            BattleOutcome.Ongoing,
+            eventSequence: 4,
+            agents: [agent],
+            contentHash: CombatContentHash,
+            hasRankLevels: false,
+            foldsEvasiveAction: true);
+
+        Assert.Equal(0xD43D656BB5C74E1FUL, hash);
+    }
+
     // ----- The BattleSimulation wiring -----
 
     /// <summary>

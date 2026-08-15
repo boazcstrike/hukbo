@@ -108,6 +108,56 @@ not prove a sound was audible, that it arrived at the right moment, or that it
 sounded right. Smoke rows below still require a human at an interactive desktop;
 see `.claude/skills/hukbo-debug-logging/SKILL.md` for the full reading guide.
 
+## Canonical gate result — both games, 2026-08-15 (contingent cohesion V15)
+
+`./scripts/verify.ps1 -SkipBootstrap`, on branch `hukbo-cohesion-v14` in an
+isolated worktree with `main` merged in at `63dca5e`, exit code 0. A bare
+invocation runs both games, and **these are two results, not one**:
+
+```
+[PASS] Formatting verification completed.
+[PASS] Release solution build completed.
+[PASS] Release repository tests completed.
+[PASS] Headless workload completed: agents=200 ticks=10000 seed=1.   (x6, Hukbo)
+[PASS] Release repository tests completed.                            (Sandata)
+[PASS] Headless workload completed: agents=200 ticks=10000 seed=1.   (Sandata)
+[PASS] Canonical repository verification completed.
+```
+
+Suites: Hukbo Core 2,672 passed, Hukbo Client 4,065 passed, Sandata Core 1,176
+passed, Sandata Client 325 passed. Zero failed, zero skipped in all four.
+
+**Every recorded baseline reproduced byte-identically, which is the load-bearing
+evidence for this change.** V15 is opt-in and registers new ruleset fields behind
+a gate that every earlier preset leaves clear, so no shipped preset may move:
+
+| Workload | State hash | Event hash | Outcome |
+| --- | --- | --- | --- |
+| Default | `5460D13E3F7FD3E5` | `8E18ED1437B2924B` | `Faction0Victory` |
+| Ranged standoff V8 | `C8023D3B5BEB005E` | `F709A345E2F7370E` | `Faction1Victory` |
+| Battlefield realism V10 | `7C145A9E05916E4C` | `77626E104234206C` | `Faction0Victory` |
+| Last-stand engagement V11 | `6225182B4A470F91` | `C4DABE6AF98B6BEC` | `Faction0Victory` |
+| Cohort lateral spread V13 | `4A0723BC9A1B924B` | `E0CE32CF8830A864` | `Faction1Victory` |
+| Evasive footwork V14 | `155326060E6FAC82` | `289980C2B3F9E1D2` | `Faction0Victory` |
+| Sandata seed 1 | `DA3D1BEB99978A75` | `260A20BC8F578E19` | `Ongoing` |
+
+All seven reported `deterministic: true` with no mismatch tick.
+
+**The gate now runs six Hukbo workloads, not five.** The sixth is
+`EvasiveFootworkV14`, added by the in-fight evasion package, not by this one.
+This change deliberately adds no benchmark block: those blocks cover the preset
+the client actually ships, V15 is opt-in, and V12 set that precedent.
+
+**What this gate does not prove.** Nothing here says a contingent looks like a
+body crossing the field, which is the entire point of the preset. That is smoke
+row `CC-1`, it is `PENDING`, and only a person at an interactive desktop may
+close it.
+
+The package's own measurements — the seven-setting calibration sweep the tunables
+were chosen from, the twenty-seed termination figures, and the blocked-streak
+guard — are in the plan titled "Contingent cohesion before contact — plan" rather
+than repeated here.
+
 ## Canonical gate result — Hukbo, 2026-08-09
 
 `./scripts/verify.ps1` with no flags, all five stages, exit code 0, at
@@ -731,9 +781,13 @@ roster-expansion suite's theory cases collapsed as the expected apportionment
 became a single calibrated array rather than several even-split cases.
 
 **No evidence about anything interactive.** The three new `AC-*` rows in the
-smoke checklist are what this change owes, and every one of them is `PENDING`.
-The gate never opened the Army Composition panel, never discarded a settings
-file, and never watched a battle.
+smoke checklist were what this change owed. The gate never opened the Army
+Composition panel, never discarded a settings file, and never watched a battle;
+a person did all three on 2026-08-15 and passed all three rows, which left the
+live checklist for the archive record titled "Calibrated army composition
+smoke". That record notes what the passes do not settle: `AC-3` also asked
+whether a quarter of each side standing off makes the battle read as a
+stalemate, and no answer to that was written down.
 
 ## Sandata — recorded baselines and measurement runs, 2026-08-09
 
@@ -1571,14 +1625,92 @@ that "the hashes are unchanged" has to name which of the five it means.
 The final row is the pair the recorded seed-1 baseline elsewhere in this
 document refers to.
 
+## 2026-08-15 — in-fight evasion, and a sixth workload
+
+`./scripts/verify.ps1 -Game Hukbo` on branch `hukbo-fight-evasion`, ending
+`[PASS] Canonical repository verification completed.` with exit code 0. Tests
+were 2,636 Core and 4,009 Client, all passing.
+
+**Stage five now runs six headless workloads.** Each is 200 agents, 10,000
+ticks, and seed 1, and each reported `deterministic: true` with a
+`firstMismatchTick` of `null`.
+
+| Combat preset | Movement preset | Outcome | State hash | Event hash |
+| --- | --- | --- | --- | --- |
+| 6 | 4 | `Faction0Victory` | `5460D13E3F7FD3E5` | `8E18ED1437B2924B` |
+| 5 | 8 | `Faction1Victory` | `C8023D3B5BEB005E` | `F709A345E2F7370E` |
+| 5 | 10 | `Faction0Victory` | `7C145A9E05916E4C` | `77626E104234206C` |
+| 5 | 11 | `Faction0Victory` | `6225182B4A470F91` | `C4DABE6AF98B6BEC` |
+| 5 | 13 | `Faction1Victory` | `4A0723BC9A1B924B` | `E0CE32CF8830A864` |
+| 5 | 14 | `Faction0Victory` | `155326060E6FAC82` | `289980C2B3F9E1D2` |
+
+**The first five rows are byte-identical to the five recorded above, in the
+same run.** That is the point of adding a row rather than repointing one: the
+V13 row is now the leak detector proving the evasive rungs never reach the
+preset every earlier build ran.
+
+The 5 / 14 pair is new and belongs to `EvasiveFootworkV14`, which became the
+client's default in the same package. An earlier measurement of that preset
+reported `256589E964A2D0CE` / `A8E213FF8053B56D`; that run predates the
+give-ground trigger fix described below and is superseded. Quote the newer
+pair.
+
+### What the evasion package measured
+
+Movement was never measured in this repository before this work, so the
+anti-goal bars had no numbers behind them. `EvasionCalibrationHarness`, which
+compiles only under the `HUKBO_CALIBRATION` symbol, ran seeds 1 to 20 at 200
+agents under both presets.
+
+| Quantity | V13 | V14 | Bar | Verdict |
+| --- | --- | --- | --- | --- |
+| Rooted share | 0.6221 | 0.5839 | strictly below V13 | pass |
+| Travel per living agent | 559,765 | 563,197 | at most 727,694 | pass |
+| Mean net displacement | 354,301 | 359,239 | at most 407,446 | pass |
+| Reach retention, agent-ticks | 385.88 | 372.48 | at least 347.29 | pass |
+| Decisive seeds | 20 of 20 | 20 of 20 | at least 19, none at cap | pass |
+| Faction split | 11 / 9 | 9 / 11 | both sides win | pass |
+| Total ticks over 20 seeds | 45,038 | 44,007 | median within +25 per cent | pass |
+| `DefenceAttributableShare`, seed 1 | 0.3124 | 0.3158 | inside 0.25 to 0.45 | pass |
+
+Battles got shorter rather than longer, so the standoff that ended the V6 and
+V7 line did not reappear.
+
+**Two measurement traps are worth recording, because both were hit.** The
+first is that contact retention, measured against
+`CollisionGeometry.ContactSquaredDistance`, is exactly zero on all twenty
+seeds and always will be: the collision resolver's non-penetration invariant
+is strict, so a committed position never sits at the contact distance, and a
+tangency-inclusive test is satisfied only at exact equality. The closest any
+warrior came across the whole matrix was one squared raw unit above it. A bar
+written as "at least ninety per cent of the V13 value" would have compared
+zero against zero and passed for any behaviour whatsoever. The bar now uses
+the warrior's own attack range.
+
+The second is that the same degenerate test was then used, in the first
+implementation, to trigger the give-ground rung — which consequently measured
+**zero agent-ticks over a full ten-thousand-tick battle**. That mattered more
+than it looks: rootedness is dominated by warriors pinned in the press, and
+give-ground is the only rung that reaches them, so with it dead the feature
+weaved on the approach and did nothing for the warriors that actually look
+frozen. Re-triggering it on reach moved the seed-1 rooted share from 0.6203,
+which was *worse* than V13's 0.6133, to 0.6112.
+
+Per-rung agent-tick counts at seed 1 under V14, for a later run to compare
+against: `slipLateral` 5,018, `dodgeIncoming` 714, `giveGround` 890,
+`breakOff` 346, `breakOffArmed` 394, against 132,693 living agent-ticks.
+
 ## The interactive smoke checklist
 
 Moved to [smoke-checklist.md](smoke-checklist.md) on 2026-08-11.
 
-As of that date it carries 105 rows across 29 sections: 82 `PENDING`,
-13 `BLOCKED`, 8 `PASS`, and 2 `FAIL`. **Only a person at an interactive desktop
-may flip a row**, and no agent may, for any reason, including a passing
-automated test.
+As of 2026-08-15 it carries one row in one section: `GR-5`, `PENDING`, with no
+`PASS`, `FAIL`, or `BLOCKED` row left anywhere in it. On the day it was split
+out it carried 105 rows across 29 sections. **Only a person at an interactive
+desktop may flip a row**, and no agent may, for any reason, including a passing
+automated test. Recount that figure from the checklist's own status column
+before relying on it; every count in this repository that was taken on faith
+turned out to be wrong.
 
 Nothing in this file, and nothing the canonical gate prints, is evidence about
 interactive behaviour. The gate never formats a battle event, never opens the

@@ -554,7 +554,7 @@ in two different states of readiness:
   need one, plus a corresponding format line, to be visible there.
 - **`RosterStrip` is not actually drawing text at all.** It declares a
   `TileContent` record with a `MagazineRounds`/`MagazineCapacity` pair and
-  a tested `FormatMagazineLine` helper producing `"18/30"`, matching design
+  a `FormatMagazineLine` helper producing `"18/30"`, matching design
   section 11's HUD list, which marks the roster strip **built**. But
   `SandataGame.DrawRosterTiles`, the only production caller that draws a
   roster tile, draws only the tile's background panel and border — it
@@ -564,10 +564,17 @@ in two different states of readiness:
   strip, and go-code panel are still blank rectangles." A magazine count
   is therefore not observable on the roster strip today regardless of this
   design, and wiring `DrawRosterTiles` to the helpers that already exist
-  and are already tested is the natural, low-cost way to close that gap —
-  but it is drawing-layer work outside what this document is scoped to
-  decide, since the helpers and their tests already exist independently of
-  whether decrementing is ever implemented.
+  is the natural, low-cost way to close that gap. Verified on
+  2026-08-15: `FormatMagazineLine` is declared at
+  `src/Sandata.Client/UI/RosterStrip.cs:97` and has **no caller at all** —
+  no production caller and no test caller. `HudLayoutTests` in
+  `tests/Sandata.Client.Tests/HudLayoutTests.cs` exercises only
+  `CalculateBounds`, `CountVisibleTiles`, and `CalculateTileBounds`, and
+  the sibling helpers `FormatHealthLine` (`:93`) and `FormatChainPhaseLine`
+  (`:101`) are dead in exactly the same way. So the helper exists but is
+  uncalled and unproven, and wiring it — together with whatever test first
+  exercises it — is part of this package's work rather than an assumption
+  this package can lean on.
 
 **What a spectator can discover without any of the above is smaller but
 real even today.** `WeaponChainPhase` is already an inspector-visible
