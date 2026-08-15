@@ -147,12 +147,33 @@ type and it keeps the shield's authored proportions honest.
 
 **The wasted space, stated rather than buried.** The atlas is 1120 × 2048 =
 2,293,760 pixels, or 8.75 MiB of video memory at 32 bits per pixel, against
-5.0 MiB for the existing body atlas. Most of it is transparent. A straight
-blade drawn along a 248-pixel axis in a 104-pixel-wide box will cover something
-on the order of a fifth of its cell; the Wasay's broad head will cover more;
-the shield row is the densest at about 78 percent of its cell. Those coverage
-figures are estimates and the plan requires task 10 to record the real ones
-once the atlas exists. The cause of the waste is a single decision — one cell
+5.0 MiB for the existing body atlas. Most of it is transparent.
+
+The coverage figures below are measured from the shipped atlas rather than
+estimated, as task 10 required. They are the mean alpha of each row's ten
+cells, taken with `magick -alpha extract -format "%[fx:mean*100]"`:
+
+| Row | Ink coverage |
+| --- | --- |
+| Kampilan | 26.9% |
+| Itak | 22.5% |
+| Wasay | 19.9% |
+| Bangkaw | 17.3% |
+| Arquebus | 15.3% |
+| Kalis | 14.0% |
+| Busog | 12.8% |
+| Shield | 77.8% |
+| **Whole atlas** | **25.8%** |
+
+The original estimate in this section guessed "about 78 percent" for the shield
+row and got 77.8%, but guessed "on the order of a fifth" for a straight blade
+and was low: the Kampilan sits at 26.9% because the authored blade is much
+thicker than a realistic one, which is the deliberate exaggeration section 7
+argues for. The Kalis and the Busog are the sparsest rows at 14.0% and 12.8%,
+and that is exactly what "slim" and "a bare stave" cost in a box sized for the
+broadest object in the game. The file itself is 412,064 bytes on disk.
+
+The cause of the waste is a single decision — one cell
 size for eight roles of very different shapes — and the alternative, a packed
 atlas with a per-role rectangle table, was rejected because it makes the image
 unreadable by eye, makes the packer's output depend on packing order, and adds
@@ -170,7 +191,19 @@ This matters because the renderer's existing convention is the opposite one.
 `DrawLine` draws along positive X, with its origin at the left edge and its
 rotation taken straight from `atan2(end - start)`. A weapon sprite authored
 pointing up is therefore a quarter turn away from that, and the renderer adds a
-single documented constant of `-π/2` to the line's angle before drawing. The
+single documented constant of **`+π/2`** to the line's angle before drawing.
+
+This document first recorded that constant as `-π/2`, which was wrong, and the
+sign is worth deriving here rather than asserting. With the origin at the grip,
+the sprite's tip sits at the local offset `(0, -H)`, because the cell is
+authored with the grip at the bottom and screen Y points down. Rotating that
+offset by θ gives `(H·sinθ, -H·cosθ)`. For the tip to land on the weapon line it
+must equal `L·(cos φ, sin φ)` where `φ = atan2(delta.Y, delta.X)`, which
+requires `sinθ = cos φ` and `cosθ = -sin φ`. Only `θ = φ + π/2` satisfies both.
+The sanity check is quicker than the algebra: a weapon pointing straight up the
+screen has `delta = (0, -L)` and so `φ = -π/2`, and since the art is already
+drawn pointing up it must receive zero net rotation — which `φ + π/2` gives and
+`φ - π/2` does not, it gives a half turn. The
 shield adds nothing, because it is not drawn along the weapon line at all — it
 goes through `AboutPivot(centre, ShieldPostureRotationRadians)` exactly as it
 does today.
@@ -183,6 +216,47 @@ the same 1120 by 2048 image, only sideways and harder to read. And the shield
 would then be authored lying on its side while every weapon lay flat too, so an
 atlas that a reviewer has to mentally rotate to judge. One constant in one draw
 call is cheaper than eighty cells that cannot be read at a glance.
+
+**What the packer does to an authored cell, and why.** Three passes run over
+every rasterised cell before it is montaged. All three were added during
+integration, after the first eighty cells were rendered and looked at, and each
+one fixes a defect that no test in this repository would have caught.
+
+*Axial normalisation.* The renderer scales a cell by
+`weaponLineLength / contentHeight`, so a cell whose art spans only part of its
+box draws the weapon at that same fraction of its true line length — the
+visible tip stops short of where the simulation resolves contact. Measured on
+the first full atlas, the rows filled between 115 and 248 pixels of the 248
+available, with the Arquebus at 115 and the Busog's shortest variant at 186. So
+the packer scales each weapon cell's content to fill the axis, **anchored at the
+grip point rather than the bounding-box centre**: the grip is the one part of a
+weapon that must stay in the hand, and an asymmetric silhouette like the Wasay's
+head would slide out of the fist if the box were re-centred. The shield is
+exempt, because it is fitted to `ShieldBounds` and nothing about its on-screen
+size depends on the weapon line.
+
+The cost is stated where it is paid: **a variant authored as a shorter blade is
+now drawn at the same length as a long one, so length is no longer a variation
+axis.** It never legitimately was. Reach is fixed per role by the simulation, so
+a visibly shorter weapon with an identical reach was misinformation rather than
+variety.
+
+*The inner outline.* The seven weapon rows and the shield row were rendered
+against all three shipped themes. Against the light theme, whose `arenaSurface`
+is `#E5D4AA`, the pale shields and the pale hafts lose their edges entirely.
+A three-pixel outline in `#2a2018` is therefore applied to every cell — measured
+by rendering widths of two, three, and five at true gameplay size, where two is
+too faint to survive the downsample and five reads as a drawn frame around the
+object. It is drawn *inside* the silhouette, not dilated outward, because an
+outward outline of that width would spill into the four-pixel gutter and sample
+into the neighbouring role's row.
+
+*The content-box clamp.* Resampling and outlining both leave faint pixels
+slightly outside the shape they started from — Lanczos in particular rings up to
+three pixels past the box, which is why the packer resamples with Triangle. The
+clamp asserts the invariant once rather than trusting each step: every pixel
+outside the role's content box is forced transparent, so the gutter is provably
+empty and no cell can sample into the row above or below it.
 
 **Authoring density, against what the camera can actually show.** One layout
 unit is one screen pixel at apparent scale 1, and the apparent scale is clamped
