@@ -34,7 +34,7 @@ public sealed class ClientSettingsStoreTests
                 StartupDisplayMode.Windowed,
                 settings.StartupDisplayMode);
             Assert.Equal(
-                MovementPresetId.CohortLateralSpreadV13,
+                MovementPresetId.EvasiveFootworkV14,
                 settings.MovementPreset);
         });
     }
@@ -773,7 +773,7 @@ public sealed class ClientSettingsStoreTests
             // loads cleanly.
             Assert.Equal("signal", settings.SelectedThemeId);
             Assert.Equal(
-                MovementPresetId.CohortLateralSpreadV13,
+                MovementPresetId.EvasiveFootworkV14,
                 settings.MovementPreset);
         });
     }
@@ -799,7 +799,7 @@ public sealed class ClientSettingsStoreTests
             Assert.Equal(80, settings.Composition.UnitsPerTeam);
             Assert.Equal(GoreIntensity.Full, settings.GoreIntensity);
             Assert.Equal(
-                MovementPresetId.CohortLateralSpreadV13,
+                MovementPresetId.EvasiveFootworkV14,
                 settings.MovementPreset);
         });
     }
@@ -873,7 +873,7 @@ public sealed class ClientSettingsStoreTests
             Assert.Equal("command", settings.SelectedThemeId);
             Assert.Equal(ArmyComposition.Default, settings.Composition);
             Assert.Equal(
-                MovementPresetId.CohortLateralSpreadV13,
+                MovementPresetId.EvasiveFootworkV14,
                 settings.MovementPreset);
         });
     }
