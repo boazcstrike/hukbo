@@ -104,6 +104,45 @@ it.
   independent renderer defect fix, benefits every preset, and depends on nothing
   in this feature.
 
+## What was actually run, and what is still owed
+
+Branch `hukbo-fight-evasion`, based at `main` `cfe0c22`. Every task from 1 to 17
+is implemented and committed.
+
+`./scripts/verify.ps1 -Game Hukbo` ends `[PASS] Canonical repository
+verification completed.` with exit code 0, at 2,636 Core and 4,011 Client tests,
+all passing. Its six workload hashes are recorded in
+`docs/development/testing.md`, and the five that predate this work are
+byte-identical in that same run.
+
+Three things are still owed, and none of them may be closed by an agent.
+
+1. **Every smoke-checklist row for this package is `PENDING`.** The fourteen
+   rows drafted during research were never added to
+   `docs/development/smoke-checklist.md`, because that file is edited
+   concurrently by other sessions and a blind write would clobber their work.
+   The rows still need adding, and then only a person at an interactive desktop
+   may flip one. Nothing in this package has been seen running.
+2. **The tuning has been calibrated but not judged.** All eight numeric bars of
+   design section 8 pass, and the rooted share falls from 0.6221 to 0.5839. That
+   is a real improvement of about six per cent relative, and it is smaller than
+   the phrase "warriors now move during a fight" might suggest. Whether it looks
+   different enough is a judgement only watching it can settle. Design open
+   question 3 names the periods as the first knobs, and
+   `EvasionCalibrationHarness` is the instrument for turning them.
+3. **The deferred melee telegraph.** A reactive dodge against a melee blow is
+   not built and cannot be, because an attack resolves inside a single tick with
+   no interval during which a blow is incoming. Building one means authoritative
+   pending-blow state mirroring the projectile pattern, a new combat preset, and
+   new golden expectations. Design section 2 records it as deferred.
+
+Two defects were found by the rung tests after the first green gate, and both
+are worth remembering because neither was visible by reading the code: a corpse
+carried its last evasive action when it died in the same tick it stepped, and a
+warrior backing away could be armed with a break-off step it could never spend.
+Neither moved the recorded digest, because both values were transient and the
+terminal hash is taken once at the end of a run.
+
 ## Housekeeping carried by this package
 
 - `src/Hukbo.Core/Movement/RangedRetreatRules.cs:12-13` claims the class is "Not
