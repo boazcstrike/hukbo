@@ -1,6 +1,7 @@
 using System.Collections.Immutable;
 using Hukbo.Client.Presentation;
 using Hukbo.Client.Presentation.Catalogs;
+using Hukbo.Client.Settings;
 using Microsoft.Xna.Framework;
 
 namespace Hukbo.Client.Rendering;
@@ -36,15 +37,33 @@ internal static class PawnQuadCount
     internal const int SwingTrailSegments = 6;
 
     /// <summary>
-    /// <c>PawnRenderer.DrawWeapon</c>: a grip line, a blade line, and a
-    /// highlight line via <c>DrawBlade</c> for every role (geometry —
-    /// gripEnd, widthMultiplier — differs by role, quad count does not), plus
-    /// two bowstring segments via <c>DrawBowstring</c> for
-    /// <see cref="PawnWeaponRole.Busog"/> only (RU-42): the Busog is the only
-    /// role whose weapon-line quad count differs from the rest.
+    /// <c>PawnRenderer.DrawWeapon</c>: at <see cref="WeaponVisualStyle.Procedural"/>,
+    /// or in <see cref="WeaponVisualStyle.Sprite"/> at
+    /// <see cref="PawnDetailTier.Low"/> where <c>DrawWeapon</c>'s own
+    /// <c>ShouldDrawFromWeaponAtlas</c> gate falls back to the procedural
+    /// path, a grip line, a blade line, and a highlight line via
+    /// <c>DrawBlade</c> for every role (geometry — gripEnd, widthMultiplier —
+    /// differs by role, quad count does not), plus two bowstring segments via
+    /// <c>DrawBowstring</c> for <see cref="PawnWeaponRole.Busog"/> only
+    /// (RU-42): the Busog is the only role whose weapon-line quad count
+    /// differs from the rest. At <see cref="WeaponVisualStyle.Sprite"/> and
+    /// Medium tier or above, one textured quad replaces the three-line
+    /// procedural weapon for every role (the 2026-08-15 weapon sprite design,
+    /// task 17), and the Busog's bowstring stays procedural even here
+    /// (design section 9) — three quads total rather than five.
     /// </summary>
-    private static int WeaponQuadCount(PawnWeaponRole role) =>
-        role == PawnWeaponRole.Busog ? 5 : 3;
+    private static int WeaponQuadCount(
+        PawnWeaponRole role,
+        WeaponVisualStyle weaponVisualStyle,
+        PawnDetailTier detailTier)
+    {
+        if (weaponVisualStyle == WeaponVisualStyle.Sprite && detailTier != PawnDetailTier.Low)
+        {
+            return role == PawnWeaponRole.Busog ? 3 : 1;
+        }
+
+        return role == PawnWeaponRole.Busog ? 5 : 3;
+    }
 
     /// <summary>
     /// <c>PawnRenderer.DrawHeadTreatment</c>: every one of the three
@@ -92,12 +111,22 @@ internal static class PawnQuadCount
     /// to <c>false</c>, so every call site written before the leader mark
     /// existed keeps its current meaning without edits.
     /// </param>
+    /// <param name="weaponVisualStyle">
+    /// Mirrors <c>PawnRenderer.Draw</c>'s own <c>weaponVisualStyle</c>
+    /// parameter (the 2026-08-15 weapon sprite design, task 19): whether the
+    /// weapon and the tall hardwood shield draw as one atlas quad each at
+    /// Medium tier and above, or keep their procedural quad counts.
+    /// Trailing optional, defaulting to <see cref="WeaponVisualStyle.Procedural"/>,
+    /// so every call site written before this setting existed keeps its
+    /// current meaning without edits.
+    /// </param>
     public static int Count(
         PawnLayout layout,
         PawnAppearance appearance,
         PawnVisualState state,
         VisualFallbackStep torsoResolutionStep = VisualFallbackStep.ModelCategoryDefault,
-        bool isLeader = false)
+        bool isLeader = false,
+        WeaponVisualStyle weaponVisualStyle = WeaponVisualStyle.Procedural)
     {
         var total = 0;
 
@@ -110,7 +139,7 @@ internal static class PawnQuadCount
             : CountTorso(layout);
         total += CountArmor(layout.ArmorBounds, layout.DetailTier);
         total += CountSash(layout.SashBounds);
-        total += CountShield(layout, appearance);
+        total += CountShield(layout, appearance, weaponVisualStyle);
         total += CountHead(layout.HeadBounds);
 
         if (layout.DetailTier != PawnDetailTier.Low)
@@ -121,7 +150,7 @@ internal static class PawnQuadCount
         total += CountAdornments(layout);
         total += CountArms(layout.Arms);
         total += CountSwingTrail(layout.SwingTrail);
-        total += WeaponQuadCount(appearance.WeaponRole);
+        total += WeaponQuadCount(appearance.WeaponRole, weaponVisualStyle, layout.DetailTier);
         total += CountStateMark(state, layout.DetailTier);
 
         if (isLeader)
@@ -244,19 +273,33 @@ internal static class PawnQuadCount
     private static int CountSash(Rectangle bounds) => IsEmpty(bounds) ? 0 : 1;
 
     /// <summary>
-    /// <c>PawnRenderer.DrawShield</c>: nothing for an unshielded warrior.
-    /// Otherwise a face (one quad for every skin except <c>boxerCagayan</c>,
-    /// whose curved face is three quads once its curvature inset actually
-    /// carves the block — see <see cref="CountShieldFace"/>), an optional
-    /// seam/accent quad at Medium tier and above, and two edge-tone quads at
-    /// High tier when the block is wide enough.
+    /// <c>PawnRenderer.DrawShield</c>: nothing for an unshielded warrior. At
+    /// <see cref="WeaponVisualStyle.Sprite"/> and Medium tier or above, one
+    /// textured quad regardless of skin (the 2026-08-15 weapon sprite design,
+    /// task 18) — the binding rule at <c>ShieldVisualCatalog.cs:11-14</c> is
+    /// that a skin changes only how the block looks, and the sprite quad
+    /// occupies exactly the rectangle the procedural quads below occupied, so
+    /// no skin-specific branching survives into the sprite count. Otherwise a
+    /// face (one quad for every skin except <c>boxerCagayan</c>, whose curved
+    /// face is three quads once its curvature inset actually carves the block
+    /// — see <see cref="CountShieldFace"/>), an optional seam/accent quad at
+    /// Medium tier and above, and two edge-tone quads at High tier when the
+    /// block is wide enough.
     /// </summary>
-    private static int CountShield(PawnLayout layout, PawnAppearance appearance)
+    private static int CountShield(
+        PawnLayout layout,
+        PawnAppearance appearance,
+        WeaponVisualStyle weaponVisualStyle)
     {
         var bounds = layout.ShieldBounds;
         if (IsEmpty(bounds))
         {
             return 0;
+        }
+
+        if (weaponVisualStyle == WeaponVisualStyle.Sprite && layout.DetailTier != PawnDetailTier.Low)
+        {
+            return 1;
         }
 
         var isBoxerCagayan =
@@ -621,6 +664,24 @@ internal static class RenderBudgetEstimate
     // Medium does not change which term is binding — the stacked worst case
     // is still the ceiling's binding term — so no pinned quad count and no
     // ceiling changes as a result of this note.
+    //
+    // The 2026-08-15 weapon sprite design (tasks 17-19) adds
+    // WeaponVisualStyle.Sprite, a spectator-selectable style that is never
+    // the default. At Medium tier and above it replaces the weapon's
+    // three-line procedural quad count with one textured quad (five for a
+    // Busog, dropping to three — the bowstring stays procedural), and the
+    // shield's one-to-six-quad procedural count, depending on skin and tier,
+    // with one textured quad. Sprite mode strictly REDUCES the per-pawn quad
+    // count at every tier it draws sprites at all — it never adds a quad, and
+    // at Low tier both DrawWeapon and DrawShield fall back to their unchanged
+    // procedural paths (design section 10), so it never moves a Low-tier
+    // count either. The stacked High-tier Busog worst case above (27 quads
+    // for the weapon alone, or up to 27 + shield's worst case with the whole
+    // pawn) is therefore still the binding term for both arena-batch
+    // ceilings: WeaponVisualStyle.Sprite can only pull a real frame further
+    // below the ceilings already set, never push one nearer them, so no
+    // ceiling and no worst-case pinned figure above changes as a result of
+    // this package.
 
     /// <summary>Arena-batch quad ceiling at 200 visible units.</summary>
     internal const int ArenaBatchQuadsAt200UnitsEstimate = 12_000;

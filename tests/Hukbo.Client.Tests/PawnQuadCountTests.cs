@@ -1,6 +1,7 @@
 using Hukbo.Client.Presentation;
 using Hukbo.Client.Presentation.Catalogs;
 using Hukbo.Client.Rendering;
+using Hukbo.Client.Settings;
 using Hukbo.Core.Combat;
 using Microsoft.Xna.Framework;
 
@@ -385,5 +386,197 @@ public sealed class PawnQuadCountTests
 
             Assert.InRange(armQuads, 2, 4);
         }
+    }
+
+    /// <summary>
+    /// The 2026-08-15 weapon sprite design (task 19):
+    /// <see cref="WeaponVisualStyle.Sprite"/> replaces every role's
+    /// three-line procedural weapon (five for a Busog) with one textured
+    /// quad at Medium tier and above, a fixed reduction of exactly two quads
+    /// regardless of role — the Busog's bowstring stays procedural in both
+    /// modes, so its own two segments cancel out of the delta.
+    /// </summary>
+    [Theory]
+    [InlineData(WeaponId.Kampilan, MediumTierZoom)]
+    [InlineData(WeaponId.Kampilan, HighTierZoom)]
+    [InlineData(WeaponId.Wasay, MediumTierZoom)]
+    [InlineData(WeaponId.Wasay, HighTierZoom)]
+    [InlineData(WeaponId.Kalis, MediumTierZoom)]
+    [InlineData(WeaponId.Kalis, HighTierZoom)]
+    [InlineData(WeaponId.Itak, MediumTierZoom)]
+    [InlineData(WeaponId.Itak, HighTierZoom)]
+    [InlineData(WeaponId.Bangkaw, MediumTierZoom)]
+    [InlineData(WeaponId.Bangkaw, HighTierZoom)]
+    [InlineData(WeaponId.Busog, MediumTierZoom)]
+    [InlineData(WeaponId.Busog, HighTierZoom)]
+    [InlineData(WeaponId.Arquebus, MediumTierZoom)]
+    [InlineData(WeaponId.Arquebus, HighTierZoom)]
+    public void Count_SpriteModeReducesTheWeaponByExactlyTwoQuadsAtMediumAndHighTier(
+        WeaponId weaponId,
+        float zoom)
+    {
+        var appearance = PawnAppearanceFactory.Create(0, weaponId, ShieldId.None);
+        var layout = PawnGeometry.Create(Vector2.Zero, zoom, appearance);
+
+        Assert.NotEqual(PawnDetailTier.Low, layout.DetailTier);
+
+        var procedural = PawnQuadCount.Count(
+            layout,
+            appearance,
+            PawnVisualState.Normal,
+            weaponVisualStyle: WeaponVisualStyle.Procedural);
+        var sprite = PawnQuadCount.Count(
+            layout,
+            appearance,
+            PawnVisualState.Normal,
+            weaponVisualStyle: WeaponVisualStyle.Sprite);
+
+        Assert.Equal(procedural - 2, sprite);
+    }
+
+    /// <summary>
+    /// Design section 10: <c>DrawWeapon</c> never draws from the atlas below
+    /// Medium tier, so <see cref="WeaponVisualStyle.Sprite"/> must leave the
+    /// Low-tier count exactly as the procedural path already produced it —
+    /// this is what keeps <c>Count_PinsTheLowTierUnshieldedUnarmoredNormalPawn</c>
+    /// true regardless of which style a caller passes.
+    /// </summary>
+    [Theory]
+    [InlineData(WeaponId.Kampilan)]
+    [InlineData(WeaponId.Wasay)]
+    [InlineData(WeaponId.Kalis)]
+    [InlineData(WeaponId.Itak)]
+    [InlineData(WeaponId.Bangkaw)]
+    [InlineData(WeaponId.Busog)]
+    [InlineData(WeaponId.Arquebus)]
+    public void Count_SpriteModeDoesNotChangeTheWeaponAtLowTier(WeaponId weaponId)
+    {
+        var appearance = PawnAppearanceFactory.Create(0, weaponId, ShieldId.None);
+        var layout = PawnGeometry.Create(Vector2.Zero, LowTierZoom, appearance);
+
+        Assert.Equal(PawnDetailTier.Low, layout.DetailTier);
+
+        var procedural = PawnQuadCount.Count(
+            layout,
+            appearance,
+            PawnVisualState.Normal,
+            weaponVisualStyle: WeaponVisualStyle.Procedural);
+        var sprite = PawnQuadCount.Count(
+            layout,
+            appearance,
+            PawnVisualState.Normal,
+            weaponVisualStyle: WeaponVisualStyle.Sprite);
+
+        Assert.Equal(procedural, sprite);
+    }
+
+    /// <summary>
+    /// The 2026-08-15 weapon sprite design (task 18):
+    /// <see cref="WeaponVisualStyle.Sprite"/> replaces the shield's
+    /// skin-dependent procedural quads (one to six, per
+    /// <see cref="PawnQuadCountTests.Count_PinsTheHighTierFullyLoadedSelectedPawn"/>'s
+    /// own boxerCagayan worst case) with exactly one textured quad, at
+    /// Medium tier and above, for both authored shield skins. Isolated by
+    /// differencing a shielded pawn against the same pawn unshielded, under
+    /// each style separately, so nothing about the weapon's own delta
+    /// (covered above) leaks into the shield's.
+    /// </summary>
+    [Theory]
+    [InlineData(MediumTierZoom)]
+    [InlineData(HighTierZoom)]
+    public void Count_SpriteModeReducesTheBoxerCagayanShieldAtMediumAndHighTier(float zoom)
+    {
+        var shielded = PawnAppearanceFactory.Create(0, WeaponId.Kalis, ShieldId.TallHardwood)
+            with
+        {
+            ShieldSkinId = ShieldVisualCatalog.BoxerCagayan.Catalog.Id,
+        };
+        AssertShieldSpriteReduction(shielded, zoom);
+    }
+
+    [Theory]
+    [InlineData(MediumTierZoom)]
+    [InlineData(HighTierZoom)]
+    public void Count_SpriteModeReducesTheVisayanKalasagShieldAtMediumAndHighTier(float zoom)
+    {
+        var shielded = PawnAppearanceFactory.Create(0, WeaponId.Kalis, ShieldId.TallHardwood)
+            with
+        {
+            ShieldSkinId = ShieldVisualCatalog.VisayanKalasag.Catalog.Id,
+        };
+        AssertShieldSpriteReduction(shielded, zoom);
+    }
+
+    private static void AssertShieldSpriteReduction(PawnAppearance shielded, float zoom)
+    {
+        var unshielded = shielded with { ShieldRole = PawnShieldRole.None };
+        var shieldedLayout = PawnGeometry.Create(Vector2.Zero, zoom, shielded);
+        var unshieldedLayout = PawnGeometry.Create(Vector2.Zero, zoom, unshielded);
+
+        Assert.NotEqual(PawnDetailTier.Low, shieldedLayout.DetailTier);
+        Assert.False(shieldedLayout.ShieldBounds.IsEmpty);
+
+        var proceduralShielded = PawnQuadCount.Count(
+            shieldedLayout,
+            shielded,
+            PawnVisualState.Normal,
+            weaponVisualStyle: WeaponVisualStyle.Procedural);
+        var proceduralUnshielded = PawnQuadCount.Count(
+            unshieldedLayout,
+            unshielded,
+            PawnVisualState.Normal,
+            weaponVisualStyle: WeaponVisualStyle.Procedural);
+        var spriteShielded = PawnQuadCount.Count(
+            shieldedLayout,
+            shielded,
+            PawnVisualState.Normal,
+            weaponVisualStyle: WeaponVisualStyle.Sprite);
+        var spriteUnshielded = PawnQuadCount.Count(
+            unshieldedLayout,
+            unshielded,
+            PawnVisualState.Normal,
+            weaponVisualStyle: WeaponVisualStyle.Sprite);
+
+        var proceduralShieldQuads = proceduralShielded - proceduralUnshielded;
+        var spriteShieldQuads = spriteShielded - spriteUnshielded;
+
+        Assert.Equal(1, spriteShieldQuads);
+        Assert.True(
+            spriteShieldQuads < proceduralShieldQuads,
+            $"sprite shield ({spriteShieldQuads}) did not reduce the " +
+            $"procedural shield ({proceduralShieldQuads}).");
+    }
+
+    /// <summary>
+    /// Design section 10's shield-side counterpart to
+    /// <see cref="Count_SpriteModeDoesNotChangeTheWeaponAtLowTier"/>:
+    /// <c>DrawShield</c> never draws from the atlas below Medium tier either,
+    /// so the Low-tier shield count is identical under both styles.
+    /// </summary>
+    [Theory]
+    [InlineData(ShieldId.TallHardwood)]
+    public void Count_SpriteModeDoesNotChangeTheShieldAtLowTier(ShieldId shieldId)
+    {
+        var appearance = PawnAppearanceFactory.Create(0, WeaponId.Kalis, shieldId)
+            with
+        {
+            ShieldSkinId = ShieldVisualCatalog.BoxerCagayan.Catalog.Id,
+        };
+        var layout = PawnGeometry.Create(Vector2.Zero, LowTierZoom, appearance);
+
+        Assert.Equal(PawnDetailTier.Low, layout.DetailTier);
+
+        var procedural = PawnQuadCount.Count(
+            layout,
+            appearance,
+            PawnVisualState.Normal,
+            weaponVisualStyle: WeaponVisualStyle.Procedural);
+        var sprite = PawnQuadCount.Count(
+            layout,
+            appearance,
+            PawnVisualState.Normal,
+            weaponVisualStyle: WeaponVisualStyle.Sprite);
+
+        Assert.Equal(procedural, sprite);
     }
 }

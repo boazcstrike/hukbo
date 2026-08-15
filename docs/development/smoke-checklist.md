@@ -17,8 +17,10 @@ The gate, the current gate results, and the recorded baselines live in
 
 ## Where the checklist stands, 2026-08-15
 
-**1 row in 1 subsection: `GR-5`, `PENDING`.** No `PASS`, `FAIL`, `BLOCKED`, or
-`DECLINED` row is left. Twenty-nine rows closed on 2026-08-15 and were lifted
+**13 rows in 2 subsections, every one `PENDING`.** One is `GR-5`; the other
+twelve are `WS-1` through `WS-12`, added on 2026-08-15 by the weapon and shield
+sprite atlas package. No `PASS`, `FAIL`, `BLOCKED`, or `DECLINED` row is left.
+Twenty-nine rows closed on 2026-08-15 and were lifted
 out with the six families that closed in full: calibrated army composition,
 death collapse, UI chrome nine-slice, pawn visual fidelity, pawn sprite body,
 and the hidden battle event log. Each has a dated archive record carrying its
@@ -104,3 +106,41 @@ Leave it `PENDING` if untouched; report `BLOCKED` honestly.
 
 Phase 3's rows GR-6 through GR-10 are deliberately absent. They covered the
 instanced backend, which the NO-GO verdict closed and which does not exist.
+
+## Weapon and shield sprite atlas (weapon-sprite)
+
+Eighty authored cells — ten variants for each of the seven weapon roles and ten
+for the tall hardwood shield — drawn in place of the procedural weapon line and
+the procedural shield block. The mode is off by default and the `V` key flips it
+live.
+
+Everything below is a question about what appears on a screen while a battle is
+running, which is exactly the class of thing this repository's automated gate
+cannot answer. The gate proves the atlas has the right shape, that every cell
+sits inside its content box, that variant selection is stable and spread, that
+the rotation constant is right for a worked example, and that the submission
+counts fall. It draws nothing and looks at nothing.
+
+The art itself was reviewed by rendering the atlas and looking at it, and that
+review rejected and re-authored three of the eight rows; that record is in
+`docs/plans/2026-08-15-weapon-sprite.md`. Reviewing a PNG is still not the same
+as watching a warrior swing, which is what these rows are for.
+
+Only a human running `./scripts/run.ps1` on an interactive Windows desktop may
+flip any of these rows. Compilation, unit tests, and a window-opening probe run
+do not. Leave a row `PENDING` if untouched; report `BLOCKED` honestly.
+
+| # | Step | Expected | Actual | Status |
+| --- | --- | --- | --- | --- |
+| WS-1 | Press `V` during a live battle, then press it again | Every armed warrior's weapon and shield changes on the next frame, and changes back | | PENDING |
+| WS-2 | Press `V`, quit, and relaunch | The chosen style survives the restart | | PENDING |
+| WS-3 | In sprite mode, watch one warrior swing through a full attack | The weapon tracks the swing arc and stays anchored in the hand, neither sliding along its own length nor drifting off the fist | | PENDING |
+| WS-4 | In sprite mode, watch a warrior die | The weapon rotates with the collapse rather than staying upright | | PENDING |
+| WS-5 | In sprite mode, look along a full battle line | Warriors of the same role visibly do not all carry the same weapon | | PENDING |
+| WS-6 | In sprite mode, at normal gameplay zoom, compare the seven roles | The roles are tellable apart, and more easily than in procedural mode | | PENDING |
+| WS-7 | In sprite mode, watch an archer draw and loose | The bowstring still pulls back, still meets both stave tips, and does not float off the drawn stave. The stave cells are authored with no string precisely so the procedural one is the only string on screen | | PENDING |
+| WS-8 | In sprite mode, watch a shield bearer | The sprite shield occupies exactly the block the procedural shield occupied — no overlap onto the ground ring, the head, or the weapon | | PENDING |
+| WS-9 | In sprite mode, zoom out far enough to cross into the Low detail tier, then back in | The weapon and shield fall back to the procedural drawing without flicker or a jump at the boundary | | PENDING |
+| WS-10 | In sprite mode, watch a warrior take a hit and then die | Faction colour still reads on the sprite weapon and shield, and the hit pulse and dead-state fade still land on them | | PENDING |
+| WS-11 | In sprite mode, watch a warrior swing leftward specifically, and compare against a rightward swing | Judge whether the single-edged blades read wrongly when the swing carries them through a half turn. This is a known, unfixed consequence of rotating one authored cell, recorded in design section 15; the row exists to decide whether it is acceptable, not to confirm it is absent | | PENDING |
+| WS-12 | Switch the theme to the light one, whose arena surface is `#E5D4AA`, and look at sprite shields and pale hafts | They keep a readable edge. The three-pixel inner outline exists only because they dissolved into that background without it | | PENDING |

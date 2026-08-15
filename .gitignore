@@ -28,3 +28,7 @@ tools/mix-output/
 
 # Transient agent worktrees
 .claude/worktrees/
+
+# Python bytecode from the sprite authoring tools under tools/.
+__pycache__/
+*.pyc
