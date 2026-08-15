@@ -41,6 +41,13 @@ that a later reader can tell a decision from an assumption.
 | A9 | Evidence tier on the inspector armor row? | **Yes.** It is missing today and that is a live gap against `CLAUDE.md` section 7. |
 | — | Is there a `None` baseline? | **Yes.** Bare torso is documented at Mactan in 1521. |
 | — | Armor distribution across a roster | A configurable count per armor type in additional settings, evenly distributed and **mirrored across both teams**. |
+| — | Coverage model | **Per-baseline body-part coverage**, not torso-only for all. See section 6.1. |
+| — | Preset version | **`PrecolonialPhilippinesV7 = 7`.** Six values exist today; seven is the next free. |
+| — | Roster composition | **Weighted toward light armor.** Defaults in section 8. |
+| — | Does armor reach players? | **Yes, shipped as the default.** `ArenaGame.BuildScenario` must select V7, not only the gate. |
+| — | Event granularity | **Only when armor prevented a lethal blow.** A per-hit event would flood a feed that retains 200 events. |
+| — | Head protection | **Separate design, drafted as backlog** in `docs/plans/`. Not part of this package. |
+| — | The four open research questions | **Left OPEN indefinitely.** They gate only a Filipino label for four terms, and nothing in this package depends on them. |
 
 Research decisions taken at the same time, affecting how the evidence is
 presented rather than how the game behaves:
@@ -194,6 +201,40 @@ its code comment and in its test, exactly as the tall-hardwood shield
 multiplier already is. They are not measurements and must never be presented
 as any.
 
+### 6.1 Recommended starting values
+
+Basis points, where 10,000 is 100 per cent. These are a starting point for
+calibration, not a result of it. Every one is provisional.
+
+| Baseline | Torso | Arms | Legs | Head |
+| --- | --- | --- | --- | --- |
+| `None` | 0 | 0 | 0 | 0 |
+| `LightOrganic` (legacy, unfielded) | 0 | 0 | 0 | 0 |
+| `QuiltedCotton` | 1,200 | 600 | 600 | 0 |
+| `HideCorselet` | 1,800 | 0 | 0 | 0 |
+| `RigidCuirass` | 2,500 | 0 | 0 | 0 |
+| `ImportedIron` | 3,200 | 1,600 | 1,600 | 0 |
+
+The coverage pattern is the point, and it is where the sources actually
+differentiate. A corselet is a torso garment, so hide and rigid protect the
+torso and nothing else. Alvarado's 1548 cotton corselet reaches to the feet and
+has sleeves, so quilted cotton protects less per hit but protects everywhere.
+The Camarines iron came with greaves, wristlets, and gauntlets, so imported iron
+covers limbs too. That makes the choice between quilted and rigid a real one
+rather than a strict upgrade.
+
+Head is zero throughout because Hukbo has no helmet identity. When one exists it
+supplies its own mitigation and this column stops being a placeholder.
+
+**Two constraints the calibration must respect.**
+
+No single armor-and-body-part pair exceeds roughly a third. And — the constraint
+that matters more — **battles must still end.** Damage reduction lengthens
+fights, and this repository has already lived through a period where every
+battle ran to a 10,000-tick standoff draw. Reducing damage pushes in exactly
+that direction. If the seed-1 workload starts drawing, the mitigation values are
+too high and must come down; the fix is never to extend the tick budget.
+
 ## 7. Movement
 
 Armor affects movement through its **weight class**, not through per-armor
@@ -208,7 +249,24 @@ folding into `MovementRuleset.ContentHash`.
 
 Instead the weight class — Light, Medium, Rigid — applies a modifier to the
 existing rows. Three classes, one modifier table, and the loadout table keeps
-its current shape. The historical effect the decision asked for is preserved: a
+its current shape.
+
+Recommended starting modifiers, applied to forward and lateral pace, in basis
+points and provisional:
+
+| Weight class | Pace modifier |
+| --- | --- |
+| Light | 0 |
+| Medium | −300 |
+| Rigid | −600 |
+
+Deliberately small. Damage reduction is meant to be armor's effect; the movement
+penalty exists so the choice has a cost and so a spectator can see one in the
+inspector, not so it decides battles. A large penalty here would also compound
+with the mitigation to stall engagements, which section 6.1 already warns
+against.
+
+The historical effect the decision asked for is preserved: a
 warrior in a hardwood cuirass moves differently from one in a bare torso.
 
 ## 8. Distribution
@@ -226,6 +284,23 @@ Mirroring matters for more than fairness. With both teams fielding identical
 armor composition, any divergence in outcome is attributable to the simulation
 rather than to the draw, which is what makes armor effects legible when
 comparing runs.
+
+Recommended shipped default, per team, as proportions. Provisional:
+
+| Baseline | Share |
+| --- | --- |
+| `None` | 35% |
+| `QuiltedCotton` | 30% |
+| `HideCorselet` | 20% |
+| `RigidCuirass` | 12% |
+| `ImportedIron` | 3% |
+
+Weighted toward light armor because the only distribution hint any source gives
+is Artieda's "**some** wear corselets", which marks corselet-bearers as a
+minority. Under this default roughly two thirds of a force wears no armor or a
+quilted garment, and imported iron is rare enough to read as exceptional — which
+is appropriate for equipment whose presence in the archipelago is historically
+contested in the first place.
 
 There is no historical basis for any distribution. No source in the record
 states what proportion of a force wore armor. The setting exists precisely

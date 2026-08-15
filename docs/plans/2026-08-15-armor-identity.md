@@ -58,6 +58,14 @@ The package is done when all of the following hold, each with real output:
 6. Smoke rows added by T15 remain `PENDING` until a human runs them. No agent
    flips one.
 
+7. **Battles still terminate.** The seed-1 workload must reach a decision inside
+   its tick budget. Damage reduction lengthens fights, and this repository has
+   already lived through a period in which every battle ran to a 10,000-tick
+   standoff draw. If runs start drawing, the mitigation values in design section
+   6.1 are too high and come down. **Extending the tick budget to accommodate
+   armor is not an acceptable fix** — it hides the regression instead of
+   reporting it.
+
 ## Sequencing
 
 T1 and T2 are the foundation and run first. T3 through T7 are the Core
