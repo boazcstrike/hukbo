@@ -85,6 +85,59 @@ public sealed class GaitGeometryTests
         Assert.Equal(0f, pose.TorsoLeanX);
     }
 
+    /// <summary>
+    /// A warrior giving ground keeps its stride and its foot lift and loses
+    /// only the forward lean. The lean is signed by the direction of travel, so
+    /// without this a warrior stepping backwards leans towards where it is
+    /// retreating and reads as routing — the opposite of a measured withdrawal.
+    /// </summary>
+    [Fact]
+    public void ResolvePose_SuppressingTheForwardLeanKeepsStrideAndLift()
+    {
+        var leaning = GaitGeometry.ResolvePose(
+            GaitMode.Run,
+            phaseTurns: 0.25f,
+            directionSign: -1f,
+            MotionIntensity.Full);
+        var level = GaitGeometry.ResolvePose(
+            GaitMode.Run,
+            phaseTurns: 0.25f,
+            directionSign: -1f,
+            MotionIntensity.Full,
+            suppressForwardLean: true);
+
+        Assert.NotEqual(0f, leaning.TorsoLeanX);
+        Assert.Equal(0f, level.TorsoLeanX);
+
+        Assert.Equal(leaning.LeftLegOffsetRatio, level.LeftLegOffsetRatio);
+        Assert.Equal(leaning.RightLegOffsetRatio, level.RightLegOffsetRatio);
+        Assert.Equal(leaning.LeftFootLiftRatio, level.LeftFootLiftRatio);
+        Assert.Equal(leaning.RightFootLiftRatio, level.RightFootLiftRatio);
+        Assert.Equal(leaning.DirectionSign, level.DirectionSign);
+    }
+
+    /// <summary>
+    /// The flag defaults to <see langword="false"/>, so every call site that
+    /// existed before it was added resolves exactly the pose it always did.
+    /// </summary>
+    [Fact]
+    public void ResolvePose_DefaultsToLeaningSoExistingCallersAreUnchanged()
+    {
+        var defaulted = GaitGeometry.ResolvePose(
+            GaitMode.Run,
+            phaseTurns: 0.25f,
+            directionSign: 1f,
+            MotionIntensity.Full);
+        var explicitlyLeaning = GaitGeometry.ResolvePose(
+            GaitMode.Run,
+            phaseTurns: 0.25f,
+            directionSign: 1f,
+            MotionIntensity.Full,
+            suppressForwardLean: false);
+
+        Assert.Equal(defaulted, explicitlyLeaning);
+    }
+
     [Fact]
     public void ResolvePose_RunHasALongerStrideAndALeanThanWalk()
     {

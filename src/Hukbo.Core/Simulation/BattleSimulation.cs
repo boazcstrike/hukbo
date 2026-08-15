@@ -133,6 +133,16 @@ public sealed class BattleSimulation
     // nothing every tick inside an existing loop, not a target cache.
     private readonly long[] _nearestMeleeThreatSquared;
 
+    /// <summary>
+    /// Per-agent scratch for the evasive-footwork post-pass. Zero-length under
+    /// every preset but <see cref="MovementPresetId.EvasiveFootworkV14"/>,
+    /// following the <see cref="_nearestMeleeThreatSquared"/> precedent. The
+    /// pass resolves into this array and commits it onto
+    /// <see cref="AgentState.EvasiveAction"/> only once the whole loop has
+    /// finished, so no agent can read another agent's already-updated value.
+    /// </summary>
+    private readonly EvasiveAction[] _evasiveActionScratch;
+
     // Equipment-relative footwork pipeline scratch (weapon-relative movement
     // design, sections 8 through 11). Every array is allocated once here and
     // sized zero under every legacy preset, so a V1-through-V5 battle
@@ -271,6 +281,10 @@ public sealed class BattleSimulation
         _nearestMeleeThreatSquared = UsesBattlefieldRealism(scenario.MovementPreset)
             ? new long[agents.Length]
             : [];
+        _evasiveActionScratch =
+            scenario.MovementPreset is MovementPresetId.EvasiveFootworkV14
+                ? new EvasiveAction[agents.Length]
+                : [];
         _factionSurvivingCompositions = new LoadoutCompositionCounts[2];
         var usesFootwork = _movementRules.UsesEquipmentRelativeFootwork;
         _contingentPostures = usesFootwork
@@ -705,7 +719,13 @@ public sealed class BattleSimulation
                     index);
             }
 
-            // MovementPresetId.ContingentCohesionBeforeContactV14 is admitted
+            // Not covered by UsesBattlefieldRealism or by
+            // YieldsLastStandEngagement: this is its own single-value identity
+            // test, and it is the one a reader of those two predicates misses.
+            // A preset omitted here deploys its armies in a different shape
+            // from V13's, which silently invalidates every comparison between
+            // the two.
+            // MovementPresetId.ContingentCohesionBeforeContactV15 is admitted
             // here for the same reason it is admitted to the
             // battlefield-realism and last-stand gates: it is defined as a
             // strict superset of V13's behaviour, so it inherits the
@@ -713,7 +733,8 @@ public sealed class BattleSimulation
             // contingent-cohesion gate of its own is layered on top.
             var spreadCohortsLaterally =
                 scenario.MovementPreset is MovementPresetId.CohortLateralSpreadV13
-                    or MovementPresetId.ContingentCohesionBeforeContactV14;
+                    or MovementPresetId.EvasiveFootworkV14
+                    or MovementPresetId.ContingentCohesionBeforeContactV15;
             faction0Deployment = CohortDeploymentAssignment.AssignForFaction(
                 deployment, faction0Loadouts, rules, spreadCohortsLaterally);
             faction1Deployment = CohortDeploymentAssignment.AssignForFaction(
@@ -953,7 +974,12 @@ public sealed class BattleSimulation
             // every preset up to and including PrecolonialPhilippinesV4
             // exactly where its pinned hash already is.
             _hasRangedWeapon,
-            new ReadOnlySpan<Projectile>(_projectiles, 0, _projectileLiveCount));
+            new ReadOnlySpan<Projectile>(_projectiles, 0, _projectileLiveCount),
+            // A third gate of its own, for the same reason the second is not
+            // folded inside the first. Only V14 registers this true, so every
+            // preset from V1 to V13 folds nothing here and keeps the hash it
+            // already has.
+            Scenario.MovementPreset is MovementPresetId.EvasiveFootworkV14);
 
     public BattleSnapshot CreateSnapshot()
     {
@@ -1535,7 +1561,7 @@ public sealed class BattleSimulation
     /// the same reason: it is a strict superset of V11's behaviour too, so
     /// it must keep the same last-stand regroup yield unchanged before its
     /// own lateral-riffle cohort traversal is layered on top.
-    /// <see cref="MovementPresetId.ContingentCohesionBeforeContactV14"/> is
+    /// <see cref="MovementPresetId.ContingentCohesionBeforeContactV15"/> is
     /// admitted for the same reason again: it is a strict superset of
     /// <see cref="MovementPresetId.CohortLateralSpreadV13"/>'s behaviour, so it
     /// must keep the same last-stand regroup yield unchanged before its own
@@ -1545,7 +1571,8 @@ public sealed class BattleSimulation
         preset is MovementPresetId.LastStandEngagementV11
             or MovementPresetId.ContingentShapeV12
             or MovementPresetId.CohortLateralSpreadV13
-            or MovementPresetId.ContingentCohesionBeforeContactV14;
+            or MovementPresetId.EvasiveFootworkV14
+            or MovementPresetId.ContingentCohesionBeforeContactV15;
 
     /// <summary>
     /// Derives <see cref="_factionRallyEngaged"/> for both factions: whether
@@ -2211,6 +2238,474 @@ public sealed class BattleSimulation
                 _movementProposals[index] = BuildRegroupingProposal(agent, index);
             }
         }
+
+        ApplyEvasiveFootwork();
+    }
+
+    /// <summary>
+    /// The in-fight evasive footwork post-pass of the 2026-08-15 design,
+    /// section 5. Runs at the tail of <see cref="GatherMovementProposals"/>,
+    /// after every ordinary proposal exists and before anything is resolved or
+    /// committed, and only under
+    /// <see cref="MovementPresetId.EvasiveFootworkV14"/>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// It is a post-pass rather than a rung inside the loop above because every
+    /// branch of that loop <c>continue</c>s out of the body, so there is no
+    /// reachable "last rung". Running over the already-built proposals also
+    /// means the entire legacy path stays byte-identical for V1 through V13,
+    /// proved by the single early return on this method's first line rather
+    /// than by reading fourteen branches.
+    /// </para>
+    /// <para>
+    /// Three guards bind every rung, and they are what make this movement
+    /// during a fight rather than another retreat. A rung fires only for a
+    /// living agent whose tick-start intent is
+    /// <see cref="AgentIntent.Moving"/> or <see cref="AgentIntent.Attacking"/>
+    /// and whose target names a living enemy, so the ranged retreat and the
+    /// last-stand regroup are untouched by construction. No rung writes
+    /// <see cref="AgentState.Intent"/> or clears
+    /// <see cref="AgentState.TargetEntityId"/>. And a rung whose rebuilt
+    /// proposal hits the map bounds yields entirely, leaving the ordinary
+    /// proposal in place, which is the convention
+    /// <see cref="TryBuildRetreatProposal"/> already follows.
+    /// </para>
+    /// <para>
+    /// No rung draws from a random stream. Lateral direction comes from
+    /// <see cref="EvasionRules.DutySign"/>, an integer parity, so the
+    /// <c>SplitMix64</c> sequence after this stage is exactly what it was
+    /// before this method existed.
+    /// </para>
+    /// <para>
+    /// This pass also owns clearing a dead agent's action. The obvious
+    /// precedent, <see cref="ApplyEquipmentAttackFootworkAndDeathCleanup"/>, is
+    /// gated in its entirety on
+    /// <see cref="MovementRuleset.UsesEquipmentRelativeFootwork"/> and so never
+    /// runs under this preset, while dead agents are still folded into the
+    /// state hash. Walking every agent rather than only the living ones keeps a
+    /// corpse from carrying a stale action forever.
+    /// </para>
+    /// </remarks>
+    private void ApplyEvasiveFootwork()
+    {
+        if (Scenario.MovementPreset is not MovementPresetId.EvasiveFootworkV14)
+        {
+            return;
+        }
+
+        var contactSquared =
+            CollisionGeometry.ContactSquaredDistance(Scenario.BodyRadiusRaw);
+        var stopShortRaw = checked(2 * Scenario.BodyRadiusRaw);
+
+        for (var index = 0; index < _agentStates.Length; index++)
+        {
+            _evasiveActionScratch[index] = EvasiveAction.None;
+            var agent = _agentStates[index];
+            if (!agent.IsAlive)
+            {
+                continue;
+            }
+
+            if (agent.Intent is not (AgentIntent.Moving or AgentIntent.Attacking))
+            {
+                continue;
+            }
+
+            if (agent.TargetEntityId is not { } targetId ||
+                !_agentIndexes.TryGetValue(targetId, out var targetIndex))
+            {
+                continue;
+            }
+
+            var target = _agentStates[targetIndex];
+            if (!target.IsAlive || target.FactionId == agent.FactionId)
+            {
+                continue;
+            }
+
+            var deltaX = (long)target.XRaw - agent.XRaw;
+            var deltaY = (long)target.YRaw - agent.YRaw;
+            var distanceSquared = checked((deltaX * deltaX) + (deltaY * deltaY));
+
+            // The ladder is priority-ordered and mutually exclusive: exactly one
+            // action per living agent per tick, first match wins. Dodging an
+            // arrow already in the air outranks everything, because the other
+            // three rungs will still be available next tick and the arrow will
+            // not.
+            if (TryApplyDodgeIncoming(index, agent))
+            {
+                _evasiveActionScratch[index] = EvasiveAction.DodgeIncoming;
+            }
+            else if (TryApplyBreakOff(
+                index, agent, target, deltaX, deltaY, distanceSquared, stopShortRaw))
+            {
+                _evasiveActionScratch[index] = EvasiveAction.BreakOff;
+            }
+            else if (TryApplyGiveGround(
+                index, agent, target, deltaX, deltaY, distanceSquared))
+            {
+                _evasiveActionScratch[index] = EvasiveAction.GiveGround;
+            }
+            else if (TryApplySlipLateral(
+                index,
+                agent,
+                target,
+                deltaX,
+                deltaY,
+                distanceSquared,
+                contactSquared,
+                stopShortRaw))
+            {
+                _evasiveActionScratch[index] = EvasiveAction.SlipLateral;
+            }
+        }
+
+        // Committed exactly once, after every decision is made, so the pass is
+        // order-independent.
+        for (var index = 0; index < _agentStates.Length; index++)
+        {
+            _agentStates[index].EvasiveAction = _evasiveActionScratch[index];
+        }
+    }
+
+    /// <summary>
+    /// Design section 5.2's arm. An exchange against this defender that did not
+    /// land — a shield block, a parry, a deflection, or an evasion — owes the
+    /// defender a break step on the following tick.
+    /// </summary>
+    /// <remarks>
+    /// The write happens only when the defender's action is currently
+    /// <see cref="EvasiveAction.None"/>, and that single condition does three
+    /// things. It keeps the arm from masking an evasive movement the warrior
+    /// actually executed this tick, which would corrupt the derived metrics. It
+    /// makes the write idempotent and confluent when several attackers strike
+    /// one defender in the same tick, since every one of them would write the
+    /// same value and only the first is observed. And it caps break-off at once
+    /// every other tick, because a warrior that executed a break step this tick
+    /// is not holding <see cref="EvasiveAction.None"/> when this runs.
+    /// </remarks>
+    private void ArmBreakOffIfIntercepted(AgentState target, AttackResolution resolution)
+    {
+        if (Scenario.MovementPreset is not MovementPresetId.EvasiveFootworkV14)
+        {
+            return;
+        }
+
+        if (resolution is not (AttackResolution.ShieldBlocked
+            or AttackResolution.Parried
+            or AttackResolution.Deflected
+            or AttackResolution.Evaded))
+        {
+            return;
+        }
+
+        if (!target.IsAlive || target.EvasiveAction != EvasiveAction.None)
+        {
+            return;
+        }
+
+        // The arm carries the same engagement guard the rungs themselves
+        // carry. Without it a warrior backing away or regrouping could be
+        // armed, never become eligible to spend the step, and meanwhile read
+        // as "Breaking off" in the inspector and fold that into the state hash
+        // — a state the ladder can neither produce nor consume.
+        if (target.Intent is not (AgentIntent.Moving or AgentIntent.Attacking) ||
+            target.TargetEntityId is null)
+        {
+            return;
+        }
+
+        target.EvasiveAction = EvasiveAction.BreakOffArmed;
+    }
+
+    /// <summary>
+    /// Design section 5.4, the dodge rung: a warrior with a missile already in
+    /// the air toward it steps off the line of the shot. This is the
+    /// best-attested evasive movement in the research corpus — two independent
+    /// manuscripts record that the men at Mactan would never stand still but
+    /// leaped about under missile fire.
+    /// </summary>
+    /// <remarks>
+    /// The sign is taken from the projectile's launch tick rather than the
+    /// dodger's own, so it is a property of the shot: two warriors under fire
+    /// from the same volley do not all break the same way, and one warrior
+    /// under fire from two shots does not oscillate.
+    /// <para>
+    /// The outcome of the shot was fixed when it was loosed, so a warrior can
+    /// visibly leap aside and still be recorded as hit. That is deliberate, and
+    /// it is what the source describes.
+    /// </para>
+    /// </remarks>
+    private bool TryApplyDodgeIncoming(int index, AgentState agent)
+    {
+        var bestLaunchTick = long.MaxValue;
+        var bestSourceId = ulong.MaxValue;
+        var found = false;
+        var originXRaw = 0;
+        var originYRaw = 0;
+
+        for (var slot = 0; slot < _projectileLiveCount; slot++)
+        {
+            var projectile = _projectiles[slot];
+            if (projectile.TargetEntityId != agent.EntityId ||
+                projectile.TicksRemaining > EvasionRules.DodgeImminenceTicks)
+            {
+                continue;
+            }
+
+            // Total order over a multi-result query: earliest shot first, then
+            // the lowest source entity id.
+            if (!found ||
+                projectile.LaunchTick < bestLaunchTick ||
+                (projectile.LaunchTick == bestLaunchTick &&
+                    projectile.SourceEntityId < bestSourceId))
+            {
+                found = true;
+                bestLaunchTick = projectile.LaunchTick;
+                bestSourceId = projectile.SourceEntityId;
+                originXRaw = projectile.OriginXRaw;
+                originYRaw = projectile.OriginYRaw;
+            }
+        }
+
+        if (!found)
+        {
+            return false;
+        }
+
+        var shotX = (long)agent.XRaw - originXRaw;
+        var shotY = (long)agent.YRaw - originYRaw;
+        var shotDistance = IntegerSquareRoot(
+            checked((shotX * shotX) + (shotY * shotY)));
+        var (offsetXRaw, offsetYRaw) = EvasionRules.PerpendicularOffset(
+            shotX,
+            shotY,
+            shotDistance,
+            checked(EvasionRules.DodgeOffsetMultiplier * Scenario.BodyRadiusRaw),
+            EvasionRules.DutySign(bestLaunchTick, periodTicks: 1));
+        if (offsetXRaw == 0 && offsetYRaw == 0)
+        {
+            return false;
+        }
+
+        var proposal = BuildMovementProposal(
+            agent,
+            checked(agent.XRaw + offsetXRaw),
+            checked(agent.YRaw + offsetYRaw),
+            agent.TargetEntityId ?? agent.EntityId,
+            stopShortRaw: 0,
+            out var boundsClampChanged);
+        if (boundsClampChanged)
+        {
+            return false;
+        }
+
+        _movementProposals[index] = proposal;
+        return true;
+    }
+
+    /// <summary>
+    /// Design section 5.2, the break-off rung: a warrior whose last exchange
+    /// was turned aside circles its enemy at contact distance rather than
+    /// standing in the same line. The aim point is offset perpendicular to the
+    /// line to the target, so the warrior works around the opponent instead of
+    /// opening the range.
+    /// </summary>
+    private bool TryApplyBreakOff(
+        int index,
+        AgentState agent,
+        AgentState target,
+        long deltaX,
+        long deltaY,
+        long distanceSquared,
+        int stopShortRaw)
+    {
+        if (agent.EvasiveAction != EvasiveAction.BreakOffArmed)
+        {
+            return false;
+        }
+
+        var distance = IntegerSquareRoot(distanceSquared);
+        var (offsetXRaw, offsetYRaw) = EvasionRules.PerpendicularOffset(
+            deltaX,
+            deltaY,
+            distance,
+            checked(EvasionRules.BreakOffOffsetMultiplier * Scenario.BodyRadiusRaw),
+            EvasionRules.DutySign(Tick, periodTicks: 1));
+        if (offsetXRaw == 0 && offsetYRaw == 0)
+        {
+            return false;
+        }
+
+        var proposal = BuildMovementProposal(
+            agent,
+            checked(target.XRaw + offsetXRaw),
+            checked(target.YRaw + offsetYRaw),
+            target.EntityId,
+            stopShortRaw,
+            out var boundsClampChanged);
+        if (boundsClampChanged)
+        {
+            return false;
+        }
+
+        _movementProposals[index] = proposal;
+        return true;
+    }
+
+    /// <summary>
+    /// Design section 5.5, the give-ground rung: a warrior pinned in the press
+    /// yields a short step directly away from its enemy without dropping it.
+    /// </summary>
+    /// <remarks>
+    /// The pressure signal is the warrior's own tick-start
+    /// <see cref="MovementResolution"/> being
+    /// <see cref="MovementResolution.Blocked"/> — already computed, already
+    /// authoritative, already folded into the state hash, and free, where a
+    /// per-agent enemy count inside a pressure radius would be quadratic. It is
+    /// a proxy: it fires as readily on ally congestion as on enemy pressure,
+    /// which is why the step is short and rate-limited.
+    /// <para>
+    /// The bound is what keeps this from reading as a rout. A warrior stops two
+    /// body radii from its target's centre while its reach is longer than that,
+    /// so a step of one world unit leaves it inside its own attack range, and
+    /// the ordinary pursuit proposal closes the gap again almost immediately.
+    /// </para>
+    /// </remarks>
+    private bool TryApplyGiveGround(
+        int index,
+        AgentState agent,
+        AgentState target,
+        long deltaX,
+        long deltaY,
+        long distanceSquared)
+    {
+        // Deliberately the warrior's own reach and NOT body contact. A
+        // committed position can never sit at or inside
+        // CollisionGeometry.ContactSquaredDistance, because the collision
+        // resolver's non-penetration invariant is strict while a
+        // tangency-inclusive test is satisfied only at exact equality; the
+        // closest any warrior came across a twenty-seed matrix was one squared
+        // raw unit above it, never on it. Gating this rung on body contact
+        // made it dead code, measured at zero agent-ticks over a full
+        // ten-thousand-tick battle. Reach is the non-degenerate form of "close
+        // enough to be fighting", and it is the same correction design section
+        // 8 bar 4 already had to make.
+        var reachRaw = (long)agent.AttackRangeRaw;
+        if (distanceSquared > checked(reachRaw * reachRaw) ||
+            agent.MovementResolution != MovementResolution.Blocked)
+        {
+            return false;
+        }
+
+        if (!EvasionRules.FiresThisTick(
+                Tick, agent.EntityId, EvasionRules.GiveGroundPeriodTicks))
+        {
+            return false;
+        }
+
+        var distance = IntegerSquareRoot(distanceSquared);
+        if (distance <= 0)
+        {
+            return false;
+        }
+
+        // Directly away from the target: the reverse of the approach vector,
+        // scaled to the give-ground step.
+        var stepXRaw = checked(-deltaX * EvasionRules.GiveGroundStepRaw) / distance;
+        var stepYRaw = checked(-deltaY * EvasionRules.GiveGroundStepRaw) / distance;
+        if (stepXRaw == 0 && stepYRaw == 0)
+        {
+            return false;
+        }
+
+        var proposal = BuildMovementProposal(
+            agent,
+            checked(agent.XRaw + (int)stepXRaw),
+            checked(agent.YRaw + (int)stepYRaw),
+            target.EntityId,
+            stopShortRaw: 0,
+            out var boundsClampChanged);
+        if (boundsClampChanged)
+        {
+            return false;
+        }
+
+        _movementProposals[index] = proposal;
+        return true;
+    }
+
+    /// <summary>
+    /// Design section 5.3, the slip rung: a warrior still closing on its target
+    /// weaves across the line of approach instead of walking straight in. Fires
+    /// outside body contact, inside twice the warrior's own reach, and only on
+    /// the warrior's own duty tick, so at most one tick in
+    /// <see cref="EvasionRules.SlipPeriodTicks"/> carries a slip and
+    /// neighbouring warriors do not step in unison.
+    /// </summary>
+    /// <returns>
+    /// <see langword="true"/> when the proposal was replaced with a slipped
+    /// one, <see langword="false"/> when the rung did not apply or yielded.
+    /// </returns>
+    private bool TryApplySlipLateral(
+        int index,
+        AgentState agent,
+        AgentState target,
+        long deltaX,
+        long deltaY,
+        long distanceSquared,
+        long contactSquared,
+        int stopShortRaw)
+    {
+        if (agent.Intent != AgentIntent.Moving || distanceSquared <= contactSquared)
+        {
+            return false;
+        }
+
+        var slipRadiusRaw = checked(
+            (long)agent.AttackRangeRaw * EvasionRules.SlipRadiusBasisPoints) /
+            EvasionRules.BasisPointDenominator;
+        if (distanceSquared > checked(slipRadiusRaw * slipRadiusRaw))
+        {
+            return false;
+        }
+
+        if (!EvasionRules.FiresThisTick(
+                Tick, agent.EntityId, EvasionRules.SlipPeriodTicks))
+        {
+            return false;
+        }
+
+        var distance = IntegerSquareRoot(distanceSquared);
+        var (offsetXRaw, offsetYRaw) = EvasionRules.PerpendicularOffset(
+            deltaX,
+            deltaY,
+            distance,
+            checked(EvasionRules.SlipOffsetMultiplier * Scenario.BodyRadiusRaw),
+            EvasionRules.DutySign(Tick, EvasionRules.SlipPeriodTicks));
+        if (offsetXRaw == 0 && offsetYRaw == 0)
+        {
+            return false;
+        }
+
+        var proposal = BuildMovementProposal(
+            agent,
+            checked(target.XRaw + offsetXRaw),
+            checked(target.YRaw + offsetYRaw),
+            target.EntityId,
+            stopShortRaw,
+            out var boundsClampChanged);
+        if (boundsClampChanged)
+        {
+            // Hazard one of design section 5.0: a warrior against the map edge
+            // keeps the ordinary proposal rather than proposing a step the
+            // clamp would silently swallow.
+            return false;
+        }
+
+        _movementProposals[index] = proposal;
+        return true;
     }
 
     /// <summary>
@@ -4690,6 +5185,8 @@ public sealed class BattleSimulation
 
             var comboPosition = ResolveComboTransition(source, target, resolution);
 
+            ArmBreakOffIfIntercepted(target, resolution);
+
             _attackProposals[proposalCount] =
                 (sourceIndex, targetIndex, hitLocation, resolution, comboPosition);
             proposalCount++;
@@ -4818,6 +5315,13 @@ public sealed class BattleSimulation
 
             agent.TargetEntityId = null;
             agent.Intent = AgentIntent.Dead;
+
+            // Cleared here rather than only on the next tick's evasive pass. A
+            // warrior can resolve an evasive action at the movement stage and
+            // be killed by the attack stage later in the same tick, and the
+            // state hash is taken at the end of that tick — so leaving it to
+            // the next pass would fold a corpse's last step into the hash.
+            agent.EvasiveAction = EvasiveAction.None;
             AddEvent(
                 events,
                 BattleEventKind.Death,
@@ -5283,7 +5787,7 @@ public sealed class BattleSimulation
     /// behaviour too, so it inherits all three battlefield-realism
     /// behaviours unchanged before the lateral-riffle cohort traversal of
     /// its own is layered on top.
-    /// <see cref="MovementPresetId.ContingentCohesionBeforeContactV14"/> is
+    /// <see cref="MovementPresetId.ContingentCohesionBeforeContactV15"/> is
     /// admitted for the same reason again: it is defined as a strict superset
     /// of <see cref="MovementPresetId.CohortLateralSpreadV13"/>'s behaviour, so
     /// it inherits all three battlefield-realism behaviours unchanged before
@@ -5294,7 +5798,8 @@ public sealed class BattleSimulation
             or MovementPresetId.LastStandEngagementV11
             or MovementPresetId.ContingentShapeV12
             or MovementPresetId.CohortLateralSpreadV13
-            or MovementPresetId.ContingentCohesionBeforeContactV14;
+            or MovementPresetId.EvasiveFootworkV14
+            or MovementPresetId.ContingentCohesionBeforeContactV15;
 
     /// <summary>
     /// The single approved reach test. Attack range is measured centre to

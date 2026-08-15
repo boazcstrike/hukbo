@@ -12,8 +12,8 @@ namespace Hukbo.Core.Tests.Movement;
 /// <c>docs/plans/2026-08-14-contingent-cohesion-before-contact.md</c>. It
 /// measures, per seed across seeds 1 through 20 and for both
 /// <see cref="MovementPresetId.CohortLateralSpreadV13"/> and
-/// <see cref="MovementPresetId.ContingentCohesionBeforeContactV14"/>, the four
-/// numbers task 9 has to choose the three V14 tunables from: the share of
+/// <see cref="MovementPresetId.ContingentCohesionBeforeContactV15"/>, the four
+/// numbers task 9 has to choose the three V15 tunables from: the share of
 /// living-contingent-ticks resolved to <see cref="ContingentState.Hold"/>, the
 /// share of <see cref="ContingentState.Advance"/> members granted a cohesion
 /// destination, the tick of first contact, and the terminal tick and outcome.
@@ -45,7 +45,7 @@ namespace Hukbo.Core.Tests.Movement;
 /// the RU-24/RU-45 roster share weights, and a five-thousand-tick cap are
 /// exactly what
 /// <c>RangedTerminationTests.SeedsOneThroughTwentyProduceVictoriesForBothFactionsUnderBattlefieldRealism</c>
-/// runs. Task 11 adds the V14 form of that test and task 9 chooses the
+/// runs. Task 11 adds the V15 form of that test and task 9 chooses the
 /// tunables from this harness's table, so the two must read against one
 /// yardstick: a band tuned against a differently shaped battle would be tuned
 /// against a battle the termination clause never measures.
@@ -151,7 +151,7 @@ internal static class ContingentCohesionCalibrationHarness
     private static readonly MovementPresetId[] MeasuredPresets =
     [
         MovementPresetId.CohortLateralSpreadV13,
-        MovementPresetId.ContingentCohesionBeforeContactV14,
+        MovementPresetId.ContingentCohesionBeforeContactV15,
     ];
 
     /// <summary>
@@ -159,7 +159,7 @@ internal static class ContingentCohesionCalibrationHarness
     /// <see cref="MeasuredPresets"/>. The full names are in the header, so the
     /// table itself stays inside a readable width.
     /// </summary>
-    private static readonly string[] MeasuredPresetLabels = ["V13", "V14"];
+    private static readonly string[] MeasuredPresetLabels = ["V13", "V15"];
 
     /// <summary>
     /// The contingent state each slot resolved to on the tick just finished.

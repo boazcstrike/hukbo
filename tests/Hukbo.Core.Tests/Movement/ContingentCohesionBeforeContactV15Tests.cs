@@ -9,10 +9,10 @@ using Hukbo.Headless;
 namespace Hukbo.Core.Tests.Movement;
 
 /// <summary>
-/// Coverage for <see cref="MovementPresetId.ContingentCohesionBeforeContactV14"/>
+/// Coverage for <see cref="MovementPresetId.ContingentCohesionBeforeContactV15"/>
 /// and the rules the contingent cohesion before contact plan changes.
 /// </summary>
-public sealed class ContingentCohesionBeforeContactV14Tests
+public sealed class ContingentCohesionBeforeContactV15Tests
 {
     // ----- Task 6 (R2): the narrowed scan excludes exactly two states -----
 
@@ -102,48 +102,48 @@ public sealed class ContingentCohesionBeforeContactV14Tests
 
     /// <summary>
     /// The shipped default, and the control every property test below reads
-    /// V14 against. It is the immediate predecessor rather than an arbitrary
-    /// one: V14 is admitted to the same three preset-identity gates V13
+    /// V15 against. It is the immediate predecessor rather than an arbitrary
+    /// one: V15 is admitted to the same three preset-identity gates V13
     /// passes, so an A/B between the two isolates the contingent-cohesion
     /// change rather than also re-testing the lateral riffle.
     /// </summary>
     private static MovementRuleset V13 =>
         MovementPresetRegistry.Get(MovementPresetId.CohortLateralSpreadV13);
 
-    private static MovementRuleset V14 =>
+    private static MovementRuleset V15 =>
         MovementPresetRegistry.Get(
-            MovementPresetId.ContingentCohesionBeforeContactV14);
+            MovementPresetId.ContingentCohesionBeforeContactV15);
 
     [Fact]
-    public void ContingentCohesionBeforeContactV14HasTheExpectedNumericValue()
+    public void ContingentCohesionBeforeContactV15HasTheExpectedNumericValue()
     {
         Assert.Equal(
-            14, (int)MovementPresetId.ContingentCohesionBeforeContactV14);
+            15, (int)MovementPresetId.ContingentCohesionBeforeContactV15);
     }
 
     [Fact]
-    public void ContingentCohesionBeforeContactV14IsRegistered()
+    public void ContingentCohesionBeforeContactV15IsRegistered()
     {
         Assert.True(
             MovementPresetRegistry.IsRegistered(
-                MovementPresetId.ContingentCohesionBeforeContactV14));
+                MovementPresetId.ContingentCohesionBeforeContactV15));
     }
 
     /// <summary>
     /// Every field V11 registers is carried forward verbatim, so the only
-    /// tunables that separate V14 from the whole V11 line are the gate and
+    /// tunables that separate V15 from the whole V11 line are the gate and
     /// the three values the calibration sweep settled. The content hashes
     /// still differ, because the folded <c>Id</c> alone would separate them
     /// and the three gated numerics separate them again.
     /// </summary>
     [Fact]
-    public void ContingentCohesionBeforeContactV14CarriesItsOwnIdentity()
+    public void ContingentCohesionBeforeContactV15CarriesItsOwnIdentity()
     {
         var v11 = MovementPresetRegistry.Get(
             MovementPresetId.LastStandEngagementV11);
-        var v14 = V14;
+        var v14 = V15;
 
-        Assert.Equal(MovementPresetId.ContingentCohesionBeforeContactV14, v14.Id);
+        Assert.Equal(MovementPresetId.ContingentCohesionBeforeContactV15, v14.Id);
 
         Assert.Equal(v11.Version, v14.Version);
         Assert.Equal(v11.CohesionRadiusMultiplier, v14.CohesionRadiusMultiplier);
@@ -186,15 +186,15 @@ public sealed class ContingentCohesionBeforeContactV14Tests
     /// <summary>
     /// The gate and the three values the twenty-seed calibration sweep
     /// settled, pinned as literals rather than read back off the registry, so
-    /// this test is an expectation about what V14 is and not a restatement of
+    /// this test is an expectation about what V15 is and not a restatement of
     /// whatever it happens to hold. Changing any one of them is a behavioural
     /// change to a registered preset and needs a new preset version, not an
     /// edit here.
     /// </summary>
     [Fact]
-    public void ContingentCohesionBeforeContactV14RegistersTheSettledTunables()
+    public void ContingentCohesionBeforeContactV15RegistersTheSettledTunables()
     {
-        var v14 = V14;
+        var v14 = V15;
 
         Assert.True(v14.GathersContingentsBeforeContact);
         Assert.Equal(1, v14.CohesionBandNumerator);
@@ -226,7 +226,7 @@ public sealed class ContingentCohesionBeforeContactV14Tests
     /// off a restatement of it: a member standing between the registered band
     /// — one third of the cohesion radius — and the three-quarters distance
     /// every preset up to V13 uses is granted a cohesion destination in
-    /// <see cref="ContingentState.Advance"/> under V14 and denied one under
+    /// <see cref="ContingentState.Advance"/> under V15 and denied one under
     /// V13. The two flanking pairs are the band's own edges: inside one third
     /// neither preset calls the member a straggler, and beyond three quarters
     /// both already did, so the change is a widening of one interval and not
@@ -262,19 +262,19 @@ public sealed class ContingentCohesionBeforeContactV14Tests
         int distanceNumerator,
         int distanceDenominator,
         bool expectedUnderV13,
-        bool expectedUnderV14)
+        bool expectedUnderV15)
     {
         var underV13 = ProbeAdvanceMemberCohesionGrant(
             MovementPresetId.CohortLateralSpreadV13,
             distanceNumerator,
             distanceDenominator);
-        var underV14 = ProbeAdvanceMemberCohesionGrant(
-            MovementPresetId.ContingentCohesionBeforeContactV14,
+        var underV15 = ProbeAdvanceMemberCohesionGrant(
+            MovementPresetId.ContingentCohesionBeforeContactV15,
             distanceNumerator,
             distanceDenominator);
 
         Assert.Equal(expectedUnderV13, underV13);
-        Assert.Equal(expectedUnderV14, underV14);
+        Assert.Equal(expectedUnderV15, underV15);
     }
 
     /// <summary>
@@ -371,17 +371,17 @@ public sealed class ContingentCohesionBeforeContactV14Tests
 
     /// <summary>
     /// R3's claim at the shape a real battle actually reaches: for every
-    /// living count both a V13 run and a V14 run pass through, the half-side
-    /// of the square V14's contingent claims is strictly smaller than V13's.
+    /// living count both a V13 run and a V15 run pass through, the half-side
+    /// of the square V15's contingent claims is strictly smaller than V13's.
     /// Read out of <c>BattleSimulation</c>'s own per-slot margin array during
     /// two full battles, so it is the number gates 5 and 6 consumed rather
     /// than a number this file computed.
     /// </summary>
     [Fact]
-    public void V14ClaimsAStrictlySmallerSquareThanV13AtEveryLivingCountBothRunsReach()
+    public void V15ClaimsAStrictlySmallerSquareThanV13AtEveryLivingCountBothRunsReach()
     {
         var v13 = V13ClaimedGeometry.Value;
-        var v14 = V14ClaimedGeometry.Value;
+        var v14 = V15ClaimedGeometry.Value;
         var shared = SharedLivingCounts(v13, v14);
 
         Assert.True(
@@ -394,9 +394,9 @@ public sealed class ContingentCohesionBeforeContactV14Tests
         {
             Assert.True(
                 v14[livingCount].MarginRaw < v13[livingCount].MarginRaw,
-                $"At {livingCount} living members V14 claimed a half-side of " +
+                $"At {livingCount} living members V15 claimed a half-side of " +
                 $"{v14[livingCount].MarginRaw} raw units and V13 claimed " +
-                $"{v13[livingCount].MarginRaw}; V14's must be strictly " +
+                $"{v13[livingCount].MarginRaw}; V15's must be strictly " +
                 $"smaller.");
         }
     }
@@ -410,11 +410,11 @@ public sealed class ContingentCohesionBeforeContactV14Tests
     /// standing on its own.
     /// </summary>
     [Fact]
-    public void V14ClaimsAStrictlySmallerSquareForEveryLivingCountFromOneToTwoHundred()
+    public void V15ClaimsAStrictlySmallerSquareForEveryLivingCountFromOneToTwoHundred()
     {
         var bodyRadiusRaw = ControlBodyRadiusRaw;
         var v13 = V13;
-        var v14 = V14;
+        var v14 = V15;
 
         for (var livingCount = 1;
             livingCount <= LargestSweptLivingCount;
@@ -427,9 +427,9 @@ public sealed class ContingentCohesionBeforeContactV14Tests
 
             Assert.True(
                 v14HalfSideRaw < v13HalfSideRaw,
-                $"At {livingCount} living members V14's claimed half-side is " +
+                $"At {livingCount} living members V15's claimed half-side is " +
                 $"{v14HalfSideRaw} raw units and V13's is {v13HalfSideRaw}; " +
-                $"V14's must be strictly smaller at every count from 1 to " +
+                $"V15's must be strictly smaller at every count from 1 to " +
                 $"{LargestSweptLivingCount}.");
         }
     }
@@ -451,7 +451,7 @@ public sealed class ContingentCohesionBeforeContactV14Tests
         foreach (var (rules, observed) in new[]
         {
             (V13, V13ClaimedGeometry.Value),
-            (V14, V14ClaimedGeometry.Value),
+            (V15, V15ClaimedGeometry.Value),
         })
         {
             Assert.NotEmpty(observed);
@@ -488,10 +488,10 @@ public sealed class ContingentCohesionBeforeContactV14Tests
 
         var bodyRadiusRaw = ControlBodyRadiusRaw;
         var v13 = V13;
-        var unscaledV14 = WithCohesionSquareMarginBasisPoints(
-            V14, MovementRuleset.UnscaledCohesionSquareMarginBasisPoints);
+        var unscaledV15 = WithCohesionSquareMarginBasisPoints(
+            V15, MovementRuleset.UnscaledCohesionSquareMarginBasisPoints);
 
-        Assert.True(unscaledV14.GathersContingentsBeforeContact);
+        Assert.True(unscaledV15.GathersContingentsBeforeContact);
 
         for (var livingCount = 1;
             livingCount <= LargestSweptLivingCount;
@@ -499,7 +499,7 @@ public sealed class ContingentCohesionBeforeContactV14Tests
         {
             Assert.Equal(
                 ClaimedSquareHalfSideRaw(v13, bodyRadiusRaw, livingCount),
-                ClaimedSquareHalfSideRaw(unscaledV14, bodyRadiusRaw, livingCount));
+                ClaimedSquareHalfSideRaw(unscaledV15, bodyRadiusRaw, livingCount));
         }
     }
 
@@ -584,17 +584,17 @@ public sealed class ContingentCohesionBeforeContactV14Tests
     /// apart a contingent's members stand — it is what
     /// <c>ContingentOffset.Compute</c> is handed — and R3 scales the
     /// <em>claimed</em> margin only. So for every living count both control
-    /// runs reach, V14's jitter must equal V13's exactly. If this ever fails,
-    /// V14 has started moving warriors relative to one another, which is the
+    /// runs reach, V15's jitter must equal V13's exactly. If this ever fails,
+    /// V15 has started moving warriors relative to one another, which is the
     /// one thing the design rules out on evidentiary rather than engineering
     /// grounds, and the correct response is to revert the change rather than
     /// to re-record anything.
     /// </summary>
     [Fact]
-    public void V14JitterEqualsV13AtEveryLivingCountBothRunsReach()
+    public void V15JitterEqualsV13AtEveryLivingCountBothRunsReach()
     {
         var v13 = V13ClaimedGeometry.Value;
-        var v14 = V14ClaimedGeometry.Value;
+        var v14 = V15ClaimedGeometry.Value;
         var shared = SharedLivingCounts(v13, v14);
 
         Assert.True(
@@ -668,8 +668,8 @@ public sealed class ContingentCohesionBeforeContactV14Tests
             MovementPresetId.CohortLateralSpreadV13));
 
     private static readonly Lazy<Dictionary<int, ClaimedGeometry>>
-        V14ClaimedGeometry = new(() => ObserveClaimedGeometry(
-            MovementPresetId.ContingentCohesionBeforeContactV14));
+        V15ClaimedGeometry = new(() => ObserveClaimedGeometry(
+            MovementPresetId.ContingentCohesionBeforeContactV15));
 
     private static int ControlBodyRadiusRaw =>
         ControlScenario(MovementPresetId.CohortLateralSpreadV13).BodyRadiusRaw;
@@ -677,7 +677,7 @@ public sealed class ContingentCohesionBeforeContactV14Tests
     /// <summary>
     /// The one control shape every run in this file uses: 200 warriors, seed
     /// 1, <c>PrecolonialPhilippinesV2</c>, with only the movement preset
-    /// varying, so a V13 run and a V14 run differ in nothing else.
+    /// varying, so a V13 run and a V15 run differ in nothing else.
     /// </summary>
     private static Scenario ControlScenario(MovementPresetId preset)
     {
@@ -903,7 +903,7 @@ public sealed class ContingentCohesionBeforeContactV14Tests
     /// <c>RangedTerminationTests</c>. Task 7 shrinks a contingent's claimed
     /// square to 6000 basis points of the margin the packing bound in
     /// <see cref="FormationRules.ComputeContingentJitterRaw"/> derives, so
-    /// V14 parks its aim points closer together than any preset before it.
+    /// V15 parks its aim points closer together than any preset before it.
     /// The failure that buys is not a battle that never ends — the
     /// termination sweep would see that — it is a battle that ends normally
     /// while one warrior spent hundreds of ticks walking into an ally he
@@ -918,15 +918,15 @@ public sealed class ContingentCohesionBeforeContactV14Tests
     /// <c>BattleSimulation.LongestBlockedStreakTicks</c> reading, and the
     /// same 125-tick PROVISIONAL bound. Only the movement preset differs, so
     /// this test and that one are read against one yardstick and a
-    /// difference between them is a difference V14 caused.
+    /// difference between them is a difference V15 caused.
     /// </para>
     /// <para>
     /// Measured at the time of writing, across seeds 1 to 20 in this
-    /// configuration: the V14 streak runs 3 to 49 ticks with a median of 20,
+    /// configuration: the V15 streak runs 3 to 49 ticks with a median of 20,
     /// worst on seed 9, against a bound of 125. The two neighbouring presets
     /// measured through the identical loop come out at 37 (V13, the shipped
     /// default) and 62 (V4, the preset the 125 was originally fitted to), so
-    /// V14 sits between them: closer parking does cost roughly a dozen ticks
+    /// V15 sits between them: closer parking does cost roughly a dozen ticks
     /// of blocking over its immediate predecessor, which is exactly the trade
     /// finding 1 of the plan records, and it is nowhere near the bound.
     /// </para>
@@ -945,17 +945,17 @@ public sealed class ContingentCohesionBeforeContactV14Tests
     /// The configuration is deliberately the reference test's rather than a
     /// full two-hundred-warrior deployment, and that is a measured choice.
     /// Run through this same loop at two hundred warriors, every preset
-    /// exceeds 125 — 173 for V4, 143 for V13, 126 for V14 — because a battle
+    /// exceeds 125 — 173 for V4, 143 for V13, 126 for V15 — because a battle
     /// with an order of magnitude more bodies in it blocks for longer for
     /// reasons that have nothing to do with contingent cohesion. Transplanting
     /// the bound to that shape would produce a test that fails hardest on the
-    /// shipped default, which would report nothing about V14 at all. V14
+    /// shipped default, which would report nothing about V15 at all. V15
     /// being the lowest of the three at that size is the reassurance; the
     /// bound is held where it was fitted.
     /// </para>
     /// </remarks>
     [Fact]
-    public void ContingentCohesionBeforeContactV14NeverLeavesAWarriorBlockedTooLongAcrossSeedsOneThroughTwenty()
+    public void ContingentCohesionBeforeContactV15NeverLeavesAWarriorBlockedTooLongAcrossSeedsOneThroughTwenty()
     {
         const int MaximumAllowedBlockedStreakTicks = 125;
         var worstStreakTicks = 0;
@@ -971,7 +971,7 @@ public sealed class ContingentCohesionBeforeContactV14Tests
             var scenario = Scenario.CreateDefault(seed, totalAgents: 32) with
             {
                 MovementPreset =
-                    MovementPresetId.ContingentCohesionBeforeContactV14,
+                    MovementPresetId.ContingentCohesionBeforeContactV15,
                 LastStandThresholdAgents =
                     FormationRules.MaximumLastStandThresholdAgents,
             };
@@ -1008,10 +1008,10 @@ public sealed class ContingentCohesionBeforeContactV14Tests
             worstStreakTicks <= MaximumAllowedBlockedStreakTicks,
             $"Longest observed blocked streak was {worstStreakTicks} ticks " +
             $"across seeds 1 to 20 under " +
-            $"{MovementPresetId.ContingentCohesionBeforeContactV14}, " +
+            $"{MovementPresetId.ContingentCohesionBeforeContactV15}, " +
             $"exceeding the {MaximumAllowedBlockedStreakTicks}-tick " +
             "PROVISIONAL bound the same sweep applies to the shipped " +
-            "default. A failure here means V14's claimed square is shrunk " +
+            "default. A failure here means V15's claimed square is shrunk " +
             "past what the collision resolver can absorb, which is a tuning " +
             "decision about the 6000 basis-point margin to revisit — not a " +
             $"bound to raise. Worst seed: {worstDiagnostics}.");
@@ -1021,13 +1021,13 @@ public sealed class ContingentCohesionBeforeContactV14Tests
 
     /// <summary>
     /// Plan task 13: pins
-    /// <see cref="MovementPresetId.ContingentCohesionBeforeContactV14"/>'s own
+    /// <see cref="MovementPresetId.ContingentCohesionBeforeContactV15"/>'s own
     /// full-battle trajectory the way V10 through V13 each pin theirs -- the
     /// terminal tick, the outcome, the state hash, and the ordered-event fold,
     /// against the same 200-warrior, <c>PrecolonialPhilippinesV2</c>, seed-1
     /// control shape
     /// <c>CohortLateralSpreadV13Tests.CohortLateralSpreadV13FullBattleReproducesItsPinnedTrajectory</c>
-    /// uses, with only the movement preset changed to V14.
+    /// uses, with only the movement preset changed to V15.
     /// </summary>
     /// <remarks>
     /// <para>
@@ -1045,26 +1045,26 @@ public sealed class ContingentCohesionBeforeContactV14Tests
     /// which is the arithmetic evidence that the new preset is a different
     /// simulation and not a renamed copy: V13 decides at tick 1353 with state
     /// hash <c>F3ED8F6CE6C27C1E</c> and event fold <c>A9A8CBE67AE6BC5C</c>,
-    /// V14 decides two ticks earlier at 1351 with different values for both.
+    /// V15 decides two ticks earlier at 1351 with different values for both.
     /// The outcome is the one field the two share, and a shared winner on one
     /// seed is not evidence of anything either way.
     /// </para>
     /// <para>
-    /// Changing any registered V14 field, or any rule V14 reaches, moves these
+    /// Changing any registered V15 field, or any rule V15 reaches, moves these
     /// four numbers. That is the point of the pin, and the correct response is
     /// a new preset version with its own capture, never an edit of the
     /// literals here.
     /// </para>
     /// </remarks>
     [Fact]
-    public void ContingentCohesionBeforeContactV14FullBattleReproducesItsPinnedTrajectory()
+    public void ContingentCohesionBeforeContactV15FullBattleReproducesItsPinnedTrajectory()
     {
         var simulation = CreateFullBattleControlRun();
         var result = RunToCompletion(simulation);
 
         Assert.Equal(1351L, result.Tick);
         Assert.Equal(BattleOutcome.Faction0Victory, result.Outcome);
-        Assert.Equal(0x6E4EDC28DBAC39F8UL, result.StateHash);
+        Assert.Equal(0x635E8E6FEB982961UL, result.StateHash);
         Assert.Equal(0x2A6460285A85B335UL, result.EventFold);
     }
 
@@ -1074,7 +1074,7 @@ public sealed class ContingentCohesionBeforeContactV14Tests
     /// V13, and <c>ContingentShapeV12Tests.CreateFullBattleControlRun</c> for
     /// V10 and V11 -- 200 warriors, seed 1, <c>PrecolonialPhilippinesV2</c>,
     /// the pinned body radius -- with the movement preset fixed to
-    /// <see cref="MovementPresetId.ContingentCohesionBeforeContactV14"/>. The
+    /// <see cref="MovementPresetId.ContingentCohesionBeforeContactV15"/>. The
     /// body radius and the combat preset are stated explicitly rather than
     /// taken from the scenario default so that a fixture cannot silently drift
     /// out from under the pinned literals above when a shipped default moves.
@@ -1086,7 +1086,7 @@ public sealed class ContingentCohesionBeforeContactV14Tests
         var scenario = Scenario.CreateDefault(seed: 1, totalAgents: 200) with
         {
             MovementPreset =
-                MovementPresetId.ContingentCohesionBeforeContactV14,
+                MovementPresetId.ContingentCohesionBeforeContactV15,
             BodyRadiusRaw = CapturedBodyRadiusRaw,
             CombatPreset = CombatPresetId.PrecolonialPhilippinesV2,
         };

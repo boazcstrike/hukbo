@@ -9,8 +9,16 @@ namespace Hukbo.Core.Movement;
 /// method reads only its own arguments — no agent array, no simulation, no
 /// tick pipeline — matching the testability shape of
 /// <see cref="MovementRouteRules"/>. Division truncates toward zero
-/// everywhere, and nothing here touches floating point. Not yet wired into
-/// <c>BattleSimulation</c>.
+/// everywhere, and nothing here touches floating point.
+/// <para>
+/// This comment used to say the class was not yet wired into
+/// <c>BattleSimulation</c>. It is: <c>ThreatRadiusRaw</c> and
+/// <c>IsThreatened</c> are both called from the ranged retreat rung, which
+/// runs under every battlefield-realism preset including the one the client
+/// ships. The stale claim survived long enough to be quoted as evidence that
+/// no shipped code could move a warrior away from a fight, which was the
+/// opposite of the truth.
+/// </para>
 /// </summary>
 internal static class RangedRetreatRules
 {

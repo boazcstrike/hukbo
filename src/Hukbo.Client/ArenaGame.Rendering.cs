@@ -1391,7 +1391,9 @@ public sealed partial class ArenaGame
                 brokeOffUnderPressure: agent.BrokeOffUnderPressure,
                 pawnVisualStyle: _configuredPawnVisualStyle,
                 bodyAtlas: _pawnBodyAtlas,
-                entityId: agent.EntityId);
+                entityId: agent.EntityId,
+                weaponVisualStyle: _configuredWeaponVisualStyle,
+                weaponAtlas: _weaponSpriteAtlas);
 
             DrawEmbeddedProjectiles(spriteBatch, pixel, agent.EntityId, pawnLayout);
 

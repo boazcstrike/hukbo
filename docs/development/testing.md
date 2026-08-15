@@ -1575,6 +1575,81 @@ that "the hashes are unchanged" has to name which of the five it means.
 The final row is the pair the recorded seed-1 baseline elsewhere in this
 document refers to.
 
+## 2026-08-15 — in-fight evasion, and a sixth workload
+
+`./scripts/verify.ps1 -Game Hukbo` on branch `hukbo-fight-evasion`, ending
+`[PASS] Canonical repository verification completed.` with exit code 0. Tests
+were 2,636 Core and 4,009 Client, all passing.
+
+**Stage five now runs six headless workloads.** Each is 200 agents, 10,000
+ticks, and seed 1, and each reported `deterministic: true` with a
+`firstMismatchTick` of `null`.
+
+| Combat preset | Movement preset | Outcome | State hash | Event hash |
+| --- | --- | --- | --- | --- |
+| 6 | 4 | `Faction0Victory` | `5460D13E3F7FD3E5` | `8E18ED1437B2924B` |
+| 5 | 8 | `Faction1Victory` | `C8023D3B5BEB005E` | `F709A345E2F7370E` |
+| 5 | 10 | `Faction0Victory` | `7C145A9E05916E4C` | `77626E104234206C` |
+| 5 | 11 | `Faction0Victory` | `6225182B4A470F91` | `C4DABE6AF98B6BEC` |
+| 5 | 13 | `Faction1Victory` | `4A0723BC9A1B924B` | `E0CE32CF8830A864` |
+| 5 | 14 | `Faction0Victory` | `155326060E6FAC82` | `289980C2B3F9E1D2` |
+
+**The first five rows are byte-identical to the five recorded above, in the
+same run.** That is the point of adding a row rather than repointing one: the
+V13 row is now the leak detector proving the evasive rungs never reach the
+preset every earlier build ran.
+
+The 5 / 14 pair is new and belongs to `EvasiveFootworkV14`, which became the
+client's default in the same package. An earlier measurement of that preset
+reported `256589E964A2D0CE` / `A8E213FF8053B56D`; that run predates the
+give-ground trigger fix described below and is superseded. Quote the newer
+pair.
+
+### What the evasion package measured
+
+Movement was never measured in this repository before this work, so the
+anti-goal bars had no numbers behind them. `EvasionCalibrationHarness`, which
+compiles only under the `HUKBO_CALIBRATION` symbol, ran seeds 1 to 20 at 200
+agents under both presets.
+
+| Quantity | V13 | V14 | Bar | Verdict |
+| --- | --- | --- | --- | --- |
+| Rooted share | 0.6221 | 0.5839 | strictly below V13 | pass |
+| Travel per living agent | 559,765 | 563,197 | at most 727,694 | pass |
+| Mean net displacement | 354,301 | 359,239 | at most 407,446 | pass |
+| Reach retention, agent-ticks | 385.88 | 372.48 | at least 347.29 | pass |
+| Decisive seeds | 20 of 20 | 20 of 20 | at least 19, none at cap | pass |
+| Faction split | 11 / 9 | 9 / 11 | both sides win | pass |
+| Total ticks over 20 seeds | 45,038 | 44,007 | median within +25 per cent | pass |
+| `DefenceAttributableShare`, seed 1 | 0.3124 | 0.3158 | inside 0.25 to 0.45 | pass |
+
+Battles got shorter rather than longer, so the standoff that ended the V6 and
+V7 line did not reappear.
+
+**Two measurement traps are worth recording, because both were hit.** The
+first is that contact retention, measured against
+`CollisionGeometry.ContactSquaredDistance`, is exactly zero on all twenty
+seeds and always will be: the collision resolver's non-penetration invariant
+is strict, so a committed position never sits at the contact distance, and a
+tangency-inclusive test is satisfied only at exact equality. The closest any
+warrior came across the whole matrix was one squared raw unit above it. A bar
+written as "at least ninety per cent of the V13 value" would have compared
+zero against zero and passed for any behaviour whatsoever. The bar now uses
+the warrior's own attack range.
+
+The second is that the same degenerate test was then used, in the first
+implementation, to trigger the give-ground rung — which consequently measured
+**zero agent-ticks over a full ten-thousand-tick battle**. That mattered more
+than it looks: rootedness is dominated by warriors pinned in the press, and
+give-ground is the only rung that reaches them, so with it dead the feature
+weaved on the approach and did nothing for the warriors that actually look
+frozen. Re-triggering it on reach moved the seed-1 rooted share from 0.6203,
+which was *worse* than V13's 0.6133, to 0.6112.
+
+Per-rung agent-tick counts at seed 1 under V14, for a later run to compare
+against: `slipLateral` 5,018, `dodgeIncoming` 714, `giveGround` 890,
+`breakOff` 346, `breakOffArmed` 394, against 132,693 living agent-ticks.
+
 ## The interactive smoke checklist
 
 Moved to [smoke-checklist.md](smoke-checklist.md) on 2026-08-11.

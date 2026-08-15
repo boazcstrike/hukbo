@@ -204,6 +204,46 @@ Interactive behaviour is proven only by the manual checklist. Compilation, the
 unit suites, and a window-opening probe do not let any row be flipped to
 `PASS`.
 
+## Task 10a — the visual review, and what it caught
+
+The atlas was rendered and looked at directly, per role, both at authored size
+and downsampled to the 46 pixels a weapon actually occupies on screen at maximum
+zoom. Recorded here because task 10a asks for a verdict per role, and because
+four of these defects were invisible to every test in the repository and would
+have shipped.
+
+| Row | First verdict | Action |
+| --- | --- | --- |
+| Kampilan | Reads as a broad straight blade; ten variants distinguishable | Accepted |
+| Kalis | Reads as a slim tapering blade, clearly distinct from the Kampilan | Accepted |
+| Itak | The strongest row — broad single-edged blade, real breadth variation | Accepted |
+| Bangkaw | Leaf point on a shaft, distinct at gameplay size | Accepted |
+| Shield | Plank seams, lashing, and tone spread all read | Accepted |
+| Wasay | **Failed.** The head was symmetric about the haft and read as a spearhead or a faceted crystal, not an axe | Re-authored: separate poll and blade polygons, head mounted to one side, cutting-edge arc carrying the highlight |
+| Busog | **Failed.** A quiver was baked into the rotating cell | Re-authored: stave only |
+| Arquebus | **Failed twice.** First as a chimney on a mound, then as a rod on a block | Re-authored: fore-stock wrapping the lower barrel span, unambiguous wood-to-metal step |
+
+Three findings from this review were larger than the row that surfaced them.
+
+**The Busog quiver was a correctness bug, not a taste call.** The cell is drawn
+rotated about the grip along the weapon line, so a quiver baked into it would
+swing around the pawn as the archer drew. Separately, `grep -n -i "quiver"` over
+`src/Hukbo.Client/Rendering` and `src/Hukbo.Client/Presentation` returns nothing:
+the game has never drawn a quiver, and the catalog's "clearly visible back
+quiver" is descriptive intent in a comment rather than shipped geometry. A back
+quiver is a body element and would need its own design decision.
+
+**Axial fill was wrong across four rows**, and the brief that caused it was
+wrong too — the Arquebus was explicitly told not to fill its cell, on the
+mistaken reasoning that the renderer already encodes its shortness. It does, via
+the line length, which is precisely why the cell must fill its box. Section 4 of
+the design document now carries the corrected rule and the packer enforces it.
+
+**The art needed an outline, but only because of the light theme.** On the dark
+themes every row reads unaided; against `#E5D4AA` the pale shields and hafts
+dissolve. This is the kind of thing that is only ever found by rendering the
+art against the backgrounds it will actually sit on.
+
 ## Smoke rows this package owes
 
 | Row | What to check |
@@ -222,5 +262,79 @@ unit suites, and a window-opening probe do not let any row be flipped to
 
 ## What was run
 
-To be filled in by the integrating session with the verbatim gate output from
-task 25. Leave empty rather than summarised until then.
+`./scripts/verify.ps1` was run once, undelegated, from the `weapon-sprites`
+worktree with every change of this package present in the working tree. It
+exited 0. Because the bare form has run both games since 2026-08-14, this is
+**two results and must not be reported as one.**
+
+Stages, verbatim:
+
+```
+[PASS] Platform: Windows x64
+[PASS] PowerShell: 7.6.4
+[PASS] .NET SDK: 10.0.302
+[PASS] packages.lock.json present for all 21 projects.
+[PASS] MonoGame packages are centrally pinned: MonoGame.Content.Builder.Task 3.8.5, MonoGame.Framework.DesktopGL 3.8.5
+[PASS] Required prerequisites and repository configuration are present.
+[PASS] Locked package restore completed.
+[PASS] Formatting verification completed.
+[PASS] Release solution build completed.
+```
+
+**Hukbo.** Both suites green, and all five headless determinism workloads
+green:
+
+```
+Total tests: 2568
+     Passed: 2568          (Hukbo.Core.Tests)
+Total tests: 4046
+     Passed: 4046          (Hukbo.Client.Tests)
+[PASS] Release repository tests completed.
+[PASS] Headless workload completed: agents=200 ticks=10000 seed=1.   (x5)
+```
+
+The five workloads reported these digests:
+
+| # | stateHash | eventHash |
+| --- | --- | --- |
+| 1 | `5460D13E3F7FD3E5` | `8E18ED1437B2924B` |
+| 2 | `C8023D3B5BEB005E` | `F709A345E2F7370E` |
+| 3 | `7C145A9E05916E4C` | `77626E104234206C` |
+| 4 | `6225182B4A470F91` | `C4DABE6AF98B6BEC` |
+| 5 | `4A0723BC9A1B924B` | `E0CE32CF8830A864` |
+
+**Every one of those five state hashes was checked against the baselines
+recorded in `docs/development/testing.md` and all five match.** They had to:
+`git diff --name-only main...HEAD` over this package touches no file under
+`src/Hukbo.Core`, `src/Hukbo.Headless`, or `src/Hukbo.Shared.Core`, so the
+headless runner cannot see this work at all. Confirming it rather than asserting
+it is the point — a presentation change that moved a simulation hash would mean
+something had crossed the boundary.
+
+**Sandata.** Untouched by this package and green on its own terms:
+
+```
+Total tests: 1176
+     Passed: 1176          (Sandata.Core.Tests)
+Total tests: 325
+     Passed: 325           (Sandata.Client.Tests)
+[PASS] Release repository tests completed.
+  "eventHash": "260A20BC8F578E19",
+  "stateHash": "DA3D1BEB99978A75",
+[PASS] Headless workload completed: agents=200 ticks=10000 seed=1.
+```
+
+Both digests match the baseline `CLAUDE.md` records for 2026-08-15.
+
+```
+[PASS] Canonical repository verification completed.
+```
+
+**What this gate does not prove.** It never opens a window, never draws a pawn,
+and never composites a sprite. It proves the atlas has the right shape, that all
+eighty cells sit inside their content boxes, that variant selection is stable
+and spread across the row, that the rotation constant is right for a worked
+example, and that the submission counts fall in sprite mode. Whether a weapon
+stays in a warrior's hand through a swing is the subject of rows `WS-1` through
+`WS-12` in `docs/development/smoke-checklist.md`, and every one of them is
+`PENDING`. No agent may flip them.

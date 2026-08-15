@@ -842,4 +842,225 @@ public sealed class HeadlessRunnerTests
             implicitReport.RootElement.GetProperty("stateHash").GetString(),
             explicitReport.RootElement.GetProperty("stateHash").GetString());
     }
+
+    /// <summary>
+    /// The arguments of the shipped movement family, shrunk to a size a unit
+    /// test can afford. Every evasion test below runs this same workload, so
+    /// they are all describing one battle rather than five different ones.
+    /// </summary>
+    private static readonly string[] EvasionWorkloadArguments =
+    [
+        "--agents", "20", "--ticks", "300", "--seed", "1234",
+        "--preset", "PrecolonialPhilippinesV5",
+        "--movement-preset", "CohortLateralSpreadV13",
+    ];
+
+    /// <summary>
+    /// Runs the shared evasion workload and returns its deserialized report,
+    /// failing the calling test if the run did not exit cleanly.
+    /// </summary>
+    private static RunReport RunEvasionWorkload()
+    {
+        var output = new StringWriter();
+        var errorOutput = new StringWriter();
+
+        var exitCode = HeadlessRunner.Run(
+            EvasionWorkloadArguments, output, errorOutput);
+
+        Assert.Equal(0, exitCode);
+        var deserialized = JsonSerializer.Deserialize<RunReport>(
+            output.ToString(),
+            new JsonSerializerOptions
+            {
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+            });
+
+        Assert.NotNull(deserialized);
+        return deserialized;
+    }
+
+    /// <summary>
+    /// The determinism case for the derived evasion block. Two same-seed runs
+    /// of the same build must agree in every one of the eleven fields, field by
+    /// field rather than through a single struct comparison, so a failure names
+    /// the quantity that drifted instead of only reporting that something did.
+    /// </summary>
+    [Fact]
+    public void Run_TwoSameSeedRunsAgreeOnEveryEvasionMetricField()
+    {
+        var first = RunEvasionWorkload().EvasionMetrics;
+        var second = RunEvasionWorkload().EvasionMetrics;
+
+        Assert.Equal(first.LivingAgentTicks, second.LivingAgentTicks);
+        Assert.Equal(first.RootedAgentTicks, second.RootedAgentTicks);
+        Assert.Equal(first.TotalTravelRaw, second.TotalTravelRaw);
+        Assert.Equal(
+            first.ReachRetentionAgentTicks, second.ReachRetentionAgentTicks);
+        Assert.Equal(first.TargetHeldAgentTicks, second.TargetHeldAgentTicks);
+        Assert.Equal(first.SlipLateralAgentTicks, second.SlipLateralAgentTicks);
+        Assert.Equal(
+            first.DodgeIncomingAgentTicks, second.DodgeIncomingAgentTicks);
+        Assert.Equal(first.GiveGroundAgentTicks, second.GiveGroundAgentTicks);
+        Assert.Equal(first.BreakOffAgentTicks, second.BreakOffAgentTicks);
+        Assert.Equal(
+            first.BreakOffArmedAgentTicks, second.BreakOffArmedAgentTicks);
+        Assert.Equal(first.NetDisplacementSumRaw, second.NetDisplacementSumRaw);
+        Assert.Equal(first, second);
+    }
+
+    /// <summary>
+    /// The shipped V13 preset never resolves an <c>EvasiveAction</c> at all, so
+    /// all five action counters must be exactly zero, while the movement half
+    /// of the block must be alive: a battle in which nobody moved is not a
+    /// battle, and a zero here would mean the observation never ran.
+    /// </summary>
+    [Fact]
+    public void Run_ReportsZeroEvasiveActionCountersAndNonzeroTravelUnderV13()
+    {
+        var metrics = RunEvasionWorkload().EvasionMetrics;
+
+        Assert.Equal(0L, metrics.SlipLateralAgentTicks);
+        Assert.Equal(0L, metrics.DodgeIncomingAgentTicks);
+        Assert.Equal(0L, metrics.GiveGroundAgentTicks);
+        Assert.Equal(0L, metrics.BreakOffAgentTicks);
+        Assert.Equal(0L, metrics.BreakOffArmedAgentTicks);
+
+        Assert.True(
+            metrics.TotalTravelRaw > 0,
+            "A V13 battle must accumulate travel; zero means the observation " +
+            "never ran.");
+        Assert.True(
+            metrics.NetDisplacementSumRaw > 0,
+            "Warriors that closed on an enemy line cannot all have finished " +
+            "on their spawn point.");
+        Assert.True(
+            metrics.TargetHeldAgentTicks > 0,
+            "Somebody must have held a living enemy target at some point.");
+        Assert.True(
+            metrics.ReachRetentionAgentTicks > 0,
+            "Somebody must have held a living enemy target inside their own " +
+            "attack range at some point.");
+        Assert.True(
+            metrics.ReachRetentionAgentTicks <= metrics.TargetHeldAgentTicks,
+            "Holding a target inside reach is a special case of holding one.");
+    }
+
+    /// <summary>
+    /// The block rides the report as one camel-case object and must survive the
+    /// reflection-based JSON round trip in every field, exactly as the combat
+    /// and movement blocks do.
+    /// </summary>
+    [Fact]
+    public void Run_EvasionMetricsSurviveAJsonRoundTrip()
+    {
+        var output = new StringWriter();
+        var errorOutput = new StringWriter();
+
+        var exitCode = HeadlessRunner.Run(
+            EvasionWorkloadArguments, output, errorOutput);
+
+        Assert.Equal(0, exitCode);
+        var deserialized = JsonSerializer.Deserialize<RunReport>(
+            output.ToString(),
+            new JsonSerializerOptions
+            {
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+            });
+
+        Assert.NotNull(deserialized);
+        using var report = JsonDocument.Parse(output.ToString());
+        var metrics = report.RootElement.GetProperty("evasionMetrics");
+
+        Assert.Equal(
+            metrics.GetProperty("livingAgentTicks").GetInt64(),
+            deserialized.EvasionMetrics.LivingAgentTicks);
+        Assert.Equal(
+            metrics.GetProperty("rootedAgentTicks").GetInt64(),
+            deserialized.EvasionMetrics.RootedAgentTicks);
+        Assert.Equal(
+            metrics.GetProperty("totalTravelRaw").GetInt64(),
+            deserialized.EvasionMetrics.TotalTravelRaw);
+        Assert.Equal(
+            metrics.GetProperty("reachRetentionAgentTicks").GetInt64(),
+            deserialized.EvasionMetrics.ReachRetentionAgentTicks);
+        Assert.Equal(
+            metrics.GetProperty("targetHeldAgentTicks").GetInt64(),
+            deserialized.EvasionMetrics.TargetHeldAgentTicks);
+        Assert.Equal(
+            metrics.GetProperty("slipLateralAgentTicks").GetInt64(),
+            deserialized.EvasionMetrics.SlipLateralAgentTicks);
+        Assert.Equal(
+            metrics.GetProperty("dodgeIncomingAgentTicks").GetInt64(),
+            deserialized.EvasionMetrics.DodgeIncomingAgentTicks);
+        Assert.Equal(
+            metrics.GetProperty("giveGroundAgentTicks").GetInt64(),
+            deserialized.EvasionMetrics.GiveGroundAgentTicks);
+        Assert.Equal(
+            metrics.GetProperty("breakOffAgentTicks").GetInt64(),
+            deserialized.EvasionMetrics.BreakOffAgentTicks);
+        Assert.Equal(
+            metrics.GetProperty("breakOffArmedAgentTicks").GetInt64(),
+            deserialized.EvasionMetrics.BreakOffArmedAgentTicks);
+        Assert.Equal(
+            metrics.GetProperty("netDisplacementSumRaw").GetInt64(),
+            deserialized.EvasionMetrics.NetDisplacementSumRaw);
+    }
+
+    /// <summary>
+    /// The backward-compatibility case. Every report written before this member
+    /// existed has no <c>evasionMetrics</c> property at all, and must still
+    /// deserialize — to an all-zero block rather than to an exception.
+    /// </summary>
+    [Fact]
+    public void AReportWithoutTheEvasionBlockDeserializesToDefaultMetrics()
+    {
+        var output = new StringWriter();
+        var errorOutput = new StringWriter();
+        var exitCode = HeadlessRunner.Run(
+            ["--agents", "20", "--ticks", "50", "--seed", "1234"],
+            output,
+            errorOutput);
+        Assert.Equal(0, exitCode);
+
+        // Strip the block to reconstruct the shape every report written before
+        // this member existed actually has on disk.
+        var node = System.Text.Json.Nodes.JsonNode.Parse(output.ToString());
+        Assert.NotNull(node);
+        var stripped = node.AsObject();
+        Assert.True(stripped.Remove("evasionMetrics"));
+
+        var deserialized = JsonSerializer.Deserialize<RunReport>(
+            stripped.ToJsonString(),
+            new JsonSerializerOptions
+            {
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+            });
+
+        Assert.NotNull(deserialized);
+        Assert.Equal(
+            default(EvasiveMovementMetrics), deserialized.EvasionMetrics);
+    }
+
+    /// <summary>
+    /// The internal-consistency case that would catch the denominator being
+    /// counted differently from its own numerator: rooted agent-ticks are a
+    /// subset of living agent-ticks by construction, so the share they form can
+    /// never exceed one.
+    /// </summary>
+    [Fact]
+    public void Run_ReportsRootedAgentTicksAsASubsetOfLivingAgentTicks()
+    {
+        var metrics = RunEvasionWorkload().EvasionMetrics;
+
+        Assert.True(
+            metrics.LivingAgentTicks > 0,
+            "A run that advanced any tick at all must observe living agents.");
+        Assert.True(
+            metrics.RootedAgentTicks <= metrics.LivingAgentTicks,
+            $"Rooted agent-ticks ({metrics.RootedAgentTicks}) cannot exceed " +
+            $"living agent-ticks ({metrics.LivingAgentTicks}).");
+        Assert.True(
+            metrics.RootedAgentTicks >= 0,
+            "A count cannot be negative.");
+    }
 }

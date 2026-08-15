@@ -136,7 +136,8 @@ internal sealed partial class ArmyCompositionPanel
             MovementPresetId.LastStandEngagementV11,
             MovementPresetId.ContingentShapeV12,
             MovementPresetId.CohortLateralSpreadV13,
-            MovementPresetId.ContingentCohesionBeforeContactV14,
+            MovementPresetId.EvasiveFootworkV14,
+            MovementPresetId.ContingentCohesionBeforeContactV15,
         ];
 
     /// <summary>
@@ -159,7 +160,8 @@ internal sealed partial class ArmyCompositionPanel
             "V11 Last-Stand Engagement",
             "V12 Contingent Shape",
             "V13 Cohort Lateral Spread",
-            "V14 Contingent Cohesion Before Contact",
+            "V14 Evasive Footwork",
+            "V15 Contingent Cohesion Before Contact",
         ];
 
     /// <summary>

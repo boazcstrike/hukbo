@@ -229,7 +229,9 @@ internal static class PawnRenderer
         bool brokeOffUnderPressure = false,
         PawnVisualStyle pawnVisualStyle = PawnVisualStyle.Procedural,
         Texture2D? bodyAtlas = null,
-        ulong entityId = 0)
+        ulong entityId = 0,
+        WeaponVisualStyle weaponVisualStyle = WeaponVisualStyle.Procedural,
+        Texture2D? weaponAtlas = null)
     {
         ArgumentNullException.ThrowIfNull(spriteBatch);
         ArgumentNullException.ThrowIfNull(pixel);
@@ -263,7 +265,9 @@ internal static class PawnRenderer
             brokeOffUnderPressure,
             pawnVisualStyle,
             bodyAtlas,
-            entityId);
+            entityId,
+            weaponVisualStyle,
+            weaponAtlas);
     }
 
     /// <summary>
@@ -305,7 +309,9 @@ internal static class PawnRenderer
         bool brokeOffUnderPressure = false,
         PawnVisualStyle pawnVisualStyle = PawnVisualStyle.Procedural,
         Texture2D? bodyAtlas = null,
-        ulong entityId = 0)
+        ulong entityId = 0,
+        WeaponVisualStyle weaponVisualStyle = WeaponVisualStyle.Procedural,
+        Texture2D? weaponAtlas = null)
     {
         ArgumentNullException.ThrowIfNull(spriteBatch);
         ArgumentNullException.ThrowIfNull(pixel);
@@ -424,9 +430,13 @@ internal static class PawnRenderer
             spriteBatch,
             pixel,
             layout,
+            appearance.ShieldRole,
             appearance.ShieldSkinId,
             appearance.ShieldFaceColor,
-            isDead);
+            isDead,
+            weaponVisualStyle,
+            weaponAtlas,
+            entityId);
         if (drawsSpriteBody)
         {
             // One textured quad in place of the torso, head, and head
@@ -476,7 +486,10 @@ internal static class PawnRenderer
             appearance.WeaponRole,
             appearance.WeaponBladeColor,
             appearance.WeaponGripColor,
-            isDead);
+            isDead,
+            weaponVisualStyle,
+            weaponAtlas,
+            entityId);
 
         if (state is PawnVisualState.Hovered or PawnVisualState.Selected)
         {
@@ -1242,9 +1255,13 @@ internal static class PawnRenderer
         SpriteBatch spriteBatch,
         Texture2D pixel,
         PawnLayout layout,
+        PawnShieldRole shieldRole,
         string shieldSkinId,
         Color shieldFaceColor,
-        bool isDead)
+        bool isDead,
+        WeaponVisualStyle weaponVisualStyle,
+        Texture2D? weaponAtlas,
+        ulong entityId)
     {
         if (layout.ShieldBounds.IsEmpty)
         {
@@ -1262,6 +1279,27 @@ internal static class PawnRenderer
             .AboutPivot(pivot, layout.ShieldPostureRotationRadians)
             .Then(layout.Collapse);
         var faceColor = ApplyState(shieldFaceColor, isDead);
+
+        if (ShouldDrawFromWeaponAtlas(weaponVisualStyle, weaponAtlas, layout.ApparentScale))
+        {
+            // The 2026-08-15 weapon sprite design, section 4 and task 18: one
+            // textured quad into the exact rectangle the procedural face,
+            // seam, and edge tones occupied — never a different footprint
+            // (ShieldVisualCatalog.cs:11-14's "a skin may only ever change how
+            // the block looks, never what it covers"). No rotation offset:
+            // the shield is authored upright and already carries the correct
+            // posture through `transform`.
+            DrawSpriteShield(
+                spriteBatch,
+                weaponAtlas!,
+                bounds,
+                transform,
+                shieldRole,
+                entityId,
+                faceColor);
+            return;
+        }
+
         var isBoxerCagayan =
             shieldSkinId == ShieldVisualCatalog.BoxerCagayan.Catalog.Id;
         var isVisayanKalasag =
@@ -1345,6 +1383,69 @@ internal static class PawnRenderer
                 edgeToneColor,
                 transform);
         }
+    }
+
+    /// <summary>
+    /// Whether <c>DrawWeapon</c> and <c>DrawShield</c> should draw from
+    /// <see cref="WeaponSpriteAtlas"/> instead of their procedural paths this
+    /// frame (the 2026-08-15 weapon sprite design, section 10): the setting
+    /// is <see cref="WeaponVisualStyle.Sprite"/>, the atlas is actually
+    /// loaded, and the pawn classifies at Medium detail tier or above. Below
+    /// Medium the atlas cell would shimmer without mipmaps at the size a
+    /// weapon or shield draws, so both callers fall back to their unchanged
+    /// procedural quads regardless of the setting.
+    /// </summary>
+    private static bool ShouldDrawFromWeaponAtlas(
+        WeaponVisualStyle style,
+        Texture2D? weaponAtlas,
+        float apparentScale)
+    {
+        return style == WeaponVisualStyle.Sprite &&
+            weaponAtlas is not null &&
+            DetailTierGate.ShouldDraw(apparentScale, VisualDetailTier.Medium);
+    }
+
+    /// <summary>
+    /// One authored shield cell, submitted into exactly the rectangle the
+    /// procedural face, seam, and edge tones occupied. Mirrors
+    /// <see cref="DrawSpriteBody"/>'s shape — a non-uniform scale that fits
+    /// the destination rectangle exactly, origin at the source rectangle's
+    /// centre — because the shield is not drawn along the weapon line and
+    /// takes no rotation offset; <paramref name="transform"/> already carries
+    /// its posture rotation and any death collapse.
+    /// </summary>
+    private static void DrawSpriteShield(
+        SpriteBatch spriteBatch,
+        Texture2D weaponAtlas,
+        Rectangle bounds,
+        PawnTransform transform,
+        PawnShieldRole shieldRole,
+        ulong entityId,
+        Color tint)
+    {
+        var source = WeaponSpriteAtlas.GetShieldSourceBounds(
+            shieldRole,
+            WeaponSpriteAtlas.GetVariantIndex(entityId));
+
+        if (transform.IsIdentity)
+        {
+            spriteBatch.Draw(weaponAtlas, bounds, source, tint);
+            return;
+        }
+
+        var center = transform.Apply(new Vector2(bounds.Center.X, bounds.Center.Y));
+        spriteBatch.Draw(
+            weaponAtlas,
+            center,
+            source,
+            tint,
+            transform.Radians,
+            new Vector2(source.Width * 0.5f, source.Height * 0.5f),
+            new Vector2(
+                (float)bounds.Width / source.Width,
+                (float)bounds.Height / source.Height),
+            SpriteEffects.None,
+            layerDepth: 0f);
     }
 
     /// <summary>
@@ -1578,11 +1679,32 @@ internal static class PawnRenderer
         PawnWeaponRole role,
         Color weaponBladeColor,
         Color weaponGripColor,
-        bool isDead)
+        bool isDead,
+        WeaponVisualStyle weaponVisualStyle,
+        Texture2D? weaponAtlas,
+        ulong entityId)
     {
         var gripColor = ApplyState(weaponGripColor, isDead);
         var bladeColor = ApplyState(weaponBladeColor, isDead);
         var ironHighlight = ApplyState(IronHighlight, isDead);
+
+        if (ShouldDrawFromWeaponAtlas(weaponVisualStyle, weaponAtlas, layout.ApparentScale))
+        {
+            // The 2026-08-15 weapon sprite design, section 3 and task 17: one
+            // textured quad rotated about the grip onto the WeaponStart to
+            // WeaponEnd line. The Busog's bowstring genuinely deforms with
+            // draw tension and stays procedural even here (design section 9)
+            // — "one textured quad plus two line quads" — so it draws over
+            // the stave sprite exactly as it draws over the procedural blade.
+            DrawSpriteWeapon(spriteBatch, weaponAtlas!, layout, role, bladeColor, entityId);
+
+            if (role == PawnWeaponRole.Busog)
+            {
+                DrawBowstring(spriteBatch, pixel, layout, gripColor);
+            }
+
+            return;
+        }
 
         switch (role)
         {
@@ -1681,6 +1803,52 @@ internal static class PawnRenderer
             default:
                 throw new ArgumentOutOfRangeException(nameof(role), role, null);
         }
+    }
+
+    /// <summary>
+    /// One authored weapon cell, rotated about the grip end onto the
+    /// <see cref="PawnLayout.WeaponStart"/> to <see cref="PawnLayout.WeaponEnd"/>
+    /// line. The exact formula task 17 requires: position at the (collapsed)
+    /// grip, origin at the source rectangle's bottom-centre (every cell is
+    /// authored grip-down, tip-up — see
+    /// <see cref="WeaponSpriteAtlas.WeaponSpriteRotationOffsetRadians"/>'s own
+    /// derivation), a single uniform scale of
+    /// <c>length / source.Height</c> so the sprite's authored length matches
+    /// the line's own length, and the same <paramref name="tint"/> the
+    /// procedural path already applied — there is no second tint path.
+    /// </summary>
+    private static void DrawSpriteWeapon(
+        SpriteBatch spriteBatch,
+        Texture2D weaponAtlas,
+        PawnLayout layout,
+        PawnWeaponRole role,
+        Color tint,
+        ulong entityId)
+    {
+        var start = layout.Collapse.Apply(layout.WeaponStart);
+        var end = layout.Collapse.Apply(layout.WeaponEnd);
+        var delta = end - start;
+        var length = delta.Length();
+        if (length <= float.Epsilon)
+        {
+            return;
+        }
+
+        var source = WeaponSpriteAtlas.GetSourceBounds(
+            role,
+            WeaponSpriteAtlas.GetVariantIndex(entityId));
+        var scale = length / source.Height;
+
+        spriteBatch.Draw(
+            weaponAtlas,
+            start,
+            source,
+            tint,
+            MathF.Atan2(delta.Y, delta.X) + WeaponSpriteAtlas.WeaponSpriteRotationOffsetRadians,
+            new Vector2(source.Width * 0.5f, source.Height),
+            scale,
+            SpriteEffects.None,
+            layerDepth: 0f);
     }
 
     private static void DrawBlade(

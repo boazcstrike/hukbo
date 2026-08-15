@@ -59,6 +59,76 @@ public sealed class GaitAnimationSystemTests
     }
 
     [Fact]
+    public void Ingest_DueSouthRunResolvesANonZeroDirectionSign()
+    {
+        var system = new GaitAnimationSystem(capacity: 8);
+        system.Ingest([Agent(2, 0, 0)]);
+
+        system.Ingest([Agent(2, 0, 1600)]);
+
+        Assert.True(system.TryGetEntry(2, out var entry));
+        Assert.Equal(GaitMode.Run, entry.Mode);
+        // Zero here is the defect: PawnGeometry multiplies both leg offsets by
+        // this sign, so a zero collapses the stride and the warrior slides.
+        Assert.NotEqual(0f, entry.DirectionSign);
+    }
+
+    [Fact]
+    public void Ingest_DueNorthRunResolvesANonZeroDirectionSign()
+    {
+        var system = new GaitAnimationSystem(capacity: 8);
+        system.Ingest([Agent(2, 0, 0)]);
+
+        system.Ingest([Agent(2, 0, -1600)]);
+
+        Assert.True(system.TryGetEntry(2, out var entry));
+        Assert.Equal(GaitMode.Run, entry.Mode);
+        Assert.NotEqual(0f, entry.DirectionSign);
+    }
+
+    [Fact]
+    public void Ingest_DueEastRunStillResolvesThePositiveHorizontalSign()
+    {
+        var system = new GaitAnimationSystem(capacity: 8);
+        system.Ingest([Agent(2, 0, 0)]);
+
+        system.Ingest([Agent(2, 1600, 0)]);
+
+        Assert.True(system.TryGetEntry(2, out var entry));
+        Assert.Equal(GaitMode.Run, entry.Mode);
+        Assert.Equal(1f, entry.DirectionSign);
+    }
+
+    [Fact]
+    public void Ingest_DueWestRunStillResolvesTheNegativeHorizontalSign()
+    {
+        var system = new GaitAnimationSystem(capacity: 8);
+        system.Ingest([Agent(2, 0, 0)]);
+
+        system.Ingest([Agent(2, -1600, 0)]);
+
+        Assert.True(system.TryGetEntry(2, out var entry));
+        Assert.Equal(GaitMode.Run, entry.Mode);
+        Assert.Equal(-1f, entry.DirectionSign);
+    }
+
+    [Fact]
+    public void Ingest_AStationaryWarriorRetainsItsPreviousDirectionSign()
+    {
+        var system = new GaitAnimationSystem(capacity: 8);
+        system.Ingest([Agent(2, 0, 0)]);
+        system.Ingest([Agent(2, -1600, 0)]);
+        Assert.True(system.TryGetEntry(2, out var moving));
+
+        system.Ingest([Agent(2, -1600, 0)]);
+        system.Ingest([Agent(2, -1600, 0)]);
+
+        Assert.True(system.TryGetEntry(2, out var stationary));
+        Assert.Equal(GaitMode.Stance, stationary.Mode);
+        Assert.Equal(moving.DirectionSign, stationary.DirectionSign);
+    }
+
+    [Fact]
     public void Ingest_TwoTicksAtIdenticalPositionsEasesPhaseTowardNeutralAndStaysStance()
     {
         var system = new GaitAnimationSystem(capacity: 8);

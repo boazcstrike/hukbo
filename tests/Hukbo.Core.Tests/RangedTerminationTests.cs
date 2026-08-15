@@ -269,7 +269,7 @@ public sealed class RangedTerminationTests
     /// bar the two sweeps above apply to
     /// <see cref="MovementPresetId.RangedStandoffV8"/> and
     /// <see cref="MovementPresetId.BattlefieldRealismV10"/>, applied instead to
-    /// <see cref="MovementPresetId.ContingentCohesionBeforeContactV14"/>. This
+    /// <see cref="MovementPresetId.ContingentCohesionBeforeContactV15"/>. This
     /// is the gate on the whole cohesion change: a preset that makes warriors
     /// wait for their contingent before contact is a preset that can make them
     /// wait forever, and a gather that never resolves shows up here as seeds
@@ -283,13 +283,13 @@ public sealed class RangedTerminationTests
     /// exactly — the same <see cref="RangedRosterShareWeights"/> roster split,
     /// the same <see cref="CombatPresetId.PrecolonialPhilippinesV5"/> pairing,
     /// the same tick cap, and the same three clauses — so that V10's result and
-    /// V14's are read against one yardstick. Only the movement preset differs.
+    /// V15's are read against one yardstick. Only the movement preset differs.
     /// </para>
     /// <para>
     /// Movement preset V7 is the precedent this test exists to refuse to
     /// repeat: a preset whose behaviour was interesting, whose termination bar
     /// was never met, and which shipped anyway with a frozen draw on the
-    /// ten-thousandth tick still recorded in the tree. V14 is not permitted
+    /// ten-thousandth tick still recorded in the tree. V15 is not permitted
     /// that outcome, so if these clauses ever fail the correct response is to
     /// change the preset, never to loosen the clause.
     /// </para>
@@ -322,7 +322,7 @@ public sealed class RangedTerminationTests
             {
                 CombatPreset = CombatPresetId.PrecolonialPhilippinesV5,
                 MovementPreset =
-                    MovementPresetId.ContingentCohesionBeforeContactV14,
+                    MovementPresetId.ContingentCohesionBeforeContactV15,
                 RosterCounts = rosterCounts,
                 TickLimit = MedianDecisiveTickLimit,
             };
