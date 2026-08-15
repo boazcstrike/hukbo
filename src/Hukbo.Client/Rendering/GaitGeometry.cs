@@ -146,11 +146,21 @@ internal static class GaitGeometry
     /// <see cref="GrassSway.ReducedAmplitudeFactor"/>. <see cref="MotionIntensity.Full"/>
     /// applies no scaling.
     /// </param>
+    /// <param name="suppressForwardLean">
+    /// Suppresses the forward lean while leaving stride and lift untouched.
+    /// The lean is signed by the direction of travel, so a warrior stepping
+    /// backwards leans towards where it is going — which reads as a rout
+    /// rather than as a measured withdrawal. The caller sets this for a
+    /// warrior that is giving ground deliberately. It is a plain flag rather
+    /// than a simulation enum on purpose: this type decides how a body is
+    /// drawn and has no business knowing what an evasive action is.
+    /// </param>
     public static GaitPose ResolvePose(
         GaitMode mode,
         float phaseTurns,
         float directionSign,
-        MotionIntensity motionIntensity)
+        MotionIntensity motionIntensity,
+        bool suppressForwardLean = false)
     {
         if (!Enum.IsDefined(mode))
         {
@@ -200,7 +210,13 @@ internal static class GaitGeometry
         var rightOffset = -leftOffset;
         var leftLift = MathF.Max(0f, sine) * liftRatio * amplitudeFactor;
         var rightLift = MathF.Max(0f, -sine) * liftRatio * amplitudeFactor;
-        var leanX = leanRatio * amplitudeFactor * directionSign;
+        // Stride and lift are untouched: the warrior is still walking, and
+        // freezing its legs would trade one wrong reading for another. Only
+        // the lean goes, because only the lean says which way the body is
+        // committed.
+        var leanX = suppressForwardLean
+            ? 0f
+            : leanRatio * amplitudeFactor * directionSign;
 
         return new GaitPose(
             mode,

@@ -1,5 +1,6 @@
 using Hukbo.Client.Presentation;
 using Hukbo.Client.Settings;
+using Hukbo.Core.Movement;
 using Hukbo.Core.Simulation;
 
 namespace Hukbo.Client.Rendering;
@@ -66,11 +67,19 @@ internal static class GaitPoseResolver
                 continue;
             }
 
+            // The one place a simulation value is translated into a drawing
+            // rule. GaitGeometry takes a plain flag and never learns what an
+            // evasive action is; deciding which actions mean "committed
+            // backwards" belongs here, beside the view it is read from.
+            var givingGround =
+                agents[index].EvasiveAction == EvasiveAction.GiveGround;
+
             destination[entityId] = GaitGeometry.ResolvePose(
                 entry.Mode,
                 entry.PhaseTurns,
                 entry.DirectionSign,
-                motionIntensity);
+                motionIntensity,
+                givingGround);
         }
 
         return destination;
