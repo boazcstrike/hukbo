@@ -34,9 +34,23 @@ is not authorized work; it is a reminder that the question was decided
   ones in the reported round, with a longest unbroken blocked streak of 168
   ticks — 8.4 seconds of a warrior standing still. Parked by user decision on
   2026-07-30 after the same session's lag report was traced to this rather than
-  to the frame loop. The full measured baseline, both seeds, and what a future
-  change has to beat are in
-  [`2026-07-30-formation-blocking-baseline.md`](2026-07-30-formation-blocking-baseline.md).
+  to the frame loop. No cause was ever identified, and no successor plan has
+  claimed the handoff.
+
+  The document that carried the full measurement was archived on 2026-08-15
+  under the title "Formation blocking at 500 agents — backlog entry and measured
+  baseline", so the numbers a future change has to beat are restated here rather
+  than pointed at. Its 2026-07-30 figures above are a two-seed comparison and
+  should not be used as a target: a twenty-seed sweep on 2026-08-13 found
+  `blockedAgentTicks` varying by 146 per cent across seeds, which retires any
+  two-seed difference as noise, and its worst case was a longest unbroken
+  blocked streak of 904 ticks — 45 seconds of one warrior standing still.
+
+  That sweep is not a live baseline either. It ran under
+  `MovementPresetId.LastStandEngagementV11`, the shipped movement default that
+  day, and the shipped default is now `MovementPresetId.CohortLateralSpreadV13`.
+  No figure anywhere describes what a spectator watches today, so whoever picks
+  this up re-measures first and compares against nothing in this entry.
 
 ## From the follower-trailing deadlock diagnosis (2026-07-28, re-checked 2026-08-15)
 

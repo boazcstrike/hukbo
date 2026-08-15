@@ -771,31 +771,33 @@ golden expectations rather than an edit to a shipped preset.
 
 ### 5.1 The parked baseline
 
-`docs/plans/2026-07-30-formation-blocking-baseline.md` is a live plan document,
-not archived, and its own status line at
-`docs/plans/2026-07-30-formation-blocking-baseline.md:3-5` reads: "Backlog. This
-document authorizes no implementation. It records a measured baseline." It is
-also the one entry under "From the second-round lag report (2026-07-30)" in
-`docs/plans/TODO.md:32-40`.
+The document titled "Formation blocking at 500 agents — backlog entry and
+measured baseline" was archived on 2026-08-15 and is reference only. Before it
+moved, its own status line read: "Backlog. This document authorizes no
+implementation. It records a measured baseline." It is also the one entry
+under "From the second-round lag report (2026-07-30)" in
+`docs/plans/TODO.md:32-40`. The figures below were transcribed from that
+document before it moved.
 
 Both runs are `./scripts/benchmark.ps1 -Agents 500 -Ticks 2000` in `Release`
-under combat preset V4, and both reported `deterministic: true`
-(`2026-07-30-formation-blocking-baseline.md:56-59`). The figures requested,
-with their source lines:
+under combat preset V4, and both reported `deterministic: true`. The figures
+requested:
 
-| Figure | Round 1 (seed 1) | Round 2 (seed 11400714819323198486) | Source line |
-| --- | --- | --- | --- |
-| `blockedAgentTicks` | 19,488 | **33,330** | `2026-07-30-formation-blocking-baseline.md:68` |
-| `attackCapableAgentTicks` | 28,588 | 27,882 | `2026-07-30-formation-blocking-baseline.md:70` |
-| `longestBlockedStreakTicks` | 178 | 168 | `2026-07-30-formation-blocking-baseline.md:69` |
-| `measuredTicks` | 2,000 (undecided at cap) | 1,980 | `2026-07-30-formation-blocking-baseline.md:66` |
-| `outcome` | `Draw`, 5 against 4 survivors | `Faction0Victory`, 20 against 0 | `2026-07-30-formation-blocking-baseline.md:67` |
-| `maximumPenetrationRaw` | 0 | 0 | `2026-07-30-formation-blocking-baseline.md:76` |
-| `contactPairs` | 15,406 | 14,511 | `2026-07-30-formation-blocking-baseline.md:72` |
-| `candidatePairs` | 421,825 | 595,109 | `2026-07-30-formation-blocking-baseline.md:71` |
+| Figure | Round 1 (seed 1) | Round 2 (seed 11400714819323198486) |
+| --- | --- | --- |
+| `blockedAgentTicks` | 19,488 | **33,330** |
+| `attackCapableAgentTicks` | 28,588 | 27,882 |
+| `longestBlockedStreakTicks` | 178 | 168 |
+| `measuredTicks` | 2,000 (undecided at cap) | 1,980 |
+| `outcome` | `Draw`, 5 against 4 survivors | `Faction0Victory`, 20 against 0 |
+| `maximumPenetrationRaw` | 0 | 0 |
+| `contactPairs` | 15,406 | 14,511 |
+| `candidatePairs` | 421,825 | 595,109 |
 
-The three derived readings the document itself computes, at
-`2026-07-30-formation-blocking-baseline.md:85-92`:
+Every figure in the table above comes from section 2's measurement table in
+the archived baseline document.
+
+The three derived readings the document itself computes:
 
 - Blocked agent-ticks per tick: 9.7 in round 1, 16.8 in round 2.
 - **Blocked against attack-capable: 0.68 in round 1, 1.20 in round 2.** The
@@ -806,8 +808,7 @@ The three derived readings the document itself computes, at
   20; 168 ticks is 8.4 seconds. "One warrior, stationary, for most of ten
   seconds, in plain view."
 
-Two caveats the document states about its own numbers, at
-`2026-07-30-formation-blocking-baseline.md:105-112`: the two seeds are two
+Two caveats the archived document states about its own numbers: the two seeds are two
 samples and not a distribution, and **no cause is identified** — "whether the
 blocking comes from contingent shape, from approach geometry, from the rank-led
 leadership change, or from the preset's speed and radius values is exactly the
@@ -855,7 +856,7 @@ line:
    Left alone, a ranged unit would eventually work its way to the front.
 4. **The front is thin and the crush is deep.** From the same baseline table,
    `maximumFrontWidthRaw` is 639,828 raw and `maximumFrontDepthRaw` is 79,586
-   raw in round 1 (`2026-07-30-formation-blocking-baseline.md:74-75`) — a front
+   raw in round 1, from the same archived baseline table — a front
    roughly eight times wider than it is deep. At a body diameter of 8,704 raw
    that depth is about nine bodies. A shooting rank would be somewhere inside
    those nine, with nothing holding it there.
@@ -1109,11 +1110,10 @@ cheap; the resolver's per-candidate `IsFree` loop is what costs — 16.49 % at 2
 agents and 50.62 % at 2000.**
 
 The blocking baseline gives the pair volume directly: at 500 agents over 2,000
-ticks, `candidatePairs` was 421,825 in round 1 and 595,109 in round 2
-(`docs/plans/2026-07-30-formation-blocking-baseline.md:71`) — roughly 211 to 298
+ticks, `candidatePairs` was 421,825 in round 1 and 595,109 in round 2, from
+the same archived baseline document — roughly 211 to 298
 candidate pairs per tick. Whole-run simulation cost at that size was 813 ms for
-2,000 ticks, p50 0.118 ms per tick
-(`docs/plans/2026-07-30-formation-blocking-baseline.md:46`).
+2,000 ticks, p50 0.118 ms per tick, also from that document.
 
 **The estimate.** A per-agent forty-unit neighbourhood query at 500 agents:
 
@@ -1122,14 +1122,14 @@ candidate pairs per tick. Whole-run simulation cost at that size was 813 ms for
 - Bodies examined: 500 agents in a 1,280 × 720 map is one body per 1,843 square
   world units on average, so a 40-unit disc (about 5,027 square world units)
   holds under three bodies at uniform density. The measured front is far denser —
-  15,406 contact pairs over 2,000 ticks
-  (`docs/plans/2026-07-30-formation-blocking-baseline.md:72`) shows bodies packed
+  15,406 contact pairs over 2,000 ticks, from the same archived baseline
+  document, shows bodies packed
   at contact along the line. A 40-unit disc has room for roughly 88 bodies of
   4.25-unit radius at perfect packing, so an agent inside the crush would examine
   some tens of neighbours rather than three. At 500 agents that is on the order
   of 10,000 to 30,000 body examinations per tick.
-- Against the measured p50 of 0.118 ms per tick at 500 agents
-  (`docs/plans/2026-07-30-formation-blocking-baseline.md:46`), and given that
+- Against the measured p50 of 0.118 ms per tick at 500 agents, from the same
+  archived baseline document, and given that
   `GeneratePairs` — which today walks a comparable number of body pairs at one
   ninth the cell count — costs 1.39 % of tick time at 200 agents and 3.17 % at
   2,000 (`docs/research/TICK-STAGE-PROFILE.md:145`, `:161`), **a per-agent
