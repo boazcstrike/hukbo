@@ -1,7 +1,10 @@
 using System.Reflection;
 using Hukbo.Core.Combat;
+using Hukbo.Core.Determinism;
+using Hukbo.Core.Mathematics;
 using Hukbo.Core.Movement;
 using Hukbo.Core.Simulation;
+using Hukbo.Headless;
 
 namespace Hukbo.Core.Tests.Movement;
 
@@ -1012,5 +1015,108 @@ public sealed class ContingentCohesionBeforeContactV14Tests
             "past what the collision resolver can absorb, which is a tuning " +
             "decision about the 6000 basis-point margin to revisit — not a " +
             $"bound to raise. Worst seed: {worstDiagnostics}.");
+    }
+
+    // ----- Task 13: full-battle trajectory pin -----
+
+    /// <summary>
+    /// Plan task 13: pins
+    /// <see cref="MovementPresetId.ContingentCohesionBeforeContactV14"/>'s own
+    /// full-battle trajectory the way V10 through V13 each pin theirs -- the
+    /// terminal tick, the outcome, the state hash, and the ordered-event fold,
+    /// against the same 200-warrior, <c>PrecolonialPhilippinesV2</c>, seed-1
+    /// control shape
+    /// <c>CohortLateralSpreadV13Tests.CohortLateralSpreadV13FullBattleReproducesItsPinnedTrajectory</c>
+    /// uses, with only the movement preset changed to V14.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The four literals below were captured from a real run of the built tree
+    /// at commit <c>80b45be</c> on branch <c>hukbo-cohesion-v14</c>, with tasks
+    /// 1 through 12 and task 14 already committed and the band and margin
+    /// settled at one third and 6000 basis points. They are not copied from
+    /// V13 and not hand-calculated: R1, R2, and R3 each move the trajectory,
+    /// which is why this capture is last among the simulation tasks — a
+    /// literal written before task 9 settled the tunables would have been
+    /// stale the moment it was typed.
+    /// </para>
+    /// <para>
+    /// All four differ from V13's pin on the otherwise identical control run,
+    /// which is the arithmetic evidence that the new preset is a different
+    /// simulation and not a renamed copy: V13 decides at tick 1353 with state
+    /// hash <c>F3ED8F6CE6C27C1E</c> and event fold <c>A9A8CBE67AE6BC5C</c>,
+    /// V14 decides two ticks earlier at 1351 with different values for both.
+    /// The outcome is the one field the two share, and a shared winner on one
+    /// seed is not evidence of anything either way.
+    /// </para>
+    /// <para>
+    /// Changing any registered V14 field, or any rule V14 reaches, moves these
+    /// four numbers. That is the point of the pin, and the correct response is
+    /// a new preset version with its own capture, never an edit of the
+    /// literals here.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void ContingentCohesionBeforeContactV14FullBattleReproducesItsPinnedTrajectory()
+    {
+        var simulation = CreateFullBattleControlRun();
+        var result = RunToCompletion(simulation);
+
+        Assert.Equal(1351L, result.Tick);
+        Assert.Equal(BattleOutcome.Faction0Victory, result.Outcome);
+        Assert.Equal(0x6E4EDC28DBAC39F8UL, result.StateHash);
+        Assert.Equal(0x2A6460285A85B335UL, result.EventFold);
+    }
+
+    /// <summary>
+    /// The same control shape
+    /// <c>CohortLateralSpreadV13Tests.CreateFullBattleControlRun</c> uses for
+    /// V13, and <c>ContingentShapeV12Tests.CreateFullBattleControlRun</c> for
+    /// V10 and V11 -- 200 warriors, seed 1, <c>PrecolonialPhilippinesV2</c>,
+    /// the pinned body radius -- with the movement preset fixed to
+    /// <see cref="MovementPresetId.ContingentCohesionBeforeContactV14"/>. The
+    /// body radius and the combat preset are stated explicitly rather than
+    /// taken from the scenario default so that a fixture cannot silently drift
+    /// out from under the pinned literals above when a shipped default moves.
+    /// </summary>
+    private static BattleSimulation CreateFullBattleControlRun()
+    {
+        const int CapturedBodyRadiusRaw = 4 * FixedPoint.Scale;
+
+        var scenario = Scenario.CreateDefault(seed: 1, totalAgents: 200) with
+        {
+            MovementPreset =
+                MovementPresetId.ContingentCohesionBeforeContactV14,
+            BodyRadiusRaw = CapturedBodyRadiusRaw,
+            CombatPreset = CombatPresetId.PrecolonialPhilippinesV2,
+        };
+
+        scenario.Validate();
+        return BattleSimulation.Create(scenario);
+    }
+
+    /// <summary>
+    /// Runs <paramref name="simulation"/> to its own termination, folding the
+    /// ordered event stream into a single running FNV-1a hash exactly the way
+    /// <c>HeadlessRunner</c> folds it for the determinism workload -- the same
+    /// helper shape as <c>CohortLateralSpreadV13Tests.RunToCompletion</c>,
+    /// restated here because this project's test classes do not share private
+    /// helpers across files.
+    /// </summary>
+    private static (long Tick, BattleOutcome Outcome, ulong StateHash, ulong EventFold)
+        RunToCompletion(BattleSimulation simulation)
+    {
+        var fold = Fnv1a.OffsetBasis;
+        while (simulation.Outcome == BattleOutcome.Ongoing)
+        {
+            simulation.AdvanceOneTick();
+
+            foreach (var battleEvent in simulation.LastEvents)
+            {
+                HeadlessRunner.AddEventToHash(ref fold, battleEvent);
+            }
+        }
+
+        return (simulation.Tick, simulation.Outcome, simulation.ComputeStateHash(), fold);
     }
 }
