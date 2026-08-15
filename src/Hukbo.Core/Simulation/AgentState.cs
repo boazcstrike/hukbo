@@ -239,6 +239,24 @@ internal sealed class AgentState
     /// </summary>
     internal bool BrokeOffUnderPressure { get; set; }
 
+    /// <summary>
+    /// This warrior's resolved in-fight evasive movement for the tick just
+    /// gathered, under <see cref="MovementPresetId.EvasiveFootworkV14"/>.
+    /// <see cref="EvasiveAction.None"/> forever under every other preset, and
+    /// cleared by death cleanup so a corpse cannot carry a stale action into
+    /// the state hash.
+    /// </summary>
+    /// <remarks>
+    /// Declared last, after <see cref="BrokeOffUnderPressure"/>, for the same
+    /// reason that property was declared after
+    /// <see cref="FootworkTicksRemaining"/>: the five footwork properties fold
+    /// in declaration order under the V6 gate and the three pressure
+    /// properties fold in declaration order under the V7 gate, and both orders
+    /// are frozen by shipped digests. This property folds after both, under a
+    /// third gate of its own, so it cannot disturb either layout.
+    /// </remarks>
+    internal EvasiveAction EvasiveAction { get; set; }
+
     internal bool IsAlive => HitPoints > 0;
 
     internal AgentView ToView(bool isLeader) =>
@@ -263,5 +281,12 @@ internal sealed class AgentState
             MovementPaceRaw,
             TacticalPosture,
             FootworkPhase,
-            FootworkTicksRemaining);
+            FootworkTicksRemaining)
+        {
+            // Set by name rather than by position: the five record parameters
+            // between FootworkTicksRemaining and this one are defaulted and are
+            // filled in by UpdateViews, so passing this positionally here would
+            // write it into BrokeOffUnderPressure instead.
+            EvasiveAction = EvasiveAction,
+        };
 }

@@ -1,8 +1,33 @@
 # Formation blocking at 500 agents — backlog entry and measured baseline
 
-**Status:** Backlog. This document authorizes no implementation. It records a
-measured baseline and the reasoning that produced it, so that whoever picks the
-work up later starts from numbers instead of from a re-derivation.
+**Archived: reference only.** Archived on 2026-08-15 by user decision. This
+document was never a task list and never authorized anything; it is a record of
+two measurements and the reasoning that produced them. Never execute it, never
+treat its numbers as current, and never cite it as the reason for a change.
+
+Read it only to answer "what did formation blocking measure before". Two things
+about those numbers matter to anyone who does. The 2026-07-30 table in section 2
+is a two-seed comparison, and section 5's twenty-seed sweep of 2026-08-13
+retired it outright: `blockedAgentTicks` varies by 146 per cent across seeds, so
+a two-seed difference carried no signal at all. Section 5 is the later and more
+honest of the two, and its worst case is a longest blocked streak of 904 ticks.
+But section 6 then retired section 5 in turn, and that matters more than either
+table: the sweep ran under `LastStandEngagementV11`, which was the shipped
+movement default on the day, and the shipped default has since moved to
+`CohortLateralSpreadV13`. Section 5 is therefore a record of a preset a
+spectator no longer watches. Nothing in this document describes what the client
+launches today, and re-measuring is the only honest way to compare against it.
+
+The one thread that outlived it is in `docs/plans/TODO.md`, under the heading
+naming the second-round lag report of 2026-07-30: warriors spend long stretches
+unable to move in the crush, no cause was ever identified, and the work is
+parked by user decision. The population question this document brushes against
+belongs to the thousand-unit performance design and plan now.
+
+**Original status line, kept for the record:** Backlog. This document authorizes
+no implementation. It records a measured baseline and the reasoning that
+produced it, so that whoever picks the work up later starts from numbers instead
+of from a re-derivation.
 
 **Date:** 2026-07-30. Written against `main` at `caf0d63`, with combat preset
 V4 as the shipped default (`e724348`) and the rank-led contingent change in

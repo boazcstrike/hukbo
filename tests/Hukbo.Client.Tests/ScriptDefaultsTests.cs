@@ -36,7 +36,7 @@ namespace Hukbo.Client.Tests;
 public sealed class ScriptDefaultsTests
 {
     [Fact]
-    public void VerifyInvokesBenchmarkExactlyFiveTimesWithTheCanonicalRangedV10V11AndV13Workloads()
+    public void VerifyInvokesBenchmarkExactlySixTimesWithTheCanonicalRangedV10V11V13AndV14Workloads()
     {
         var content = ReadScript("verify.ps1");
 
@@ -46,7 +46,8 @@ public sealed class ScriptDefaultsTests
         // Five Hukbo workloads, then Sandata's, which the bare gate adds and
         // an explicit -Game does not reach. The five Hukbo blocks are asserted
         // by position below and are unaffected by the sixth.
-        Assert.Equal(6, benchmarkInvocations.Count);
+        // Six Hukbo workloads plus Sandata's one.
+        Assert.Equal(7, benchmarkInvocations.Count);
 
         var invocations = benchmarkInvocations.Cast<Match>().ToList();
         var canonicalInvocation = invocations[0];
@@ -54,6 +55,7 @@ public sealed class ScriptDefaultsTests
         var v10Invocation = invocations[2];
         var v11Invocation = invocations[3];
         var v13Invocation = invocations[4];
+        var v14Invocation = invocations[5];
 
         var canonicalBlock = ExtractBraceBlockAfter(content, canonicalInvocation.Index);
 
@@ -118,6 +120,20 @@ public sealed class ScriptDefaultsTests
             "The V13 benchmark.ps1 invocation must follow the V11 one, for the " +
             "same reason again: the V11 block stays untouched as the leak " +
             "detector proving V13's riffled deployment never reached it.");
+        Assert.True(
+            v13Invocation.Index < v14Invocation.Index,
+            "The V14 benchmark.ps1 invocation must follow the V13 one, for the " +
+            "same reason once more: the V13 block stays untouched as the leak " +
+            "detector proving V14's evasive rungs never reached it.");
+
+        var v14Block = ExtractBraceBlockAfter(content, v14Invocation.Index);
+
+        Assert.Contains(
+            "Preset = 'PrecolonialPhilippinesV5'", v14Block, StringComparison.Ordinal);
+        Assert.Contains(
+            "MovementPreset = 'EvasiveFootworkV14'",
+            v14Block,
+            StringComparison.Ordinal);
 
         var guardBlock = ExtractBraceBlockAfter(content, hukboGuard.Index);
         Assert.Contains(
@@ -194,8 +210,12 @@ public sealed class ScriptDefaultsTests
             "ValidateSet('Hukbo', 'Sandata')", content, StringComparison.Ordinal);
         Assert.Contains("$Game = 'Hukbo'", content, StringComparison.Ordinal);
 
+        // Every script invocation verify.ps1 makes must hand the game through
+        // rather than letting a callee re-default it. The count rises by one
+        // with each shipped preset that earns its own benchmark block; it is
+        // seven since the V14 evasive-footwork workload was appended.
         var passThroughCount = Regex.Matches(content, @"Game\s*=\s*\$Game").Count;
-        Assert.Equal(6, passThroughCount);
+        Assert.Equal(7, passThroughCount);
     }
 
     private static string ExtractBraceBlockAfter(string content, int searchStartIndex)

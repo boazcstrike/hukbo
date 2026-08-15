@@ -1,12 +1,41 @@
 # Follower-trailing mutual block in the collision resolver — design
 
-**Revived from the archive on 2026-08-15, and now being executed.** This
-document was archived earlier the same day on the grounds that its stall was
-closed elsewhere and none of its five options had been chosen. The user then
-directed that the work be finished, so the design is live again and a plan
-document carries the tasks. Read that plan for what is actually being built;
-this document remains the reasoning behind it and is authoritative where the two
-disagree on mechanism.
+**Revived from the archive on 2026-08-15, executed the same day, and option 6.4
+was refuted by measurement.** This document was archived that morning on the
+grounds that its stall was closed elsewhere and none of its five options had
+been chosen. The user directed that the work be finished, so the design went
+live again and `2026-08-15-collision-mutual-lock.md` carried the tasks. That
+plan is now closed with **no code shipped**, and it holds the numbers. Read it
+before acting on section 6 of this document.
+
+**What the attempt established, and it changes section 6.** Rotation and swap
+detection was built twice, in two independent implementations. In its first form
+— every member of a component moves to its own claim — it committed zero
+rotations in 2,000 ticks of a real stalled battle, because 14,218 of 14,791
+candidates were rejected for two members' claims overlapping each other. In its
+second form, the one this document's 6.4 actually describes, where each member
+takes the ground the next one vacates, it committed 3,560 rotations and left the
+stall count exactly where it found it: five seeds before, five after, with
+threshold 7 going from two stalls to four.
+
+The reason is geometric and it applies to any exchange rule. A blocker's centre
+is at least one body diameter away, because committed bodies never overlap,
+while a claim is one movement step. Taking the vacated ground is therefore a
+jump of nearly three times the approved step, which the resolver's own budget
+rule forbids; and two locked warriors both want the contested gap between them,
+so their claims are mutually illegal. **The measured stall is competition for one
+piece of ground, not a permutation of ground.** An exchange rule has nothing to
+exchange.
+
+Section 6.4 should now be read as tried and failed rather than as the option the
+evidence favours, and the research note's section 6, which pointed here, was
+reasoning from blocker-set stability without claim compatibility having been
+measured. **6.5, sliding along the obstruction, is the only remaining option
+that can move a warrior whose neighbour wants the same ground**, and it needs its
+own design document first because it changes movement character in every battle.
+
+Everything below this banner is the 2026-07-28 reasoning as written, preserved
+because it is what the attempt was built from.
 
 Three facts checked against `main` on 2026-08-15, before the decision to build,
 and none of them from a status line:

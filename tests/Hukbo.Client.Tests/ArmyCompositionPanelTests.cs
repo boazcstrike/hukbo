@@ -392,44 +392,64 @@ public sealed class ArmyCompositionPanelTests
     /// it, rather than assuming the starting preset is the last one — the
     /// assumption that broke twice on 2026-08-14, once when
     /// <see cref="MovementPresetId.ContingentShapeV12"/> was appended and once
-    /// when <see cref="MovementPresetId.CohortLateralSpreadV13"/> was.
+    /// when <see cref="MovementPresetId.CohortLateralSpreadV13"/> was, and once
+    /// more when <see cref="MovementPresetId.EvasiveFootworkV14"/> was.
+    /// <para>
+    /// After that third break the walk is driven by
+    /// <see cref="ArmyCompositionPanel.MovementPresetOptions"/> itself rather
+    /// than by a hand-written chain of preset names, so appending a preset can
+    /// no longer break it. The wrap is the behaviour under test; which preset
+    /// happens to sit at either end of the list is not.
+    /// </para>
     /// </summary>
     [Fact]
     public void ArrowKeysCycleTheDraftMovementPresetWhileFocusedOnItsRow()
     {
+        var options = ArmyCompositionPanel.MovementPresetOptions;
+        var first = options[0];
+        var last = options[^1];
+
         var saved = CreateComposition(50, 50, 50, 50, 200);
         var panel = CreatePanel(saved);
-        Assert.Equal(
-            MovementPresetId.LastStandEngagementV11,
-            panel.DraftMovementPreset);
+
+        var startIndex = -1;
+        for (var index = 0; index < options.Count; index++)
+        {
+            if (options[index] == panel.DraftMovementPreset)
+            {
+                startIndex = index;
+                break;
+            }
+        }
+
+        Assert.True(
+            startIndex >= 0,
+            "The panel's starting preset must be one of its own options.");
 
         panel.MoveFocus(
             keyboardDirection: 0,
             hoveredControlIndex: ArmyCompositionPanel.MovementPresetControlIndex);
-        panel.AdjustFocusedValue(direction: 1, isShiftHeld: false);
 
-        Assert.Equal(
-            MovementPresetId.ContingentShapeV12,
-            panel.DraftMovementPreset);
+        // Walk forward one entry at a time to the end of the list, checking
+        // every step rather than only the destination.
+        for (var index = startIndex + 1; index < options.Count; index++)
+        {
+            panel.AdjustFocusedValue(direction: 1, isShiftHeld: false);
 
-        panel.AdjustFocusedValue(direction: 1, isShiftHeld: false);
+            Assert.Equal(options[index], panel.DraftMovementPreset);
+        }
 
-        Assert.Equal(
-            MovementPresetId.CohortLateralSpreadV13,
-            panel.DraftMovementPreset);
+        Assert.Equal(last, panel.DraftMovementPreset);
 
         // One more forward step from the last entry wraps to the first.
         panel.AdjustFocusedValue(direction: 1, isShiftHeld: false);
 
-        Assert.Equal(
-            MovementPresetId.IndependentPursuitV1,
-            panel.DraftMovementPreset);
+        Assert.Equal(first, panel.DraftMovementPreset);
 
+        // And one backward step from the first wraps back to the last.
         panel.AdjustFocusedValue(direction: -1, isShiftHeld: false);
 
-        Assert.Equal(
-            MovementPresetId.CohortLateralSpreadV13,
-            panel.DraftMovementPreset);
+        Assert.Equal(last, panel.DraftMovementPreset);
     }
 
     [Fact]

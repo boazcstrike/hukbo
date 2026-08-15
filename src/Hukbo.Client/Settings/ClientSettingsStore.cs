@@ -112,9 +112,13 @@ internal sealed class ClientSettingsStore
     /// <see cref="MovementPresetId.LastStandEngagementV11"/> when the last-stand
     /// engagement fix shipped, and again to
     /// <see cref="MovementPresetId.CohortLateralSpreadV13"/> when the cohort
-    /// lateral spread fix shipped; this default tracks the client's default
-    /// rather than naming a preset of its own, and moves again the next time
-    /// that one does. A settings file that already recorded a movement
+    /// lateral spread fix shipped, and again to
+    /// <see cref="MovementPresetId.EvasiveFootworkV14"/> when in-fight evasion
+    /// shipped; this default tracks the client's default rather than naming a
+    /// preset of its own, and moves again the next time that one does. None of
+    /// those four moves bumped <see cref="SupportedSchemaVersion"/>, because a
+    /// default-value change is not a shape change. A settings file that
+    /// already recorded a movement
     /// preset — including a version 9 file recording
     /// <see cref="MovementPresetId.LastStandEngagementV11"/> from before this
     /// bump — is read back verbatim through <see cref="ResolveMovementPreset"/>
@@ -122,7 +126,7 @@ internal sealed class ClientSettingsStore
     /// never chosen a preset, or whose file failed to load, receives.
     /// </summary>
     private const MovementPresetId DefaultMovementPreset =
-        MovementPresetId.CohortLateralSpreadV13;
+        MovementPresetId.EvasiveFootworkV14;
 
     /// <summary>
     /// The look every panel had before this setting existed, so a spectator
