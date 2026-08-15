@@ -410,6 +410,17 @@ def build_contact_sheet(cell_paths: list[pathlib.Path], out_path: pathlib.Path) 
                 [
                     MAGICK,
                     str(source),
+                    # Force sRGB before anything grey touches the cell.
+                    # `gray20`, `gray50`, and `gray70` are all greyscale
+                    # colours, and ImageMagick will quietly narrow the
+                    # whole pipeline to greyscale the moment one of them
+                    # becomes an image's background -- stripping the
+                    # colour out of every cell on a sheet whose only
+                    # purpose is for somebody to look at the colours.
+                    "-colorspace",
+                    "sRGB",
+                    "-type",
+                    "TrueColorAlpha",
                     "-background",
                     "gray20",
                     "-gravity",
@@ -468,6 +479,24 @@ def build_contact_sheet(cell_paths: list[pathlib.Path], out_path: pathlib.Path) 
             "black",
             "-depth",
             "8",
+            # The checkerboard is built from two greys, and ImageMagick
+            # takes the composite's colourspace from the base image. Left
+            # as greyscale it silently strips the colour out of all eighty
+            # cells, which is exactly what happened the first time this
+            # sheet was rendered: the atlas was correct and the review
+            # image was monochrome, which is the worst way round for a
+            # tool whose only job is to be looked at.
+            "-colorspace",
+            "sRGB",
+            "-type",
+            "TrueColor",
+            # And force the PNG colour type on the way out, for the same
+            # reason the atlas does: the writer picks the narrowest type
+            # the pixels allow, so a checkerboard of two greys is written
+            # back as greyscale however it was built in memory, and the
+            # next composite inherits that.
+            "-define",
+            "png:color-type=2",
             str(checker_path),
         ]
     )
@@ -484,6 +513,12 @@ def build_contact_sheet(cell_paths: list[pathlib.Path], out_path: pathlib.Path) 
             "-composite",
             "-depth",
             "8",
+            "-colorspace",
+            "sRGB",
+            "-type",
+            "TrueColor",
+            "-define",
+            "png:color-type=2",
             str(out_path),
         ]
     )
