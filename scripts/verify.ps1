@@ -111,6 +111,22 @@ if ($Game -eq 'Hukbo') {
         Preset = 'PrecolonialPhilippinesV5'
         MovementPreset = 'CohortLateralSpreadV13'
     }
+
+    # The preset the client ships after the 2026-08-15 in-fight evasion work.
+    # The V13 block above is deliberately not repointed, for exactly the reason
+    # that block records for V11: it is now the leak detector proving V14's
+    # evasive rungs never reached the preset every earlier build ran, and a
+    # single early return in ApplyEvasiveFootwork is the only thing standing
+    # between them.
+    Invoke-RepositoryScript -Name 'benchmark.ps1' -Parameters @{
+        Agents = 200
+        Ticks = 10000
+        Seed = 1
+        NoBuild = $true
+        Game = $Game
+        Preset = 'PrecolonialPhilippinesV5'
+        MovementPreset = 'EvasiveFootworkV14'
+    }
 }
 
 

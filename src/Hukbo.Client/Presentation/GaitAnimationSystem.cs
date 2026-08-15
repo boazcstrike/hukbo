@@ -22,7 +22,8 @@ namespace Hukbo.Client.Presentation;
 /// </param>
 /// <param name="Mode">The stride state the most recent tick resolved.</param>
 /// <param name="DirectionSign">
-/// The world-X sign of the most recent nonzero displacement, or zero if the
+/// The world-X sign of the most recent nonzero displacement, falling back to
+/// the world-Y sign when that displacement was purely vertical, or zero if the
 /// warrior has never moved since this entry was created.
 /// </param>
 internal readonly record struct GaitEntry(
@@ -223,11 +224,25 @@ internal sealed class GaitAnimationSystem
             };
         }
 
+        // World-X decides the stride sign whenever the warrior moved in X at
+        // all, so every horizontal case resolves exactly as it always has. A
+        // purely vertical step has no X sign to read, and falling straight
+        // through to the retained sign leaves a freshly created entry at zero —
+        // which PawnGeometry.CreateLegsAndFeet multiplies both leg offsets by,
+        // collapsing the stride to nothing and sliding the warrior north or
+        // south on dead vertical legs. Deriving the sign from world-Y in that
+        // case gives the stride something to swing against; the retained sign
+        // remains the fallback for genuinely zero motion.
         var directionSign = deltaX switch
         {
             > 0f => 1f,
             < 0f => -1f,
-            _ => entry.DirectionSign,
+            _ => deltaY switch
+            {
+                > 0f => 1f,
+                < 0f => -1f,
+                _ => entry.DirectionSign,
+            },
         };
         var phase = WrapTurns(
             entry.PhaseTurns + (distance / StrideCycleDistanceRaw));
