@@ -56,10 +56,11 @@ is not authorized work; it is a reminder that the question was decided
 
 **Both entries below were taken off the shelf on 2026-08-15 and put back the
 same day.** The design that carries them,
-[`2026-07-28-follower-trailing-deadlock-design.md`](2026-07-28-follower-trailing-deadlock-design.md),
+the design titled "Follower-trailing mutual block in the collision resolver —\ndesign",
 was archived that morning because none of its five options had ever been built;
 the user then directed that the work be finished, so it was revived and executed
-through [`2026-08-15-collision-mutual-lock.md`](2026-08-15-collision-mutual-lock.md).
+through the plan titled "The collision mutual lock — plan". Both were archived
+on 2026-08-16.
 That plan closed with **no code shipped**: rotation and swap detection was built
 twice and does not fix the stall, for reasons both documents record. These two
 questions are parked again, and the first of them has an answer now that it did

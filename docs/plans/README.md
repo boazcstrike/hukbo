@@ -26,10 +26,10 @@ was built twice in two independent implementations and does not fix the stall:
 the five stalled seeds are still five, and forcing an exchange at all costs the
 resolver's displacement rule. The measured reason is that locked warriors want
 the *same* ground rather than each other's, so an exchange rule has nothing to
-exchange. Both documents are live and carry the numbers —
-[`2026-08-15-collision-mutual-lock.md`](2026-08-15-collision-mutual-lock.md) is
-the plan and holds the counters, and the design's banner records what its
-section 6 now means. One incidental finding is worth more than the attempt: at
+exchange. Both documents were archived on 2026-08-16, once the attempt they
+authorized had been made and measured, and they carry the numbers: the plan
+titled "The collision mutual lock — plan" holds the counters, and the design's
+banner records what its section 6 now means. One incidental finding is worth more than the attempt: at
 body radius 4.5, which is the value this bug has pinned since July, **0 of 200
 seeds now stall**, so the body radius is a tuning question again rather than a
 workaround. The two questions the sweep moved into [`TODO.md`](TODO.md) are
@@ -47,7 +47,9 @@ about-face, and a weapon sprite package that lives in a worktree at roughly
 eleven of its twenty-seven tasks with the whole renderer half unbuilt. **The
 follower-trailing deadlock design is the one document that pass did not
 cover**: it was in the archive while the audit ran, and it returned to this
-folder afterwards under the revival recorded above.
+folder afterwards under the revival recorded above. It left again on
+2026-08-16, with its plan, when a re-check found the attempt closed and nothing
+left in either document to execute.
 
 That pass kept the formation blocking baseline, on the reasoning that all
 eleven counters it quotes are still emitted and it is therefore still
@@ -282,10 +284,8 @@ designs archived in the fourth sweep of 2026-08-14 left.
 | [`2026-08-14-contingent-cohesion-before-contact-design.md`](2026-08-14-contingent-cohesion-before-contact-design.md) | Why smoke row `BR-1` failed with "they visibly form up but not enough, some just charged and fought". The weapon grouping works; cohesion does not. Two gates compose into it: under `ContingentState.Advance`, `IsCohesionEligible` gate 4 denies every member that is not straggling, and a 24-body-radius cohesion square shared by eight contingents in one map half keeps the geometric gates failing, so contingents rarely reach the gathering `Hold` state at all. Section 3 is the binding historical constraint — a per-contingent local pause is a Provisional reconstruction, but tightening or dressing the group is barred outright by the corpus's only spacing finding | **Executed on 2026-08-15** as `ContingentCohesionBeforeContactV15 = 15`, opt-in, with the client default left at V13 until a person has watched a battle. R1 shipped as written; R2 and R3 shipped in the reshaped form the plan established, because both of their premises were false against the code. The value is 15 rather than the 14 this row used to predict, because the in-fight evasion package took 14 while this one was in a worktree |
 | [`2026-08-14-contingent-cohesion-before-contact.md`](2026-08-14-contingent-cohesion-before-contact.md) | That design's sixteen tasks behind one new appended `MovementPresetId`, with the twenty-seed termination sweep as the gate on the whole change and movement preset V7 named as the precedent for a preset that behaved interestingly and never resolved a battle. Its findings section is the reason to read it before the design: R3's premise is false, because the cohesion square is already sized to the contingent at `jitterRaw + BodyRadiusRaw`; R2 is a no-op, because `ParticipatesInCrossContingentScan` already excludes exactly `Close` and `Break`; and R1 names the aim point where gate 4 measures to the leader | **Executed on 2026-08-15**, all sixteen tasks. Its results section carries the freeze baseline, the seven-setting calibration sweep the tunables were chosen from, the measured termination and blocked-streak figures, and the merge finding that renumbered the preset to 15 |
 | [`2026-08-09-attack-animation-v2-backlog.md`](2026-08-09-attack-animation-v2-backlog.md) | What the twelve-task attack-animation plan left behind. **All twenty-four `AA` smoke rows closed `PASS` on 2026-08-13**, so its section 6, "Smoke rows still unobserved", is spent outright and its section 1 no longer describes a failing row. What survives is the engineering: sections 3, 4, and 5, and section 2's finding that `ConservativePawnCull` has no production caller — which is still true, and which a person's `AA-24` `PASS` did not change | Open on its engineering items only; every smoke row it names has closed |
-| [`2026-07-28-follower-trailing-deadlock-design.md`](2026-07-28-follower-trailing-deadlock-design.md) | The follower-trailing mutual block in the collision resolver, with its diagnosis measured. Archived, revived, and executed on 2026-08-15. Its banner records what the attempt established: option 6.4 is refuted, and 6.5 — sliding along the obstruction — is the only remaining option that can move a warrior whose neighbour wants the same ground | Design; 6.4 tried and failed. 6.5 needs its own design before anyone builds it |
-| [`2026-08-15-collision-mutual-lock.md`](2026-08-15-collision-mutual-lock.md) | The plan that executed the design above and closed with no code shipped. It holds the instrumentation counters that refuted rotation and swap detection: 14,218 of 14,791 candidates rejected because two members' claims overlapped each other, then 3,560 rotations committed under the corrected rule with the stall count unchanged at five. It also records that body radius 4.5 no longer stalls any of 200 seeds | **Closed 2026-08-15.** A record of what was tried; never execute its task list |
 | [`2026-08-14-thousand-unit-performance-design.md`](2026-08-14-thousand-unit-performance-design.md) | Whether a 1,000-unit battle can be watched at all: the render matrix that predates the corpse layer, the gait legs, and the projectile props, and the per-tick scans in `BattleSimulation` that are quadratic in agent count. Section 2.4 closes the instanced-rendering question rather than leaving it open, and section 4.1 shows why a spatial index buys target selection nothing under the shipped scenario | Design only; authorizes nothing |
-| [`2026-08-14-thousand-unit-performance.md`](2026-08-14-thousand-unit-performance.md) | That design's sixteen tasks in four phases, every one of them hash-neutral by construction, with a genuine stop condition at TU-4: if re-measurement shows the 1,000-unit frame already inside budget, the correct action is to run `GR-5` and close the workstream having written no code. `GR-3` closed `PASS` on 2026-08-15; `GR-5` remains open | Plan only; **not authorized**. Not started |
+| [`2026-08-14-thousand-unit-performance.md`](2026-08-14-thousand-unit-performance.md) | That design's sixteen tasks in four phases, every one of them hash-neutral by construction, with a genuine stop condition at TU-4: if re-measurement shows the 1,000-unit frame already inside budget, the correct action is to close the workstream having written no code. Its one smoke task, TU-16, is already satisfied — `GR-3` closed `PASS` on 2026-08-15 and `GR-5` on 2026-08-16, both on a build with none of this plan implemented — so what is missing is the measured half of TU-4, not the watched half | Plan only; **not authorized**. Not started, and its two smoke rows have closed ahead of it |
 | [`2026-08-15-weapon-sprite-design.md`](2026-08-15-weapon-sprite-design.md) | Why every weapon in Hukbo is three colinear lines, and what an authored atlas of eighty cells — ten variants for each of the seven weapon roles and ten for the tall hardwood shield — would replace `DrawBlade` and `DrawShield` with. It leaves `PawnGeometry`, the arms, and the swing trail alone, and keeps the bowstring procedural because the bowstring is the one weapon element that genuinely deforms | Accepted; implementation authorized |
 | [`2026-08-15-weapon-sprite.md`](2026-08-15-weapon-sprite.md) | That design's task list, behind a client setting that defaults off | Plan; in flight on branch `weapon-sprites`, nothing merged to `main` |
 
@@ -306,7 +306,17 @@ designs archived in the fourth sweep of 2026-08-14 left.
 ## Where the rest of it went
 
 Finished plans, one-off orchestration prompts, and superseded handoffs live in
-`docs/archives/`, in dated batches. The most recent batch is `2026-08-15`, and
+`docs/archives/`, in dated batches. The most recent batch is `2026-08-16`, and
+it holds three documents. One is the record titled "GPU render smoke — `GR-5`
+— family closed in full 2026-08-16", which is where the GPU render family's
+last row closed and the family's section left the live checklist altogether.
+The other two are the follower-trailing deadlock design and the plan titled
+"The collision mutual lock — plan", archived together after a re-check
+established that the design's option 6.4 had been built, measured, and refuted,
+and that its one surviving option needs a design document of its own before
+anyone builds it.
+
+The batch before it is `2026-08-15`, and
 it is where the live checklist emptied down to a single row. It holds thirteen
 documents. Seven are smoke records — for the calibrated army composition, death
 collapse, the UI chrome nine-slice family's last row, pawn visual fidelity, the
@@ -319,7 +329,7 @@ baseline, archived by user decision after a sweep had argued for keeping it.
 Every one of the smoke records says the same thing about its evidence: the
 tester returned pass verdicts and wrote no separate observation, and several of
 the rows had asked for one. The batch
-before it is `2026-08-14`, and
+before `2026-08-15` is `2026-08-14`, and
 it grew through that day as one smoke family after another closed. It began with
 "Last-stand engagement smoke — closed 2026-08-14", the record of a one-row
 family: `LS-1` was the only row it had, so it closed at one of one and its
@@ -374,7 +384,9 @@ record: the attack animation V2 design and the ranged units session handoff.
 Each carries a banner saying why it left and, where it left something behind,
 which `TODO.md` entry now holds it. It moved a third, the follower-trailing
 deadlock design, and that one came back to `docs/plans/` the same day when the
-user directed the work be finished; the archive holds no copy of it.
+user directed the work be finished, so that sweep's batch holds no copy of it.
+The 2026-08-16 batch does: it went back, with its plan, once the attempt was
+over.
 
 There is no session continuation prompt folder any more. The one document in
 it, the 2026-08-10 Hukbo continuation prompt, had gone stale — three of the
