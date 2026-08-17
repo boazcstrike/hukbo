@@ -279,3 +279,26 @@ passed by a person on 2026-08-14. These three items outlived it.
   those four tools. Regenerating them is mechanical, but it is still a lock-file
   change, so it wants a deliberate commit of its own rather than riding along
   with unrelated work.
+
+## From the shield size against projectile size package (2026-08-18)
+
+The package is merged and its full backlog is the document titled "Shield size
+against projectile size — backlog after the merge", which carries seven items
+and the evidence for each. Only the two that need a user decision are repeated
+here.
+
+- **The shipped movement default does not carry the shield's movement half.**
+  In-fight evasion took `MovementPresetId.EvasiveFootworkV14` as the client
+  default first, and the two presets are mutually exclusive — both restate V13
+  and a battle selects one. So shield sizes, size-aware interception, and
+  projectile bulk all ship by default in combat preset V7, while shield
+  encumbrance and the block-recovery window are reachable only by selecting
+  `V16 Shield Encumbrance` in the Army Composition panel. Three ways out are
+  costed in the backlog: flip the default (one line, drops evasion), compose the
+  two into a V17 (needs a design and the evasion package's agreement), or leave
+  it. Nothing is authorized yet.
+- **Naming the shield that blocked needs a new event field.** `BattleEvent`'s
+  packed `Shield` is the *attacker's* shield, so the event log cannot say which
+  shield stopped a blow without a new packed field — and that moves the event
+  hash, which is a new-preset event under CLAUDE.md section 5. Deferred
+  deliberately; the grip suffix naming the size shipped in its place.
