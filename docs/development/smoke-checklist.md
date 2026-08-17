@@ -17,17 +17,21 @@ The gate, the current gate results, and the recorded baselines live in
 
 ## Where the checklist stands, 2026-08-15
 
-**21 rows in 4 subsections, every one `PENDING`.** Seven are `AR-1` through
-`AR-7`, added on 2026-08-16 by the armor identity package, and unlike every
-other family here they cover a preset that **is** the shipped default, so a
-tester needs to choose nothing to reach them. Two of those seven, `AR-6` and
-`AR-7`, are expected to be hard or impossible to pass as written and say so in
-their own rows; recording "cannot tell" against them is a real result. Of the
-remaining fourteen, one is `GR-5`; twelve are
-`WS-1` through `WS-12`, added on 2026-08-15 by the weapon and shield sprite
-atlas package; and `CC-1` was added the same day by the contingent cohesion
-package, for the opt-in movement preset V15. No `PASS`, `FAIL`, `BLOCKED`, or
-`DECLINED` row is left.
+**34 rows in 6 subsections, every one `PENDING`.** Counted from the status
+column on 2026-08-18, not carried forward from the previous figure. Seven are
+`AR-1` through `AR-7`, added by the armor identity package; eight are `SB-1`
+through `SB-8` and five are `HEL-1` through `HEL-5`, added by the shield size
+against projectile size package; twelve are `WS-1` through `WS-12` from the
+weapon and shield sprite atlas package; `CC-1` came from the contingent
+cohesion package, for the opt-in movement preset V15; and `GR-5` is the last
+survivor of the GPU render family.
+
+The armor rows are unlike most of the others in that they cover a preset that
+**is** the shipped default, so a tester needs to choose nothing to reach them.
+Two of them, `AR-6` and `AR-7`, are expected to be hard or impossible to pass
+as written and say so in their own rows; recording "cannot tell" or "no visible
+difference" against those two is a real result, not a failure to test properly.
+No `PASS`, `FAIL`, `BLOCKED`, or `DECLINED` row is left.
 Twenty-nine rows closed on 2026-08-15 and were lifted
 out with the six families that closed in full: calibrated army composition,
 death collapse, UI chrome nine-slice, pawn visual fidelity, pawn sprite body,
@@ -183,14 +187,61 @@ Leave it `PENDING` if untouched; report `BLOCKED` honestly.
 | # | Step | Expected | Actual | Status |
 | --- | --- | --- | --- | --- |
 | CC-1 | Open the Army Composition panel, select `V15 Contingent Cohesion Before Contact`, press `Shift+R` for a full reset, and watch one full battle from the default camera station. Then do the same with `V13 Cohort Lateral Spread` and compare | Under V15 a contingent visibly crosses the field as a body rather than dissolving into individual pursuit, and the difference from V13 is discernible without being told which preset is running. Record whether the two are tellable apart at all, because a change nobody can see on screen is the failure this row exists to catch. Spacing must still look irregular — the warriors close up, they do not dress into ranks or files, and if they look tidy that is a defect against the design's section 3 | | PENDING |
+| SB-1 | Start a battle, let it run, press `B`, then press `B` again | Every warrior's head and torso changes to drawn art on the very next frame, and changes back on the second press. No stall, no flicker, and the battle does not pause or restart | | PENDING |
+| SB-2 | Press `B` to enable the mode, quit the game, relaunch | The game comes back up still drawing sprite bodies, because the choice was persisted | | PENDING |
+| SB-3 | With sprite bodies on, watch a full engagement at the default camera fit and say whether the two sides stay tellable apart | Team A still reads blue and Team B still reads red at a glance, without relying on the selection boxes. The faction wash is a provisional tuning value at 0.32; if the sides blur together, record that and the mode fails its own acceptance | | PENDING |
+| SB-4 | Zoom in on one contingent and compare warriors side by side | Warriors visibly differ from one another — skin tone, headband colour and presence, hair, facial hair, tattoos, build. They do not all share one body. Record roughly how many distinct bodies you can pick out | | PENDING |
+| SB-5 | Watch a warrior die with sprite bodies on | The drawn body rotates and falls with the collapse, staying attached to the legs. It does not stay standing upright while the rest of the pawn falls | | PENDING |
+| SB-6 | Watch a warrior walk and run with sprite bodies on | The legs still animate underneath the drawn torso. Gait is unaffected by the mode | | PENDING |
+| SB-7 | Watch a warrior fight with sprite bodies on | The weapon arm still swings and still points at the target, drawn over the body rather than under it. The shield still sits in front of the torso | | PENDING |
+| SB-8 | Zoom all the way out until pawns resolve the `Low` detail tier | The body falls back to the procedural quads with no flicker and no gap at the changeover. This is expected behaviour, not a defect | | PENDING |
 
-## Armor identity (combat preset V7)
+## Battle event log hidden by default (the 2026-08-15 hide-event-log change)
 
-`CombatPresetId.PrecolonialPhilippinesV7` **is** the shipped default:
+The battle event log no longer draws on launch. The right-hand column it used
+to occupy is given back to the arena, and the log returns either through the
+new `Events` button on the control bar or through F8. The sound log keeps F9
+and its own button, and the two are independent: either, both, or neither may
+be shown.
+
+None of these rows may be closed by a passing test, by a build, or by a
+screenshot probe. Only a person at an interactive Windows desktop, watching a
+live battle, may flip one of them. Leave untouched rows `PENDING`; report
+`BLOCKED` honestly.
+
+| # | Step | Expected | Actual | Status |
+| --- | --- | --- | --- | --- |
+| HEL-1 | Launch the client and look at the right-hand side of the window before pressing anything | No event log is drawn, and the arena extends to the right margin of the window rather than stopping short of a log column. The control bar carries a new `Events` button, shown inactive | | PENDING |
+| HEL-2 | Press F8, then press F8 again | The event log appears in the right-hand column and the arena narrows to make room for it; the `Events` button reads as active while it is shown. The second press hides it again and the arena returns to full width | | PENDING |
+| HEL-3 | Click the `Events` button on the control bar twice | The button toggles the same visibility F8 toggles, and its active state tracks whether the log is shown | | PENDING |
+| HEL-4 | With the event log hidden, press F9 to show the sound log | The sound log occupies the whole right-hand column on its own rather than only its usual lower share, and the arena narrows by exactly the column width | | PENDING |
+| HEL-5 | With the event log hidden, click and scroll where the log used to be, then press Escape | Nothing in the hidden log reacts: the click reaches the arena beneath it, the wheel drives the camera rather than a log scroll, and Escape is handled by whatever would handle it with no log present | | PENDING |
+
+## Shield size against projectile size (the 2026-08-15 shield-projectile-block design)
+
+Warriors now carry one of three shield states rather than two: no shield, a
+narrow breast-high board, or the body-length tall hardwood shield. A larger
+shield intercepts more and stops small projectiles reliably, a larger
+projectile is harder for any shield to stop and punishes the small shield
+worst, a larger shield is slower to carry, and a warrior who has just taken a
+blow on the shield has their pace clamped for a few ticks before recovering.
+The shipped build runs combat preset V7 and movement preset V14, which are the
+only presets that carry any of this.
+
+None of these rows may be closed by a passing test, by a build, or by a
+screenshot probe. Only a person at an interactive Windows desktop, watching a
+live battle, may flip one of them. Leave untouched rows `PENDING`; report
+`BLOCKED` honestly.
+
+[{"#":"SPB-1","Step":"Launch the client and look at the shielded warriors on both sides before pressing play","Expected":"Two visibly different shields are drawn: a tall body-length board and a clearly narrower, shorter breast-high board. The difference is legible without zooming in","Actual":"","Status":"PENDING"},{"#":"SPB-2","Step":"Click a warrior carrying the narrow shield and read the agent inspector","Expected":"The `Shield:` row reads `Narrow Breast-High`, not `None` and not `Tall Hardwood`","Actual":"","Status":"PENDING"},{"#":"SPB-3","Step":"Run a battle and watch an archer or arquebusier shoot at a tall-shield bearer, then at a narrow-shield bearer","Expected":"The tall shield stops noticeably more of what is shot at it than the narrow shield does","Actual":"","Status":"PENDING"},{"#":"SPB-4","Step":"Watch arquebus fire against a tall-shield bearer specifically","Expected":"Shot gets through the shield far more often than arrows do — the arquebus is the least blockable projectile in the game despite being the smallest","Actual":"","Status":"PENDING"},{"#":"SPB-5","Step":"Watch a tall-shield bearer and a narrow-shield bearer advance across open ground alongside an unshielded warrior of the same weapon","Expected":"The unshielded warrior is fastest, the narrow-shield bearer is next, and the tall-shield bearer is slowest. The ordering is visible over a sustained advance","Actual":"","Status":"PENDING"},{"#":"SPB-6","Step":"Select a shield bearer, keep the inspector open, and watch it through a melee exchange in which the shield takes a blow","Expected":"A `Block:  recovering Nt` line appears in the inspector for a few ticks immediately after a blocked blow and then disappears on its own. It is absent at every other moment","Actual":"","Status":"PENDING"},{"#":"SPB-7","Step":"Watch the same warrior's movement at the moment that line is showing","Expected":"The warrior's pace visibly checks for the short window and then recovers. The effect reads as a brief stumble, not as a stun","Actual":"","Status":"PENDING"},{"#":"SPB-8","Step":"Show the battle event log and find a line for a one-handed attacker carrying each shield","Expected":"The suffix names the shield size — `tall shield` or `narrow shield` — rather than the bare word `shielded`, and an unshielded attacker still reads `solo`","Actual":"","Status":"PENDING"},{"#":"SPB-9","Step":"Open the army composition panel and cycle the movement preset selector to the end of the list","Expected":"`V16 Shield Encumbrance` is present in the selector. It is NOT the default — the evasive footwork preset holds that, so selecting V16 and pressing Shift+R for a full reset is what SPB-5 and SPB-7 require before they can be run at all","Actual":"","Status":"PENDING"}]
+
+## Armor identity (combat preset V8)
+
+`CombatPresetId.PrecolonialPhilippinesV8` **is** the shipped default:
 `ArenaGame.BuildScenario` selects it, so a spectator who changes nothing is
 already watching armored warriors. That is deliberate — the design's whole point
 is that armor reaches players rather than only the gate. Combat presets V1
-through V6 stay registered and unmodified, and their content hashes are
+through V7 stay registered and unmodified, and their content hashes are
 unchanged, so any recorded replay naming one of them still reproduces.
 
 Every mitigation value, every pace penalty, and every distribution share in this

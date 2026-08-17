@@ -72,11 +72,16 @@ public sealed class ArmyCompositionRosterExpansionTests
         // Itak(AlipingNamamahay), Bangkaw(Timawa), Busog(Timawa),
         // Arquebus(Timawa), Kalis+Shield(Timawa), Itak+Shield(AlipingNamamahay).
         // Expected values are the RU-24/RU-45 calibrated share weights
-        // [19, 19, 10, 9, 11, 8, 6, 9, 9] apportioned by largest remainder
+        // [19, 19, 10, 9, 11, 8, 6, 6, 6] apportioned by largest remainder
         // against each rank's slider count at the 2026-08-14 calibrated
         // default composition (Datu 48, Maharlika 47, Timawa 110,
-        // AlipingNamamahay 45).
-        int[] expected = [48, 47, 25, 23, 28, 20, 15, 22, 22];
+        // AlipingNamamahay 45). The shield size against projectile size
+        // package dropped the Kalis+Shield and Itak+Shield weights from 9
+        // to 6 apiece, seeding the two narrow-breast-high-shield rows combat
+        // preset V7 adds; this shared weight table apportions V5's roster
+        // too, so V5's tall-hardwood-shield rows move down with it even
+        // though V5 fields no narrow-shield row of its own.
+        int[] expected = [48, 47, 27, 27, 30, 21, 16, 16, 18];
 
         Assert.Equal(expected, result.AsSpan().ToArray());
     }
@@ -96,18 +101,22 @@ public sealed class ArmyCompositionRosterExpansionTests
         // Busog, Arquebus, Kalis+Shield) sum to the rank's 110-unit slider
         // count no matter how the split is computed, so the sum alone
         // cannot catch a regression that flattens the split to an even one.
-        // An even split of 110 across 5 rows is {22, 22, 22, 22, 22} — it
-        // contains neither a 15 nor a 28. The calibrated weights RU-24/RU-45
-        // measured do produce both: Arquebus (weight 6, the lowest of the
-        // five) gets 15, and Bangkaw (weight 11, the highest) gets 28. If the
-        // calibrated-weight mapping is deleted or replaced with an even
-        // split, these two assertions turn red.
+        // An even split of 110 across 5 rows is {22, 22, 22, 22, 22}. The
+        // calibrated weights RU-24/RU-45 measured, as the shield size
+        // against projectile size package left them (Kalis+Shield's weight
+        // dropped from 9 to 6, tying it with Arquebus), do not produce that:
+        // Bangkaw (weight 11, the highest of the five) gets 30, and the two
+        // weight-6 rows, Arquebus and Kalis+Shield, each get 16 — the tied
+        // low value an even split could never produce alongside a distinct
+        // high one. If the calibrated-weight mapping is deleted or replaced
+        // with an even split, these assertions turn red.
         int[] timawaCounts =
             [result[2], result[4], result[5], result[6], result[7]];
 
         Assert.Equal(110, timawaCounts.Sum());
-        Assert.Contains(15, timawaCounts);
-        Assert.Contains(28, timawaCounts);
+        Assert.NotEqual(new[] { 22, 22, 22, 22, 22 }, timawaCounts);
+        Assert.Contains(30, timawaCounts);
+        Assert.Equal(2, timawaCounts.Count(count => count == 16));
     }
 
     [Fact]

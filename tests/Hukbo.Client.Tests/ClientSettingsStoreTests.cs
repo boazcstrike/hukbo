@@ -746,13 +746,21 @@ public sealed class ClientSettingsStoreTests
                 AutoCameraMode.Follow,
                 UiScale.Percent150,
                 StartupDisplayMode.Fullscreen,
-                MovementPresetId.EquipmentRelativeFootworkV7,
+                MovementPresetId.BattlefieldRealismV10,
                 UiChromeStyle.Procedural));
 
             var settings = store.Load("command");
 
+            // BattlefieldRealismV10 rather than EquipmentRelativeFootworkV7:
+            // V7 turns equipment-relative footwork on with only six loadout
+            // rows and no narrow-shield entry, so the shield size against
+            // projectile size feature's ordering-hazard guard in
+            // ResolveMovementPreset now redirects a saved V7 to the shipped
+            // default rather than round-tripping it verbatim. V10 carries
+            // equipment-relative footwork off and is unaffected by that
+            // guard, so it is what this round-trip test now proves against.
             Assert.Equal(
-                MovementPresetId.EquipmentRelativeFootworkV7,
+                MovementPresetId.BattlefieldRealismV10,
                 settings.MovementPreset);
         });
     }

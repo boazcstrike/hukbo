@@ -86,6 +86,40 @@ public sealed class ClashProfile
     private readonly IReadOnlyDictionary<WeaponId, int> _hardShareMultipliers;
 
     /// <summary>
+    /// PROVISIONAL, size-aware shield interception, added by V7. Keyed by
+    /// shield identity: the flat basis points that shield's span alone
+    /// intercepts before any weapon-bulk reduction, used by
+    /// <see cref="ResolveShieldIntercept(ShieldId, WeaponId)"/>. Null for
+    /// every preset through V6, which keeps declaring only the flat
+    /// <see cref="ShieldInterceptBasisPoints"/> value. Null is the gate that
+    /// keeps <see cref="CombatRuleset"/> folding nothing new into V1 through
+    /// V6's content hash — see <see cref="DeclaresSizeAwareShieldIntercept"/>.
+    /// </summary>
+    private readonly IReadOnlyDictionary<ShieldId, int>? _shieldInterceptBaseBasisPoints;
+
+    /// <summary>
+    /// PROVISIONAL, size-aware shield interception, added by V7. Keyed by
+    /// shield identity: that shield's physical span as a raw fixed-point
+    /// value — world units multiplied by
+    /// <see cref="Hukbo.Core.Mathematics.FixedPoint.Scale"/> — used as the
+    /// denominator term in <see cref="ResolveShieldIntercept(ShieldId, WeaponId)"/>.
+    /// Must be strictly positive for every non-<see cref="ShieldId.None"/>
+    /// shield it declares: a shield with zero or negative span cannot
+    /// meaningfully intercept anything. Null for every preset through V6.
+    /// </summary>
+    private readonly IReadOnlyDictionary<ShieldId, int>? _shieldSpanRaw;
+
+    /// <summary>
+    /// PROVISIONAL, size-aware shield interception, added by V7. Keyed by
+    /// attacking weapon: that weapon's <see cref="WeaponProfile.ShieldDefeatBulkRaw"/>
+    /// mirrored here so <see cref="ResolveShieldIntercept(ShieldId, WeaponId)"/>
+    /// can read it without a back-reference into the weapon tables. Null for
+    /// every preset through V6. A missing key resolves to zero bulk rather
+    /// than throwing, matching a melee weapon's authored zero.
+    /// </summary>
+    private readonly IReadOnlyDictionary<WeaponId, int>? _shieldDefeatBulkRaw;
+
+    /// <summary>
     /// True only for <see cref="Neutral"/>. Every weapon-keyed resolver
     /// short-circuits to zero for an unrecognised key rather than throwing,
     /// which is what lets <see cref="Neutral"/> answer for any weapon and
@@ -134,6 +168,33 @@ public sealed class ClashProfile
     /// reach. Must be at least one: a ceiling of zero would force every
     /// channel to zero and make the whole type inert.
     /// </param>
+    /// <param name="shieldInterceptBaseBasisPoints">
+    /// PROVISIONAL. Optional, size-aware shield interception added by V7:
+    /// per-shield base basis points, keyed by <see cref="ShieldId"/>. Null
+    /// (the default) declares nothing size-aware, and
+    /// <see cref="ResolveShieldIntercept(ShieldId, WeaponId)"/> falls back to
+    /// the flat <paramref name="shieldIntercept"/> value — the same fallback
+    /// every preset through V6 already resolves to. A caller declaring this
+    /// must also declare <paramref name="shieldSpanRaw"/>; either both are
+    /// null or both are non-null.
+    /// </param>
+    /// <param name="shieldSpanRaw">
+    /// PROVISIONAL. Optional, size-aware shield interception added by V7:
+    /// per-shield span, as a raw fixed-point value, keyed by
+    /// <see cref="ShieldId"/>. Must be strictly positive for every
+    /// non-<see cref="ShieldId.None"/> key. Null (the default) declares
+    /// nothing size-aware; see <paramref name="shieldInterceptBaseBasisPoints"/>.
+    /// </param>
+    /// <param name="shieldDefeatBulkRaw">
+    /// PROVISIONAL. Optional, size-aware shield interception added by V7:
+    /// per-attacker-weapon shield-defeat bulk, as a raw fixed-point value,
+    /// keyed by <see cref="WeaponId"/>. Null (the default) is equivalent to
+    /// every weapon declaring zero bulk. May be non-null even when
+    /// <paramref name="shieldInterceptBaseBasisPoints"/> and
+    /// <paramref name="shieldSpanRaw"/> are null; it is inert in that case
+    /// because <see cref="ResolveShieldIntercept(ShieldId, WeaponId)"/> never
+    /// reads it while the base and span tables are unset.
+    /// </param>
     /// <exception cref="ArgumentNullException">Any table is null.</exception>
     /// <exception cref="ArgumentException">The clamp bounds are inverted.</exception>
     /// <exception cref="ArgumentOutOfRangeException">
@@ -147,7 +208,10 @@ public sealed class ClashProfile
         IReadOnlyDictionary<WeaponId, int> hardShareMultipliers,
         int minimumHardShareBasisPoints,
         int maximumHardShareBasisPoints,
-        int maximumInterceptionBasisPoints)
+        int maximumInterceptionBasisPoints,
+        IReadOnlyDictionary<ShieldId, int>? shieldInterceptBaseBasisPoints = null,
+        IReadOnlyDictionary<ShieldId, int>? shieldSpanRaw = null,
+        IReadOnlyDictionary<WeaponId, int>? shieldDefeatBulkRaw = null)
         : this(
             weaponIntercept,
             shieldIntercept,
@@ -157,7 +221,10 @@ public sealed class ClashProfile
             minimumHardShareBasisPoints,
             maximumHardShareBasisPoints,
             maximumInterceptionBasisPoints,
-            resolvesUnknownKeysToZero: false)
+            resolvesUnknownKeysToZero: false,
+            shieldInterceptBaseBasisPoints,
+            shieldSpanRaw,
+            shieldDefeatBulkRaw)
     {
     }
 
@@ -170,7 +237,10 @@ public sealed class ClashProfile
         int minimumHardShareBasisPoints,
         int maximumHardShareBasisPoints,
         int maximumInterceptionBasisPoints,
-        bool resolvesUnknownKeysToZero)
+        bool resolvesUnknownKeysToZero,
+        IReadOnlyDictionary<ShieldId, int>? shieldInterceptBaseBasisPoints = null,
+        IReadOnlyDictionary<ShieldId, int>? shieldSpanRaw = null,
+        IReadOnlyDictionary<WeaponId, int>? shieldDefeatBulkRaw = null)
     {
         ArgumentNullException.ThrowIfNull(weaponIntercept);
         ArgumentNullException.ThrowIfNull(voidChannel);
@@ -199,6 +269,47 @@ public sealed class ClashProfile
             maximumInterceptionBasisPoints,
             MaximumValue);
 
+        if ((shieldInterceptBaseBasisPoints is null) != (shieldSpanRaw is null))
+        {
+            throw new ArgumentException(
+                $"{nameof(shieldInterceptBaseBasisPoints)} and " +
+                $"{nameof(shieldSpanRaw)} must either both be declared or " +
+                "both be null: a size-aware base without a span, or a span " +
+                "without a base, cannot resolve an intercept.",
+                nameof(shieldInterceptBaseBasisPoints));
+        }
+
+        if (shieldInterceptBaseBasisPoints is not null)
+        {
+            ValidateValues(
+                shieldInterceptBaseBasisPoints.Values,
+                nameof(shieldInterceptBaseBasisPoints));
+        }
+
+        if (shieldSpanRaw is not null)
+        {
+            foreach (var (shield, span) in shieldSpanRaw)
+            {
+                if (shield == ShieldId.None)
+                {
+                    continue;
+                }
+
+                ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(
+                    span,
+                    0,
+                    nameof(shieldSpanRaw));
+            }
+        }
+
+        if (shieldDefeatBulkRaw is not null)
+        {
+            foreach (var bulk in shieldDefeatBulkRaw.Values)
+            {
+                ArgumentOutOfRangeException.ThrowIfNegative(bulk, nameof(shieldDefeatBulkRaw));
+            }
+        }
+
         // Defensive copies. A caller retaining the dictionary it passed in
         // could otherwise mutate tuning data after construction while
         // CombatRuleset.ContentHash keeps reporting the value computed from
@@ -210,6 +321,15 @@ public sealed class ClashProfile
         _hardShareBases = new Dictionary<WeaponId, int>(hardShareBases);
         _hardShareMultipliers = new Dictionary<WeaponId, int>(hardShareMultipliers);
         _resolvesUnknownKeysToZero = resolvesUnknownKeysToZero;
+        _shieldInterceptBaseBasisPoints = shieldInterceptBaseBasisPoints is null
+            ? null
+            : new Dictionary<ShieldId, int>(shieldInterceptBaseBasisPoints);
+        _shieldSpanRaw = shieldSpanRaw is null
+            ? null
+            : new Dictionary<ShieldId, int>(shieldSpanRaw);
+        _shieldDefeatBulkRaw = shieldDefeatBulkRaw is null
+            ? null
+            : new Dictionary<WeaponId, int>(shieldDefeatBulkRaw);
 
         ShieldInterceptBasisPoints = shieldIntercept;
         MinimumHardShareBasisPoints = minimumHardShareBasisPoints;
@@ -262,6 +382,16 @@ public sealed class ClashProfile
     public int MaximumInterceptionBasisPoints { get; }
 
     /// <summary>
+    /// True when this profile declares the optional, size-aware shield
+    /// tables added by V7. <see cref="CombatRuleset"/> uses this to gate the
+    /// tables' contribution to <see cref="CombatRuleset.ContentHash"/>: false
+    /// for every preset through V6, so those hashes fold nothing new and stay
+    /// byte-identical to their recorded baselines.
+    /// </summary>
+    public bool DeclaresSizeAwareShieldIntercept =>
+        _shieldInterceptBaseBasisPoints is not null;
+
+    /// <summary>
     /// Basis points the defending weapon and shield intercept against one
     /// attacking weapon, before the hard and soft split.
     /// </summary>
@@ -300,6 +430,81 @@ public sealed class ClashProfile
     /// </summary>
     public int ResolveShieldIntercept(ShieldId defenderShield) =>
         defenderShield == ShieldId.None ? 0 : ShieldInterceptBasisPoints;
+
+    /// <summary>
+    /// PROVISIONAL. Basis points the defender's shield intercepts against one
+    /// attacking weapon, taking the shield's physical span and the weapon's
+    /// shield-defeat bulk into account. <see cref="ShieldId.None"/>
+    /// intercepts nothing, structurally, same as the flat overload. When this
+    /// profile declares no size-aware tables (<see cref="_shieldInterceptBaseBasisPoints"/>
+    /// or <see cref="_shieldSpanRaw"/> is null), this falls back to
+    /// <see cref="ResolveShieldIntercept(ShieldId)"/> exactly — the behaviour
+    /// every preset through V6 keeps.
+    /// </summary>
+    /// <remarks>
+    /// Formula, all <see langword="long"/> arithmetic, truncating division,
+    /// result clamped to <c>[0, <see cref="BasisPointScale"/>]</c>:
+    /// <c>base(shield) * span(shield) / (span(shield) + bulk(attackerWeapon))</c>.
+    /// A weapon with no declared bulk resolves to zero bulk, so the formula
+    /// reduces to the flat base value for a melee attacker. No
+    /// <see langword="float"/>, no <see langword="double"/>, no epsilon.
+    /// </remarks>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="defenderShield"/> is not <see cref="ShieldId.None"/>
+    /// and this profile's size-aware tables declare no base or no span for
+    /// it, and this is not <see cref="Neutral"/>.
+    /// </exception>
+    public int ResolveShieldIntercept(ShieldId defenderShield, WeaponId attackerWeapon)
+    {
+        if (defenderShield == ShieldId.None)
+        {
+            return 0;
+        }
+
+        if (_shieldInterceptBaseBasisPoints is null || _shieldSpanRaw is null)
+        {
+            return ResolveShieldIntercept(defenderShield);
+        }
+
+        if (!_shieldInterceptBaseBasisPoints.TryGetValue(defenderShield, out var baseIntercept))
+        {
+            if (_resolvesUnknownKeysToZero)
+            {
+                return 0;
+            }
+
+            throw new ArgumentOutOfRangeException(
+                nameof(defenderShield),
+                defenderShield,
+                "This clash profile declares no size-aware shield intercept " +
+                "base for this shield.");
+        }
+
+        if (!_shieldSpanRaw.TryGetValue(defenderShield, out var span))
+        {
+            if (_resolvesUnknownKeysToZero)
+            {
+                return 0;
+            }
+
+            throw new ArgumentOutOfRangeException(
+                nameof(defenderShield),
+                defenderShield,
+                "This clash profile declares no size-aware shield span for " +
+                "this shield.");
+        }
+
+        var bulk = _shieldDefeatBulkRaw is not null &&
+            _shieldDefeatBulkRaw.TryGetValue(attackerWeapon, out var declaredBulk)
+                ? declaredBulk
+                : 0;
+
+        long numerator = (long)baseIntercept * span;
+        long denominator = (long)span + bulk;
+        long result = numerator / denominator;
+
+        return (int)Math.Clamp(result, MinimumValue, MaximumValue);
+    }
 
     /// <summary>
     /// Basis points the defender evades outright, by defending weapon and
@@ -396,6 +601,43 @@ public sealed class ClashProfile
                 _hardShareMultipliers.TryGetValue(weapon, out var multiplier)
                     ? multiplier
                     : 0));
+
+    /// <summary>
+    /// Every (shield, base basis points) cell of the size-aware shield table
+    /// in ascending shield order. Empty when
+    /// <see cref="DeclaresSizeAwareShieldIntercept"/> is false, so a caller
+    /// folding this into a content hash folds nothing for V1 through V6.
+    /// </summary>
+    internal IEnumerable<(ShieldId Shield, int Value)> OrderedShieldInterceptBases =>
+        _shieldInterceptBaseBasisPoints is null
+            ? []
+            : _shieldInterceptBaseBasisPoints
+                .OrderBy(entry => (int)entry.Key)
+                .Select(entry => (entry.Key, entry.Value));
+
+    /// <summary>
+    /// Every (shield, span raw) cell of the size-aware shield table in
+    /// ascending shield order. Empty when
+    /// <see cref="DeclaresSizeAwareShieldIntercept"/> is false.
+    /// </summary>
+    internal IEnumerable<(ShieldId Shield, int Value)> OrderedShieldSpans =>
+        _shieldSpanRaw is null
+            ? []
+            : _shieldSpanRaw
+                .OrderBy(entry => (int)entry.Key)
+                .Select(entry => (entry.Key, entry.Value));
+
+    /// <summary>
+    /// Every (weapon, shield-defeat bulk raw) cell in ascending weapon order.
+    /// Empty when the table is null, which includes every preset through V6
+    /// and any V7+ preset that declares no bulk table of its own.
+    /// </summary>
+    internal IEnumerable<(WeaponId Weapon, int Value)> OrderedShieldDefeatBulks =>
+        _shieldDefeatBulkRaw is null
+            ? []
+            : _shieldDefeatBulkRaw
+                .OrderBy(entry => (int)entry.Key)
+                .Select(entry => (entry.Key, entry.Value));
 
     private int ResolveWeaponKeyed(
         IReadOnlyDictionary<WeaponId, int> table,

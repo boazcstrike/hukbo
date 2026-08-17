@@ -18,6 +18,7 @@ public static class CombatPresetRegistry
             CombatPresetId.PrecolonialPhilippinesV5 => true,
             CombatPresetId.PrecolonialPhilippinesV6 => true,
             CombatPresetId.PrecolonialPhilippinesV7 => true,
+            CombatPresetId.PrecolonialPhilippinesV8 => true,
             _ => false,
         };
 
@@ -77,6 +78,7 @@ public static class CombatPresetRegistry
             CombatPresetId.PrecolonialPhilippinesV5 => PhilippineCombatPresetV5.Rules,
             CombatPresetId.PrecolonialPhilippinesV6 => PhilippineCombatPresetV6.Rules,
             CombatPresetId.PrecolonialPhilippinesV7 => PhilippineCombatPresetV7.Rules,
+            CombatPresetId.PrecolonialPhilippinesV8 => PhilippineCombatPresetV8.Rules,
             _ => throw new ArgumentOutOfRangeException(
                 nameof(id),
                 id,

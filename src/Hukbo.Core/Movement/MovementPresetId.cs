@@ -377,4 +377,35 @@ public enum MovementPresetId
     /// </para>
     /// </remarks>
     ContingentCohesionBeforeContactV15 = 15,
+
+    /// <summary>
+    /// The shield-encumbrance preset, from the 2026-08-15
+    /// shield-projectile-block design. A verbatim restatement of
+    /// <see cref="CohortLateralSpreadV13"/>'s registered field values under
+    /// its own <c>id</c> — in particular
+    /// <see cref="MovementRuleset.UsesEquipmentRelativeFootwork"/> stays
+    /// <see langword="false"/> and it registers no loadout movement rows at
+    /// all — plus two gates of its own.
+    /// <para>
+    /// <see cref="MovementRuleset.AppliesShieldEncumbrance"/> scales a
+    /// warrior's movement speed once, at agent creation, by the pace basis
+    /// points their shield authors, so an unshielded warrior outpaces a
+    /// narrow-shield bearer who outpaces a tall-shield bearer. That is what a
+    /// bigger shield costs.
+    /// </para>
+    /// <para>
+    /// <see cref="MovementRuleset.AppliesShieldBlockRecovery"/> opens a brief
+    /// pace-capped window on a warrior whose shield has just taken a blow,
+    /// longer for the heavier board, per design section 6.2.
+    /// </para>
+    /// <para>
+    /// Encumbrance is expressed as a speed scale rather than as
+    /// <c>LoadoutMovementProfile</c> rows because the shipped pipeline
+    /// registers none. The design's first draft built this preset as
+    /// equipment-relative with eight rows and crashed on the first ranged
+    /// warrior, since no canonical loadout index maps a ranged weapon; the
+    /// isolation is recorded in the design's section 6.1.
+    /// </para>
+    /// </summary>
+    ShieldEncumbranceV16 = 16,
 }

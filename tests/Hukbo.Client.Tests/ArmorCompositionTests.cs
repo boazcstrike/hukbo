@@ -26,8 +26,8 @@ namespace Hukbo.Client.Tests;
 /// </summary>
 public sealed class ArmorCompositionTests
 {
-    private static readonly IReadOnlyList<CombatLoadout> V7Roster =
-        CombatPresetRegistry.Get(CombatPresetId.PrecolonialPhilippinesV7).Roster;
+    private static readonly IReadOnlyList<CombatLoadout> V8Roster =
+        CombatPresetRegistry.Get(CombatPresetId.PrecolonialPhilippinesV8).Roster;
 
     [Fact]
     public void DefaultSumsToExactlyOneHundred()
@@ -82,11 +82,11 @@ public sealed class ArmorCompositionTests
             importedIronPercent);
 
         var first = ArenaGame.ExpandCompositionToRosterCounts(
-            V7Roster,
+            V8Roster,
             ArmyComposition.Default,
             armorComposition);
         var second = ArenaGame.ExpandCompositionToRosterCounts(
-            V7Roster,
+            V8Roster,
             ArmyComposition.Default,
             armorComposition);
 
@@ -129,7 +129,7 @@ public sealed class ArmorCompositionTests
     [InlineData(100, 0, 0, 0, 0)]
     [InlineData(0, 0, 0, 0, 100)]
     [InlineData(20, 20, 20, 20, 20)]
-    public void EveryExpandedRosterIndexIsInRangeForTheFortyFiveRowV7Roster(
+    public void EveryExpandedRosterIndexIsInRangeForTheFiftyFiveRowV8Roster(
         int nonePercent,
         int quiltedCottonPercent,
         int hideCorseletPercent,
@@ -144,13 +144,13 @@ public sealed class ArmorCompositionTests
             importedIronPercent);
 
         var result = ArenaGame.ExpandCompositionToRosterCounts(
-            V7Roster,
+            V8Roster,
             ArmyComposition.Default,
             armorComposition);
 
         // Nine base loadouts times five armor baselines each.
-        Assert.Equal(45, V7Roster.Count);
-        Assert.Equal(V7Roster.Count, result.Length);
+        Assert.Equal(55, V8Roster.Count);
+        Assert.Equal(V8Roster.Count, result.Length);
 
         foreach (var count in result)
         {
@@ -171,20 +171,20 @@ public sealed class ArmorCompositionTests
         var allImportedIron = new ArmorComposition(0, 0, 0, 0, 100);
 
         var result = ArenaGame.ExpandCompositionToRosterCounts(
-            V7Roster,
+            V8Roster,
             ArmyComposition.Default,
             allImportedIron);
 
-        for (var index = 0; index < V7Roster.Count; index++)
+        for (var index = 0; index < V8Roster.Count; index++)
         {
-            if (V7Roster[index].Armor != ArmorId.ImportedIron)
+            if (V8Roster[index].Armor != ArmorId.ImportedIron)
             {
                 Assert.Equal(0, result[index]);
             }
         }
 
-        var importedIronTotal = Enumerable.Range(0, V7Roster.Count)
-            .Where(index => V7Roster[index].Armor == ArmorId.ImportedIron)
+        var importedIronTotal = Enumerable.Range(0, V8Roster.Count)
+            .Where(index => V8Roster[index].Armor == ArmorId.ImportedIron)
             .Sum(index => result[index]);
 
         Assert.Equal(ArmyComposition.Default.UnitsPerTeam, importedIronTotal);

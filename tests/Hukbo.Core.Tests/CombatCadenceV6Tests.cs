@@ -130,7 +130,17 @@ public sealed class CombatCadenceV6Tests
                     v6.ResolveWeaponWeight(weapon, bodyPart));
             }
 
-            foreach (var shield in Enum.GetValues<ShieldId>())
+            // Scoped to the shields these two frozen presets actually declare
+            // rather than the bare ShieldId enum, for the same reason the
+            // weapon sweep above is scoped to Weapons: V4 and V6 are frozen
+            // and never gain a shield ShieldId adds later, so a full-enum
+            // sweep would throw on a shield neither preset was asked to know
+            // about. ShieldId.NarrowBreastHigh, appended for the shield-size
+            // package, is the member that first made this bite.
+            foreach (var shield in v4.Roster
+                .Select(loadout => loadout.Shield)
+                .Distinct()
+                .OrderBy(id => (int)id))
             {
                 Assert.Equal(
                     v4.ResolveDefenseMultiplier(shield, bodyPart),

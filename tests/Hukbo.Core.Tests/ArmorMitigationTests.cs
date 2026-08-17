@@ -8,12 +8,12 @@ namespace Hukbo.Core.Tests;
 /// construction-time invariants (total coverage of every declared
 /// <see cref="ArmorId"/> member, and every basis-point value staying inside
 /// <c>[0, 10000]</c>), the resolve and apply accessors, and
-/// <see cref="PhilippineCombatPresetV7"/>'s own declared table and roster.
+/// <see cref="PhilippineCombatPresetV8"/>'s own declared table and roster.
 /// </summary>
 public sealed class ArmorMitigationTests
 {
     /// <summary>
-    /// The expected mitigation table for <see cref="PhilippineCombatPresetV7"/>,
+    /// The expected mitigation table for <see cref="PhilippineCombatPresetV8"/>,
     /// restated independently from the armor identity design document section
     /// 6.1 rather than read back from the preset, so a change to the preset's
     /// own table that drifts from the design is caught here rather than
@@ -50,9 +50,9 @@ public sealed class ArmorMitigationTests
         };
 
     [Fact]
-    public void PresetV7_ResolvesTheDesignedMitigationValue_ForEveryArmorAndBodyPart()
+    public void PresetV8_ResolvesTheDesignedMitigationValue_ForEveryArmorAndBodyPart()
     {
-        var rules = PhilippineCombatPresetV7.Rules;
+        var rules = PhilippineCombatPresetV8.Rules;
 
         Assert.True(rules.HasArmorMitigation);
 
@@ -73,7 +73,7 @@ public sealed class ArmorMitigationTests
     [Fact]
     public void ApplyArmorMitigation_ReducesDamageByTheDeclaredBasisPoints()
     {
-        var rules = PhilippineCombatPresetV7.Rules;
+        var rules = PhilippineCombatPresetV8.Rules;
 
         // HideCorselet declares 1,800 basis points (18%) on the torso.
         // 100 damage * 1800 / 10000 = 18 reduction, rounded down.
@@ -86,7 +86,7 @@ public sealed class ArmorMitigationTests
     [Fact]
     public void ApplyArmorMitigation_LeavesDamageUnchanged_ForAnUncoveredBodyPart()
     {
-        var rules = PhilippineCombatPresetV7.Rules;
+        var rules = PhilippineCombatPresetV8.Rules;
 
         // Head mitigation is zero throughout, by design section 6.1: Hukbo
         // has no helmet identity.
@@ -185,27 +185,27 @@ public sealed class ArmorMitigationTests
     }
 
     [Fact]
-    public void PresetV7_IsRegisteredAndResolvesThroughTheRegistry()
+    public void PresetV8_IsRegisteredAndResolvesThroughTheRegistry()
     {
         Assert.True(CombatPresetRegistry.IsRegistered(
-            CombatPresetId.PrecolonialPhilippinesV7));
+            CombatPresetId.PrecolonialPhilippinesV8));
 
         var rules = CombatPresetRegistry.Get(
-            CombatPresetId.PrecolonialPhilippinesV7);
+            CombatPresetId.PrecolonialPhilippinesV8);
 
-        Assert.Same(PhilippineCombatPresetV7.Rules, rules);
+        Assert.Same(PhilippineCombatPresetV8.Rules, rules);
     }
 
     [Fact]
-    public void PresetV7_RosterHasFortyFiveEntries()
+    public void PresetV8_RosterHasFiftyFiveEntries()
     {
-        Assert.Equal(45, PhilippineCombatPresetV7.Rules.Roster.Count);
+        Assert.Equal(55, PhilippineCombatPresetV8.Rules.Roster.Count);
     }
 
     [Fact]
-    public void PresetV7_RosterFieldsExactlyFiveDistinctArmors_AndNeverLightOrganic()
+    public void PresetV8_RosterFieldsExactlyFiveDistinctArmors_AndNeverLightOrganic()
     {
-        var distinctArmors = PhilippineCombatPresetV7.Rules.Roster
+        var distinctArmors = PhilippineCombatPresetV8.Rules.Roster
             .Select(loadout => loadout.Armor)
             .Distinct()
             .ToArray();
@@ -219,10 +219,10 @@ public sealed class ArmorMitigationTests
     /// attribute, clash cell, rank level, roster entry, or armor mitigation
     /// value fails here rather than only in the much slower headless
     /// benchmark. Captured from an actual run of
-    /// <see cref="PhilippineCombatPresetV7"/>, not invented.
+    /// <see cref="PhilippineCombatPresetV8"/>, not invented.
     /// </summary>
     [Fact]
-    public void PresetV7ContentHash_IsPinnedAndDistinctFromEveryEarlierVersion()
+    public void PresetV8ContentHash_IsPinnedAndDistinctFromEveryEarlierVersion()
     {
         var v1 = CombatPresetRegistry.Get(CombatPresetId.PrecolonialPhilippinesV1);
         var v2 = CombatPresetRegistry.Get(CombatPresetId.PrecolonialPhilippinesV2);
@@ -231,14 +231,22 @@ public sealed class ArmorMitigationTests
         var v5 = CombatPresetRegistry.Get(CombatPresetId.PrecolonialPhilippinesV5);
         var v6 = CombatPresetRegistry.Get(CombatPresetId.PrecolonialPhilippinesV6);
         var v7 = CombatPresetRegistry.Get(CombatPresetId.PrecolonialPhilippinesV7);
+        var v8 = CombatPresetRegistry.Get(CombatPresetId.PrecolonialPhilippinesV8);
 
-        Assert.Equal(0x0ACE325A3EF4463AUL, v7.ContentHash);
-        Assert.NotEqual(v1.ContentHash, v7.ContentHash);
-        Assert.NotEqual(v2.ContentHash, v7.ContentHash);
-        Assert.NotEqual(v3.ContentHash, v7.ContentHash);
-        Assert.NotEqual(v4.ContentHash, v7.ContentHash);
-        Assert.NotEqual(v5.ContentHash, v7.ContentHash);
-        Assert.NotEqual(v6.ContentHash, v7.ContentHash);
+        Assert.Equal(0x79DB07403DD9308FUL, v8.ContentHash);
+        Assert.NotEqual(v1.ContentHash, v8.ContentHash);
+        Assert.NotEqual(v2.ContentHash, v8.ContentHash);
+        Assert.NotEqual(v3.ContentHash, v8.ContentHash);
+        Assert.NotEqual(v4.ContentHash, v8.ContentHash);
+        Assert.NotEqual(v5.ContentHash, v8.ContentHash);
+        Assert.NotEqual(v6.ContentHash, v8.ContentHash);
+
+        // Version 7 is version 8's own parent: version 8 restates it verbatim
+        // and adds the armor roster and the mitigation table. If those two
+        // additions were somehow folded as nothing, this is the assertion that
+        // would catch it, and it is the only pair in this list where the two
+        // presets share every other table.
+        Assert.NotEqual(v7.ContentHash, v8.ContentHash);
     }
 
     /// <summary>

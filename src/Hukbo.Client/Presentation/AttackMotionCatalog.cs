@@ -183,6 +183,12 @@ internal static class AttackMotionCatalog
             ShieldId.TallHardwood => profile.ShieldCompatible
                 ? PairedStance
                 : null,
+            // T4: the narrow shield takes the same paired-stance overlay
+            // path as TallHardwood — it is a real shield for motion-catalog
+            // purposes, not a variant of solo.
+            ShieldId.NarrowBreastHigh => profile.ShieldCompatible
+                ? PairedStance
+                : null,
             _ => throw new ArgumentOutOfRangeException(nameof(shield), shield, null),
         };
     }

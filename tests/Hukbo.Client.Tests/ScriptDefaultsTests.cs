@@ -33,14 +33,14 @@ namespace Hukbo.Client.Tests;
 /// on 2026-08-14, when CohortLateralSpreadV13 in turn became what the client
 /// selects; the V11 block stays as the leak detector for it. The armor
 /// identity plan added the seventh on 2026-08-16, when
-/// PrecolonialPhilippinesV7 became the combat preset the client selects; it is
+/// PrecolonialPhilippinesV8 became the combat preset the client selects; it is
 /// the only workload whose roster fields more than one ArmorId, and the V5
 /// blocks stay as the leak detectors for it.
 /// </summary>
 public sealed class ScriptDefaultsTests
 {
     [Fact]
-    public void VerifyInvokesBenchmarkExactlySevenTimesWithTheCanonicalRangedV10V11V13V14AndV7Workloads()
+    public void VerifyInvokesBenchmarkExactlySevenTimesWithTheCanonicalRangedV10V11V13V14AndArmorWorkloads()
     {
         var content = ReadScript("verify.ps1");
 
@@ -60,7 +60,7 @@ public sealed class ScriptDefaultsTests
         var v11Invocation = invocations[3];
         var v13Invocation = invocations[4];
         var v14Invocation = invocations[5];
-        var v7Invocation = invocations[6];
+        var v8Invocation = invocations[6];
 
         var canonicalBlock = ExtractBraceBlockAfter(content, canonicalInvocation.Index);
 
@@ -149,23 +149,23 @@ public sealed class ScriptDefaultsTests
         // the leak detector proving armor mitigation never reaches a preset
         // that declares no mitigation table.
         Assert.True(
-            v7Invocation.Index > v14Invocation.Index,
-            "The V7 benchmark.ps1 invocation must follow the V14 one, for the " +
+            v8Invocation.Index > v14Invocation.Index,
+            "The armor (combat V8) benchmark.ps1 invocation must follow the V14 one, for the " +
             "same reason once more: the V5 blocks stay untouched as leak " +
             "detectors proving armor never reaches a preset without a " +
             "mitigation table.");
 
-        var v7Block = ExtractBraceBlockAfter(content, v7Invocation.Index);
+        var v8Block = ExtractBraceBlockAfter(content, v8Invocation.Index);
 
         Assert.Contains(
-            "Preset = 'PrecolonialPhilippinesV7'", v7Block, StringComparison.Ordinal);
+            "Preset = 'PrecolonialPhilippinesV8'", v8Block, StringComparison.Ordinal);
         Assert.Contains(
             "MovementPreset = 'EvasiveFootworkV14'",
-            v7Block,
+            v8Block,
             StringComparison.Ordinal);
-        Assert.Contains("Agents = 200", v7Block, StringComparison.Ordinal);
-        Assert.Contains("Ticks = 10000", v7Block, StringComparison.Ordinal);
-        Assert.Contains("Seed = 1", v7Block, StringComparison.Ordinal);
+        Assert.Contains("Agents = 200", v8Block, StringComparison.Ordinal);
+        Assert.Contains("Ticks = 10000", v8Block, StringComparison.Ordinal);
+        Assert.Contains("Seed = 1", v8Block, StringComparison.Ordinal);
 
         var guardBlock = ExtractBraceBlockAfter(content, hukboGuard.Index);
         Assert.Contains(

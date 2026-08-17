@@ -257,6 +257,21 @@ internal sealed class AgentState
     /// </remarks>
     internal EvasiveAction EvasiveAction { get; set; }
 
+    /// Ticks remaining in this warrior's shield block-recovery window,
+    /// shield-projectile-block design section 6.2. Set in
+    /// <see cref="GatherAndCommitAttacks"/> when a resolved attack against
+    /// this agent returns <see cref="Combat.AttackResolution.ShieldBlocked"/>,
+    /// to the larger of any value already present this tick and
+    /// <see cref="MovementRuleset.ResolveShieldBlockRecoveryTicks"/> for the
+    /// shield this warrior carries; decremented, floored at zero, in
+    /// <see cref="DecrementCooldowns"/>; read in
+    /// <see cref="GatherMovementProposals"/> to clamp the pace cap while
+    /// open. <c>0</c> forever under every preset whose
+    /// <see cref="MovementRuleset.AppliesShieldBlockRecovery"/> is
+    /// <see langword="false"/>, and cleared by death cleanup.
+    /// </summary>
+    internal int ShieldBlockRecoveryTicksRemaining { get; set; }
+
     internal bool IsAlive => HitPoints > 0;
 
     internal AgentView ToView(bool isLeader) =>
@@ -288,5 +303,7 @@ internal sealed class AgentState
             // filled in by UpdateViews, so passing this positionally here would
             // write it into BrokeOffUnderPressure instead.
             EvasiveAction = EvasiveAction,
+            ShieldBlockRecoveryTicksRemaining =
+                ShieldBlockRecoveryTicksRemaining,
         };
 }

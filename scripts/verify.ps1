@@ -132,20 +132,24 @@ if ($Game -eq 'Hukbo') {
     # The V5 block above is deliberately not repointed, for exactly the reason
     # the V11 and V13 blocks record: it is now the leak detector proving that
     # armor mitigation never reaches a preset that declares no mitigation
-    # table. V7 restates V5 and adds armor, so running the two side by side
-    # under the same movement preset is what isolates armor's effect from
-    # everything else V5 already does.
+    # table.
     #
-    # This invocation is also the only place the gate exercises a roster that
-    # fields more than one ArmorId. Without it the gate would keep measuring
-    # the preset the player no longer runs.
+    # This invocation is the only place the gate exercises a roster that
+    # fields more than one ArmorId, and it is the only one that runs what a
+    # spectator actually runs. Both the shield-size package and the armor
+    # package made their preset the shipped default without the gate
+    # following, so before this block the gate measured V5 while players ran
+    # V7. V8 restates V7, which restates V5, so this single workload covers
+    # the narrow breast-high shield and its size-aware interception as well as
+    # armor; V7 itself needs no separate block for the same reason V5's five
+    # blocks above are not repointed — they are the leak detectors.
     Invoke-RepositoryScript -Name 'benchmark.ps1' -Parameters @{
         Agents = 200
         Ticks = 10000
         Seed = 1
         NoBuild = $true
         Game = $Game
-        Preset = 'PrecolonialPhilippinesV7'
+        Preset = 'PrecolonialPhilippinesV8'
         MovementPreset = 'EvasiveFootworkV14'
     }
 }

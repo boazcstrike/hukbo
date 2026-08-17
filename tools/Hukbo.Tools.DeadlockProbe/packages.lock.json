@@ -3,6 +3,12 @@
   "dependencies": {
     "net10.0": {
       "hukbo.core": {
+        "type": "Project",
+        "dependencies": {
+          "Hukbo.Shared.Core": "[1.0.0, )"
+        }
+      },
+      "hukbo.shared.core": {
         "type": "Project"
       }
     }

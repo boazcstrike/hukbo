@@ -13,7 +13,7 @@ namespace Hukbo.Core.Tests;
 /// prediction. The mitigation table itself
 /// (<see cref="CombatRuleset.ResolveArmorMitigation"/>,
 /// <see cref="CombatRuleset.ApplyArmorMitigation"/>) and the fielded preset
-/// (<see cref="CombatPresetId.PrecolonialPhilippinesV7"/>) are built and
+/// (<see cref="CombatPresetId.PrecolonialPhilippinesV8"/>) are built and
 /// owned elsewhere; this file only proves the simulation actually applies
 /// them where damage is written.
 /// </summary>
@@ -31,7 +31,7 @@ public sealed class ArmorDamageApplicationTests
     public void ArmorMitigation_ReducesDamageTaken_ComparedToNoArmor_OnAChestHit()
     {
         var rules = CombatPresetRegistry
-            .Get(CombatPresetId.PrecolonialPhilippinesV7)
+            .Get(CombatPresetId.PrecolonialPhilippinesV8)
             .WithClashProfile(Neutral);
 
         // Hit location depends only on the ruleset's weapon/shield weight
@@ -80,7 +80,7 @@ public sealed class ArmorDamageApplicationTests
             BodyRadiusRaw = FixedPoint.Scale / 2,
             MovementSpeedRaw = FixedPoint.Scale / 2,
             AttackCooldownTicks = 5,
-            CombatPreset = CombatPresetId.PrecolonialPhilippinesV7,
+            CombatPreset = CombatPresetId.PrecolonialPhilippinesV8,
         };
 
         var unarmoredDamageTaken = RunOneAttackAndMeasureDamageTaken(
@@ -130,7 +130,7 @@ public sealed class ArmorDamageApplicationTests
     [Fact]
     public void ResolveArmorMitigation_IsZeroForHead_ForEveryFieldedArmor()
     {
-        var rules = CombatPresetRegistry.Get(CombatPresetId.PrecolonialPhilippinesV7);
+        var rules = CombatPresetRegistry.Get(CombatPresetId.PrecolonialPhilippinesV8);
 
         foreach (var armor in Enum.GetValues<ArmorId>())
         {
@@ -236,7 +236,7 @@ public sealed class ArmorDamageApplicationTests
     /// outside this task's assignment and is not exercised here.)
     /// </summary>
     [Fact]
-    public void V7WithEvasiveFootworkV14_Advances10000TicksWithoutThrowing()
+    public void V8WithEvasiveFootworkV14_Advances10000TicksWithoutThrowing()
     {
         var scenario = new Scenario(
             Seed: 1, MapWidth: 500, MapHeight: 500, AgentsPerFaction: 4,
@@ -249,7 +249,7 @@ public sealed class ArmorDamageApplicationTests
             BodyRadiusRaw = FixedPoint.Scale / 2,
             MovementSpeedRaw = FixedPoint.Scale / 2,
             AttackCooldownTicks = 5,
-            CombatPreset = CombatPresetId.PrecolonialPhilippinesV7,
+            CombatPreset = CombatPresetId.PrecolonialPhilippinesV8,
             MovementPreset = MovementPresetId.EvasiveFootworkV14,
         };
 

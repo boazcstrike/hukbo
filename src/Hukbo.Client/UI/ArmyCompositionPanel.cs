@@ -138,6 +138,7 @@ internal sealed partial class ArmyCompositionPanel
             MovementPresetId.CohortLateralSpreadV13,
             MovementPresetId.EvasiveFootworkV14,
             MovementPresetId.ContingentCohesionBeforeContactV15,
+            MovementPresetId.ShieldEncumbranceV16,
         ];
 
     /// <summary>
@@ -162,6 +163,7 @@ internal sealed partial class ArmyCompositionPanel
             "V13 Cohort Lateral Spread",
             "V14 Evasive Footwork",
             "V15 Contingent Cohesion Before Contact",
+            "V16 Shield Encumbrance",
         ];
 
     /// <summary>

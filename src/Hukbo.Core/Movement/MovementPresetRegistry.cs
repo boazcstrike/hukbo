@@ -764,6 +764,53 @@ public static class MovementPresetRegistry
         cohesionBandDenominator: 3,
         cohesionSquareMarginBasisPoints: 6000);
 
+    /// <summary>
+    /// The shield-encumbrance preset, from the 2026-08-15
+    /// shield-projectile-block design.
+    /// <see cref="CohortLateralSpreadV13Ruleset"/>'s registered field values
+    /// restated verbatim under its own <c>id</c>, following the "restate, do
+    /// not reference" convention every preset above uses, plus two gates of
+    /// its own and nothing else.
+    /// <para>
+    /// It keeps <c>usesEquipmentRelativeFootwork: false</c> and an empty
+    /// profile collection, exactly as V13 does. Shield pace is therefore not
+    /// expressed as loadout rows — it is a scale applied to a warrior's
+    /// movement speed once, at agent creation. The design's first draft did
+    /// author rows and turned that flag on, and it crashed on the first
+    /// ranged warrior, because no canonical loadout index maps a ranged
+    /// weapon.
+    /// </para>
+    /// </summary>
+    private static readonly MovementRuleset ShieldEncumbranceV16Ruleset = new(
+        id: MovementPresetId.ShieldEncumbranceV16,
+        version: 1,
+        cohesionRadiusMultiplier: 24,
+        closeRadiusMultiplier: 16,
+        closeFractionNumerator: 1,
+        closeFractionDenominator: 2,
+        minimumCohesiveMembers: 3,
+        cohesionCycleTicks: 240,
+        cohesionDutyTicks: 180,
+        arrivalTaperMultiplier: 4,
+        offsetUnit: 1024,
+        narrowsCohesionScanToCohesionCapableContingents: true,
+        selectsLeaderByRank: false,
+        usesEquipmentRelativeFootwork: false,
+        immediateRadiusBodyDiametersBasisPoints: 0,
+        supportRadiusBodyDiametersBasisPoints: 0,
+        loadoutMovementProfiles: ImmutableArray<LoadoutMovementProfile>.Empty,
+        appliesPressureInterrupt: false,
+        supportPressureWeightBasisPoints: 0,
+        incomingDamageWeightBasisPoints: 0,
+        allyCollapseWeightBasisPoints: 0,
+        appliesShieldBlockRecovery: true,
+        tallShieldBlockRecoveryTicks: 5,
+        narrowShieldBlockRecoveryTicks: 3,
+        shieldBlockRecoveryPaceCeilingBasisPoints: 4_000,
+        appliesShieldEncumbrance: true,
+        narrowBreastHighShieldPaceBasisPoints: 9_600,
+        tallHardwoodShieldPaceBasisPoints: 9_000);
+
     public static bool IsRegistered(MovementPresetId id) =>
         id switch
         {
@@ -782,6 +829,7 @@ public static class MovementPresetRegistry
             MovementPresetId.CohortLateralSpreadV13 => true,
             MovementPresetId.EvasiveFootworkV14 => true,
             MovementPresetId.ContingentCohesionBeforeContactV15 => true,
+            MovementPresetId.ShieldEncumbranceV16 => true,
             _ => false,
         };
 
@@ -804,6 +852,8 @@ public static class MovementPresetRegistry
             MovementPresetId.EvasiveFootworkV14 => EvasiveFootworkV14Ruleset,
             MovementPresetId.ContingentCohesionBeforeContactV15 =>
                 ContingentCohesionBeforeContactV15Ruleset,
+            MovementPresetId.ShieldEncumbranceV16 =>
+                ShieldEncumbranceV16Ruleset,
             _ => throw new ArgumentOutOfRangeException(
                 nameof(id),
                 id,

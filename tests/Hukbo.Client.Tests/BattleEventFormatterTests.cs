@@ -166,10 +166,15 @@ public sealed class BattleEventFormatterTests
     // A one-handed weapon deals different damage solo than shielded, so the
     // feed has to say which: the same bare label would otherwise mean either
     // value. A two-handed weapon appends nothing, having no second form.
+    // The suffix names the shield's size rather than the bare word
+    // "shielded", which stopped identifying anything the moment the
+    // shield-size package gave the game a second shield.
     [InlineData(WeaponId.Kalis, ShieldId.None, "(solo)")]
-    [InlineData(WeaponId.Kalis, ShieldId.TallHardwood, "(shielded)")]
+    [InlineData(WeaponId.Kalis, ShieldId.TallHardwood, "(tall shield)")]
+    [InlineData(WeaponId.Kalis, ShieldId.NarrowBreastHigh, "(narrow shield)")]
     [InlineData(WeaponId.Itak, ShieldId.None, "(solo)")]
-    [InlineData(WeaponId.Itak, ShieldId.TallHardwood, "(shielded)")]
+    [InlineData(WeaponId.Itak, ShieldId.TallHardwood, "(tall shield)")]
+    [InlineData(WeaponId.Itak, ShieldId.NarrowBreastHigh, "(narrow shield)")]
     public void GetActionLabel_AppendsTheGripForAOneHandedWeapon(
         WeaponId weapon,
         ShieldId shield,
@@ -211,7 +216,8 @@ public sealed class BattleEventFormatterTests
         var actionLabel = BattleEventFormatter.GetActionLabel(battleEvent);
 
         Assert.DoesNotContain("(solo)", actionLabel);
-        Assert.DoesNotContain("(shielded)", actionLabel);
+        Assert.DoesNotContain("(tall shield)", actionLabel);
+        Assert.DoesNotContain("(narrow shield)", actionLabel);
     }
 
     /// <summary>
@@ -299,7 +305,7 @@ public sealed class BattleEventFormatterTests
         var soloLabel = BattleEventFormatter.GetActionLabel(soloEvent);
 
         Assert.Contains("Kalis — Thrusting Blade", shieldedLabel);
-        Assert.Contains("(shielded)", shieldedLabel);
+        Assert.Contains("(tall shield)", shieldedLabel);
         Assert.Contains("Kalis — Thrusting Blade", soloLabel);
         Assert.Contains("(solo)", soloLabel);
     }

@@ -1638,16 +1638,33 @@ public sealed partial class ArenaGame : Game
     // byte-identical for a replay that names one of them. See the archived
     // document titled "Last-stand engagement — plan".
     //
-    // The combat preset moved on again, from PrecolonialPhilippinesV5 to
-    // PrecolonialPhilippinesV7, for the armor identity package. V7 restates
-    // every one of V5's nine (weapon, shield, rank) base loadouts, but fields
-    // five armor-baseline variants of each rather than one, so its roster has
-    // forty-five rows instead of nine. ExpandCompositionToRosterCounts's
-    // three-argument overload is what spreads a base loadout's rank-derived
-    // count across its five armor-variant rows, using the spectator's armor
-    // composition sliders; CreateDefault still stays on V4/V4, so the
-    // headless determinism baseline and every other caller remain
-    // unaffected.
+    // The combat preset moved again, to PrecolonialPhilippinesV7, the shield
+    // size against projectile size design's combat preset: V6 carried across
+    // unchanged, plus the NarrowBreastHigh shield roster entries, its
+    // weapon-intercept and void table rows, its target-weight profile, and
+    // the per-shield interception, span, and per-weapon bulk tables. Without
+    // this move the new shield is registered in Hukbo.Core but never fielded
+    // by the only build a spectator ever runs, which fails design section
+    // 8's "shipped defaults" requirement outright. V1 through V6 stay
+    // registered and byte-identical for a replay that names one of them.
+    //
+    // And moved once more, to PrecolonialPhilippinesV8, for the armor
+    // identity package. V8 restates every one of V7's eleven
+    // (weapon, shield, rank) base loadouts — including both NarrowBreastHigh
+    // rows — but fields five armor-baseline variants of each rather than one,
+    // so its roster has fifty-five rows instead of eleven.
+    // ExpandCompositionToRosterCounts's three-argument overload is what
+    // spreads a base loadout's rank-derived count across its five
+    // armor-variant rows, using the spectator's armor composition sliders.
+    //
+    // V8 descends from V7 rather than from V5 for exactly the reason V7
+    // descends from V5 rather than V6, and the two packages reached that
+    // conclusion independently: a preset built on an older parent silently
+    // deletes whatever the newer parent added from the only build a spectator
+    // runs. Descending from V5 here would have shipped armor and thrown away
+    // the narrow breast-high shield in the same move. CreateDefault still
+    // stays on V6/V4, so the headless determinism baseline and every other
+    // caller remain unaffected.
     private static Scenario BuildScenario(
         ulong seed,
         Settings.ArmyComposition composition,
@@ -1656,7 +1673,7 @@ public sealed partial class ArenaGame : Game
     {
         var scenario = Scenario.CreateDefault(seed, composition.UnitsPerTeam * 2) with
         {
-            CombatPreset = CombatPresetId.PrecolonialPhilippinesV7,
+            CombatPreset = CombatPresetId.PrecolonialPhilippinesV8,
             MovementPreset = movementPreset,
         };
 
@@ -1703,9 +1720,13 @@ public sealed partial class ArenaGame : Game
     /// Combat preset V4 fields exactly one roster row per rank, so every
     /// rank's row group has exactly one member and its slider count passes
     /// through unchanged — today's behavior, preserved exactly. Combat
-    /// preset V5 fields five rows under Timawa (Kalis, Bangkaw, Busog,
-    /// Arquebus, Kalis + shield) and two under Aliping Namamahay (Itak,
-    /// Itak + shield); those rows split by
+    /// preset V7 restates V6's four-row roster unchanged (one row each for
+    /// Datu, Maharlika, Timawa, and Aliping Namamahay, none of them
+    /// shielded or ranged) and adds two narrow-breast-high-shield rows:
+    /// Kalis under Timawa and Itak under Aliping Namamahay. Timawa's row
+    /// group therefore splits Kalis (solo) against Kalis + narrow shield,
+    /// and Aliping Namamahay's splits Itak (solo) against Itak + narrow
+    /// shield; those rows split by
     /// <see cref="CalibratedRosterEntryWeights"/> using the same
     /// largest-remainder apportionment
     /// <c>RangedCalibrationHarness.BuildRosterCounts</c> uses for the RU-24
@@ -1826,16 +1847,37 @@ public sealed partial class ArenaGame : Game
     }
 
     /// <summary>
-    /// RU-24/RU-45's calibrated share weights for combat preset V5's nine
-    /// roster rows, keyed by weapon and shield since rank alone does not
-    /// distinguish Bangkaw from Busog from Arquebus, or a solo Kalis from a
-    /// shielded one. A (weapon, shield) pair not listed here — every V4
-    /// row, and any future preset row this table carries no calibration
-    /// data for — falls back to a weight of 1 in
-    /// <see cref="ResolveRosterEntryWeight"/>: that reproduces today's
-    /// behavior exactly whenever the row is the only one carrying its rank
-    /// (V4's case, where the shared weight cancels out), and splits evenly
-    /// among uncalibrated siblings otherwise.
+    /// RU-24/RU-45's calibrated share weights, keyed by weapon and shield
+    /// since rank alone does not distinguish Bangkaw from Busog from
+    /// Arquebus, or a solo Kalis from a shielded one. This table was
+    /// originally calibrated against combat preset V5's nine-row roster,
+    /// which fields ranged weapons and tall-hardwood-shield melee rows that
+    /// V6 and V7 do not carry: V6's and V7's roster is a separate, shorter
+    /// lineage descended from V4, not V5, so the Bangkaw, Busog, Arquebus,
+    /// and tall-hardwood-shield entries below are not looked up by
+    /// <see cref="ExpandCompositionToRosterCounts"/> under the shipped V7
+    /// preset — that method only apportions across
+    /// <c>rules.Roster</c>'s actual rows, and V7's roster has none of those
+    /// four kinds. They are kept, inert, for a build still naming V5, and a
+    /// (weapon, shield) pair not listed here falls back to a weight of 1 in
+    /// <see cref="ResolveRosterEntryWeight"/>.
+    /// <para>
+    /// The shield size against projectile size design's section 8 added the
+    /// <see cref="ShieldId.NarrowBreastHigh"/> rows for Kalis and Itak so the
+    /// new shield is actually fielded by the only build a spectator ever
+    /// runs — a shield nobody carries cannot be discovered by watching.
+    /// Under V7 those two rows are the only shielded rows the roster
+    /// carries at all, since V7 has no tall-hardwood-shield row to draw
+    /// from; the weight below still subtracts 3 from each of Kalis's and
+    /// Itak's tall-shield entries (9 to 6) to seed the corresponding
+    /// narrow-shield entry, preserving this table's V5-calibrated total of
+    /// 100 across its eleven listed (weapon, shield) pairs even though only
+    /// six of those pairs are reachable under the roster the client
+    /// actually ships. Design section 8's "shipped defaults" narrative
+    /// assumes V5's ranged-and-tall-shield roster carries into V7; the
+    /// registered <see cref="PhilippineCombatPresetV7"/> roster does not
+    /// support that, and correcting it is outside this file's scope.
+    /// </para>
     /// </summary>
     private static readonly IReadOnlyDictionary<(WeaponId Weapon, ShieldId Shield), int>
         CalibratedRosterEntryWeights =
@@ -1848,8 +1890,10 @@ public sealed partial class ArenaGame : Game
                 [(WeaponId.Bangkaw, ShieldId.None)] = 11,
                 [(WeaponId.Busog, ShieldId.None)] = 8,
                 [(WeaponId.Arquebus, ShieldId.None)] = 6,
-                [(WeaponId.Kalis, ShieldId.TallHardwood)] = 9,
-                [(WeaponId.Itak, ShieldId.TallHardwood)] = 9,
+                [(WeaponId.Kalis, ShieldId.TallHardwood)] = 6,
+                [(WeaponId.Itak, ShieldId.TallHardwood)] = 6,
+                [(WeaponId.Kalis, ShieldId.NarrowBreastHigh)] = 3,
+                [(WeaponId.Itak, ShieldId.NarrowBreastHigh)] = 3,
             };
 
     private static int ResolveRosterEntryWeight(CombatLoadout entry) =>

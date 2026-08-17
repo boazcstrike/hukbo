@@ -297,6 +297,19 @@ public enum ShieldId
 {
     None = 1,
     TallHardwood = 2,
+
+    /// <summary>
+    /// Documented, form uncertain. Artieda, 1573, describes shields "breast-
+    /// high, and little more than half a <c>vara</c> wide" — roughly 42
+    /// centimeters, a tall narrow shape rather than the body-length shields
+    /// recorded elsewhere in the same period. See
+    /// docs/research/HISTORICAL_1500s_ARMOR.md section 6.1 (summary table row
+    /// "Breast-high shield, little more than half a <c>vara</c> wide") and
+    /// section 6.4 "Dimensions". No source gives this shield shape a Filipino
+    /// name, so none is invented for it here — the identifier stays the plain
+    /// English descriptor per CLAUDE.md section 7.
+    /// </summary>
+    NarrowBreastHigh = 3,
 }
 
 /// <summary>
@@ -369,15 +382,35 @@ public enum CombatPresetId
     PrecolonialPhilippinesV6 = 6,
 
     /// <summary>
-    /// V5's tables, roster, ranks, weapon attributes, and clash profile
-    /// restated without modification, with armor made authoritative: a
-    /// per-<c>(ArmorId, BodyPart)</c> damage-mitigation table in basis
-    /// points, and a roster that fields five armor baselines rather than
-    /// repeating <see cref="ArmorId.LightOrganic"/> on every row. Descends
-    /// from V5 rather than V6, because V5 is the preset the client ships and
-    /// the only one that declares ranged weapons and shielded roster rows;
-    /// descending from the higher-numbered V6 would have silently dropped
-    /// both from the player's build. V1 through V6 stay registered and
+    /// V6's roster, tables, and clash profile restated without modification,
+    /// plus a size-aware shield interception model. Adds
+    /// <see cref="ShieldId.NarrowBreastHigh"/>, roster entries pairing it with
+    /// Kalis and Itak, a per-shield base intercept and span, and a per-weapon
+    /// shield-defeat bulk (<see cref="WeaponProfile.ShieldDefeatBulkRaw"/>) so
+    /// a wide-bulk projectile such as an arquebus ball defeats a shield's
+    /// interception more than a melee blow does, and defeats a narrow shield
+    /// more than a broad one — see
+    /// docs/research/HISTORICAL_1500s_ARMOR.md section 6.2, Mactan 1521:
+    /// "the shots only passed through the shields which were made of thin
+    /// wood and the arms [of the bearers]". V1 through V6 stay registered and
+    /// unmodified so their replays remain reproducible. Every value V7
+    /// introduces is a provisional gameplay-tuning value under CLAUDE.md
+    /// section 7, never a historical measurement.
+    /// </summary>
+    PrecolonialPhilippinesV7 = 7,
+
+    /// <summary>
+    /// V7's roster, tables, ranks, weapon attributes, size-aware shield
+    /// interception, and clash profile restated without modification, with
+    /// armor made authoritative: a per-<c>(ArmorId, BodyPart)</c>
+    /// damage-mitigation table in basis points, and a roster that fields five
+    /// armor baselines rather than repeating
+    /// <see cref="ArmorId.LightOrganic"/> on every row, giving fifty-five
+    /// entries. Descends from V7 for the same reason V7 descends from V5
+    /// rather than V6: taking the newest preset as the parent is what keeps
+    /// the shipped build cumulative, and descending from anything older would
+    /// have silently dropped the narrow breast-high shield and its size-aware
+    /// interception from the player's build. V1 through V7 stay registered and
     /// unmodified so their replays remain reproducible, and their content
     /// hashes are unmoved because the mitigation table is folded only by a
     /// preset that declares one. Every mitigation value is a provisional
@@ -385,7 +418,7 @@ public enum CombatPresetId
     /// historical measurement — no source in the period states what any
     /// armor stopped. See the armor identity design.
     /// </summary>
-    PrecolonialPhilippinesV7 = 7,
+    PrecolonialPhilippinesV8 = 8,
 }
 
 /// <summary>
