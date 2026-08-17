@@ -242,3 +242,81 @@ passed by a person on 2026-08-14. These three items outlived it.
   `BloodEffectSystem`'s own constructor defaults of 256, 384, and 32 are dead
   in production, because every caller that matters goes through
   `PresentationCoordinator`, which never uses them. Context: task PV-12 of the pawn visual fidelity plan.
+
+## From the armor identity package (2026-08-16)
+
+Armor became authoritative on 2026-08-16 and ships as combat preset
+`PrecolonialPhilippinesV7`. Four things were found or deliberately left during
+that work. The first is a live defect that predates the package, the second and
+third are gaps the package created a consumer for but did not fill, and the
+fourth was excluded by the design itself.
+
+- **Combat preset V5 crashes against every equipment-relative movement
+  preset, and did so before this package existed.** Pairing
+  `CombatPresetId.PrecolonialPhilippinesV5` with
+  `MovementPresetId.EquipmentRelativeFootworkV6`,
+  `EquipmentRelativeFootworkV7`, or `MonotoneAllyClearanceV9` throws
+  `ArgumentOutOfRangeException` from `MovementRuleset.ResolveLoadoutProfile`
+  on the first warrior carrying Bangkaw, Busog, or Arquebus, because the six
+  canonical loadout rows only ever covered the four melee weapons and the two
+  shielded melee rows. All three of those movement presets are offered to the
+  spectator by `ArmyCompositionPanel.MovementPresetOptions`, so the crash is
+  reachable from the shipped UI by selecting a preset and starting a battle.
+
+  This was reproduced directly during the armor work with a throwaway probe
+  test, against V5, V6, and V7: V6 passes, because its roster is four melee
+  rows; V5 and V7 both fail, for the ranged rows they share. The armor package
+  removed armor as a second, independent cause of the same crash — the three
+  loadout-key lookups now key on weapon and shield only — but it did not and
+  could not fix the ranged cause, which is a different question.
+
+  What has to be decided is whether those three presets gain ranged loadout
+  rows with real footwork values behind them, or stop being selectable, or
+  gain a documented fallback row. None of the three is obviously right, and
+  each moves `MovementRuleset.ContentHash` or the client's preset list.
+  Nothing is authorized here. Context: the amendments section of the armor
+  identity plan, and `ArmorMovementKeyTests`, which pins the armor half of the
+  key and would fail if armor were put back into it.
+
+- **The renderer still ignores armor entirely.** `PawnRenderer.Draw` takes an
+  `armorWidthFactor` that defaults to `1f`, and no call site anywhere passes
+  anything else, so `PawnGeometry.CreateArmor` returns `Rectangle.Empty` and
+  `DrawArmor` returns immediately for every pawn. The armor material tone is a
+  fixed `DyePalette.BarkBrown` constant with a comment saying no per-preset
+  tone exists yet. Armor is therefore not visible on any warrior, whatever its
+  authoritative identity.
+
+  The armor package made the *resolution* authoritative — `PawnAppearance`
+  now carries `ArmorComponentId` and `ArmorVariantId`, derived from the
+  warrior's real `ArmorId` rather than an entity-id roll — so the data a
+  renderer would need is resolved and correct. Wiring it through is what
+  remains, and it is the reason smoke row `AR-7` is written with "no visible
+  difference" as its expected answer. Whoever picks this up should check the
+  quad-count budget first: the effect-pool and submission-count entries above
+  own that constraint. Context: smoke row `AR-7`, and the amendments section
+  of the armor identity plan.
+
+- **The battle event log's filter cycle cannot reach three event kinds.**
+  `BattleEventLogPanel.Filters.cs`'s `GetNextKind` steps through
+  `Move`, `Attack`, `Damage`, `Death`, `Outcome`, and then no filter, falling
+  through to `null` for anything else. `Release` and `Miss` were already
+  unreachable by that control before this package, and `ArmorSaved` joins
+  them. It is not a crash — the events still render in the feed, and the
+  colour switch has a safe default — but a spectator cannot filter to any of
+  the three. Whether the cycle should enumerate the enum, or deliberately
+  carry a curated subset, is undecided. Context: task T7 of the armor
+  identity plan.
+
+- **Head protection and helmets stay out.** The armor identity design
+  excluded them by decision, and a backlog draft already exists at
+  [`2026-08-16-head-protection-design-draft.md`](2026-08-16-head-protection-design-draft.md).
+  It is **not authorized** and must not be executed as written. The armor
+  mitigation table's head column is zero for every baseline precisely because
+  Hukbo has no helmet identity; when one exists it supplies its own values and
+  that column stops being a placeholder. Dogfish-skin head armor, the
+  shell-and-fishbone helmet, and the Sarangani helmet disagreement are all
+  attested in `docs/research/HISTORICAL_1500s_ARMOR.md` and all remain
+  unbuilt. Note that `AppearanceComponentCatalog.ArmorF5ShellSetHelmet`
+  already exists as a cosmetic entry and is deliberately unreachable from the
+  authoritative armor mapping, so a future helmet identity does not inherit
+  it by accident.
