@@ -1740,3 +1740,140 @@ file paths drift, and at least two records there are known to be stale.
 Classify failures as implementation, test, environment/dependency, pre-existing,
 incorrect assumption, unrelated, or flaky. Make the narrowest correction, rerun
 the focused check, and expand only after it passes.
+
+## Canonical gate result — both games, 2026-08-16 (armor identity)
+
+`./scripts/verify.ps1` with no flags, run once after integration on branch
+`armor-identity`. Exit code 0. Every stage passed: prerequisites, locked
+restore, formatting verification, Release solution build, Release repository
+tests, then **seven** Hukbo headless workloads, then Sandata's test suite and
+its own seed-1 workload. The two games remain two results and are reported as
+two below.
+
+The Hukbo suites at this commit are 2,704 Core tests and 4,152 Client tests,
+both with zero failures.
+
+### The seven Hukbo workloads
+
+| Combat preset | Movement preset | Ticks | Outcome | State hash | Event hash |
+| --- | --- | --- | --- | --- | --- |
+| 6 | 4 | 885 | `Faction0Victory` | `5460D13E3F7FD3E5` | `8E18ED1437B2924B` |
+| 5 | 8 | 1764 | `Faction1Victory` | `C8023D3B5BEB005E` | `F709A345E2F7370E` |
+| 5 | 10 | 1888 | `Faction0Victory` | `7C145A9E05916E4C` | `77626E104234206C` |
+| 5 | 11 | 2037 | `Faction0Victory` | `6225182B4A470F91` | `C4DABE6AF98B6BEC` |
+| 5 | 13 | 1570 | `Faction1Victory` | `4A0723BC9A1B924B` | `E0CE32CF8830A864` |
+| 5 | 14 | 1586 | `Faction0Victory` | `155326060E6FAC82` | `289980C2B3F9E1D2` |
+| **7** | **14** | **2842** | `Faction1Victory` | `99E2B17ED79F995B` | `6230E153CCFB5685` |
+
+**The first six rows are byte-identical to the figures recorded on
+2026-08-15.** That is the single most important line in this record. This
+package made armor authoritative, added five `ArmorId` members, added a
+`BattleEventKind` member, changed a per-agent movement speed, and changed three
+movement loadout-key lookups — and not one of those reached a preset that
+predates it. Every earlier replay still reproduces.
+
+The seventh row is new. It is the workload the armor identity package added to
+`scripts/verify.ps1`, pairing the new combat preset with the movement preset the
+client ships, because `ArenaGame.BuildScenario` now selects V7 and the gate
+would otherwise have kept measuring a preset the player no longer runs.
+
+### Sandata
+
+Unchanged: `stateHash DA3D1BEB99978A75`, `eventHash 260A20BC8F578E19`. Nothing
+in this package touches `Sandata.Core`, and the figures confirm it.
+
+### Which hashes moved, and why each movement is legitimate
+
+**`CombatRuleset.ContentHash` for the new preset only.**
+`PhilippineCombatPresetV7.Rules.ContentHash` is `0x0ACE325A3EF4463A`, pinned in
+`ArmorMitigationTests`. Every earlier preset's content hash is unchanged, and
+that is not luck. The armor mitigation table is folded inside
+`if (_armorMitigation is not null)`, so a preset that declares no table mixes
+nothing into the hash at all — not even a zero count. That is the same idiom the
+weapon-attribute, clash-profile, and rank-level blocks already use, and the
+reason all four exist in that shape.
+
+The plan document originally called for re-baselining the pinned content-hash
+literals. That instruction was wrong and was not followed. The literals are
+`0x59FB4CA563D87A49` for V1 at three sites plus twice more inside
+`Fixtures/seed-1-200-agents-preclash-digest.json`, `0x10AB1CC226AB3636` for V2,
+`0xCD790E489293B304` for V3, `0x4E3E4F8C0A3822E0` for V4, and
+`0x55F4F5B36EE59CF7` for V5. All of them still hold, and the test files carrying
+them have an empty diff. A pinned literal that moves under a change like this
+means the fold was written unconditionally; the fix is the fold, never the
+literal.
+
+**The per-tick state hash, for runs that field armor.** Only the V7 workload's
+state hash is new. Armor is folded per agent into `StateHasher`, and V7 is the
+only preset whose roster carries anything but `ArmorId.LightOrganic`.
+
+**`MovementRuleset.ContentHash` did not move at all.** The design predicted
+three hashes would move. Two did. Armor reaches movement through
+`ArmorWeightClasses.ScaleMovementSpeed`, applied once per warrior at spawn in
+`BattleSimulation.CreateAgent`, rather than through a `LoadoutMovementProfile`
+row — so no movement ruleset data changed and there was nothing for that hash to
+pick up. The relocation was not a shortcut: `LoadoutMovementProfiles` is empty
+for every preset whose `UsesEquipmentRelativeFootwork` is false, which includes
+every movement preset from V10 onward and therefore the one the client ships, so
+a pace modifier hung there would never have been read by the running game.
+
+The scale is applied unconditionally and is still a no-op for every preset
+through V6, because all six field `ArmorId.LightOrganic`, light armor resolves to
+a flat 10,000 basis points, and the function returns its input unchanged in that
+case. The six unchanged workloads above are the evidence.
+
+### Battles still terminate
+
+This is verification criterion 7, and it was the package's main risk: damage
+reduction lengthens fights, and this repository has previously had every battle
+run to a 10,000-tick standoff draw.
+
+Same seed, same movement preset, armor the only variable: V5 decides in 1,586
+ticks, V7 in 2,842. Armor lengthens the fight by roughly 1.8 times and it still
+resolves in under 29 per cent of the tick budget, with a decisive winner and
+three survivors rather than a draw.
+
+The criterion is now automated rather than observed. `ArmorTerminationTests`
+drives seeds 1 through 20 under V7 paired with `EvasiveFootworkV14` and requires
+at least nineteen to decide inside 5,000 ticks, both factions to win at least
+four, and the median decisive tick to sit under the cap. A second test asserts
+the armored run takes strictly longer than the unarmored one — a shorter run
+would mean mitigation was applied with the wrong sign, which nothing else would
+catch — and no more than three times as long, which is the shape of an
+approaching standoff. Both pass. **If they ever fail, the section 6.1 mitigation
+values come down; raising the tick budget is not an acceptable response.**
+
+### Two defects found during implementation that no document anticipated
+
+**The combo lethality prediction read unmitigated damage.**
+`ResolveComboTransition` decided whether a combo chain continues by computing
+`target.HitPoints - source.DamagePerAttack <= 0` against raw pre-mitigation
+damage. Once armor reduced what was actually applied, that check over-predicted
+lethality and would have broken a chain on a blow armor had stopped from
+killing. Mitigation is therefore applied at three sites, not the two the plan
+named: the melee damage write, the projectile arrival damage write, and this
+prediction. `ArmorDamageApplicationTests` covers it, and the test was confirmed
+to fail against the unfixed code.
+
+**Three movement loadout-key lookups crashed on any armor but the legacy one.**
+`MovementRuleset.CanonicalLoadoutIndex`,
+`MovementRouteRules.CanonicalOpponentIndex`, and `LoadoutCompositionCounts.Add`
+each pattern-matched the full `(WeaponId, ArmorId, ShieldId)` triple with
+`ArmorId.LightOrganic` hardcoded in every arm and threw otherwise. That guard was
+correct while one armor existed. The client's own movement-preset selector offers
+all three equipment-relative presets, so a V7 warrior in quilted cotton would
+have thrown `ArgumentOutOfRangeException` against any of them. All three now key
+on weapon and shield only, which moves no hash because every preset through V6
+resolves to exactly the index it resolved to before. `ArmorMovementKeyTests`
+pins it.
+
+### A pre-existing defect this package did not introduce and did not fix
+
+Combat preset V5 — the preset the client shipped before this change — already
+throws against `EquipmentRelativeFootworkV6`, `EquipmentRelativeFootworkV7`, and
+`MonotoneAllyClearanceV9`, because its Bangkaw, Busog, and Arquebus roster rows
+were never among the six canonical loadout tuples either. This was reproduced
+directly during the armor work and is unrelated to armor: V6, whose roster is
+four melee rows, passes the same probe. It is out of scope here and needs its own
+design decision about whether those three movement presets should carry ranged
+rows or stop being selectable.

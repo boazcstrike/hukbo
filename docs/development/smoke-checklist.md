@@ -17,7 +17,13 @@ The gate, the current gate results, and the recorded baselines live in
 
 ## Where the checklist stands, 2026-08-15
 
-**14 rows in 3 subsections, every one `PENDING`.** One is `GR-5`; twelve are
+**21 rows in 4 subsections, every one `PENDING`.** Seven are `AR-1` through
+`AR-7`, added on 2026-08-16 by the armor identity package, and unlike every
+other family here they cover a preset that **is** the shipped default, so a
+tester needs to choose nothing to reach them. Two of those seven, `AR-6` and
+`AR-7`, are expected to be hard or impossible to pass as written and say so in
+their own rows; recording "cannot tell" against them is a real result. Of the
+remaining fourteen, one is `GR-5`; twelve are
 `WS-1` through `WS-12`, added on 2026-08-15 by the weapon and shield sprite
 atlas package; and `CC-1` was added the same day by the contingent cohesion
 package, for the opt-in movement preset V15. No `PASS`, `FAIL`, `BLOCKED`, or
@@ -177,3 +183,49 @@ Leave it `PENDING` if untouched; report `BLOCKED` honestly.
 | # | Step | Expected | Actual | Status |
 | --- | --- | --- | --- | --- |
 | CC-1 | Open the Army Composition panel, select `V15 Contingent Cohesion Before Contact`, press `Shift+R` for a full reset, and watch one full battle from the default camera station. Then do the same with `V13 Cohort Lateral Spread` and compare | Under V15 a contingent visibly crosses the field as a body rather than dissolving into individual pursuit, and the difference from V13 is discernible without being told which preset is running. Record whether the two are tellable apart at all, because a change nobody can see on screen is the failure this row exists to catch. Spacing must still look irregular — the warriors close up, they do not dress into ranks or files, and if they look tidy that is a defect against the design's section 3 | | PENDING |
+
+## Armor identity (combat preset V7)
+
+`CombatPresetId.PrecolonialPhilippinesV7` **is** the shipped default:
+`ArenaGame.BuildScenario` selects it, so a spectator who changes nothing is
+already watching armored warriors. That is deliberate — the design's whole point
+is that armor reaches players rather than only the gate. Combat presets V1
+through V6 stay registered and unmodified, and their content hashes are
+unchanged, so any recorded replay naming one of them still reproduces.
+
+Every mitigation value, every pace penalty, and every distribution share in this
+package is invented gameplay tuning. No source in the sixteenth-century record
+states what any armor stopped, what it weighed, or what proportion of a force
+wore it — `docs/research/HISTORICAL_1500s_ARMOR.md` open question 11 says so
+outright. None of these numbers is a historical measurement and none may be
+presented as one.
+
+Only *baluti* clears the attestation bar for a Filipino label, on Pigafetta's
+own 1521 Visayan vocabulary. Every other armor term the research graded OPEN or
+EXCLUDE, so the other variants carry English descriptors only. A row below
+checks that the one permitted pair-form label renders correctly.
+
+Two rows below are expected to be hard or impossible to pass as written, and
+they are deliberately not softened. `AR-6` asks about a movement difference of
+three to six per cent, which may simply not be perceptible; recording "cannot
+tell" is a real and useful result, not a failure to test properly. `AR-7` asks
+whether the drawn pawn matches its armor identity, and the honest expectation is
+**no**: `PawnRenderer.Draw` takes an armor width factor that defaults to `1f`
+with no call site passing anything else, and the armor material tone is a fixed
+`DyePalette.BarkBrown` constant, so armor is not visibly drawn at all today. The
+appearance *resolution* was made authoritative by this package; the *renderer*
+was not, and that gap is recorded rather than hidden.
+
+Only a human running `./scripts/run.ps1` on an interactive Windows desktop may
+flip any row below. Compilation, unit tests, and a window-opening probe run do
+not. Leave a row `PENDING` if untouched; report `BLOCKED` honestly.
+
+| # | Step | Expected | Actual | Status |
+| --- | --- | --- | --- | --- |
+| AR-1 | Watch one full battle from the default camera station. Select an agent whose inspector shows `Armor: Rigid Cuirass` or `Armor: Imported Iron`, then one showing `Armor: None`, and compare how long each survives sustained contact | The armored warrior visibly absorbs blows that kill the unarmored one. The difference is discoverable by watching, without reading source. If the two are indistinguishable, armor is not legible to a spectator and the feature is incomplete under `SIMULATION-GAME-STANDARDS.md` section 10 question 8 | | PENDING |
+| AR-2 | Select any agent and read the inspector's armor rows | The armor identity row appears, followed by an armor variant label line, an armor evidence line, and a note line. The evidence line reads one of `Documented`, `Documented, form uncertain`, or `Provisional reconstruction` — never blank and never absent. This closes a live gap: the armor row had no evidence tier before this package, which `CLAUDE.md` section 7 requires | | PENDING |
+| AR-3 | Cycle through agents until one shows the quilted-cotton baseline, and read its variant label character by character | The label renders exactly as `Baluti — Quilted Armor`, with a real em dash rather than a hyphen, and its evidence line reads `Documented`. No other variant label anywhere carries a Filipino term. A bare unqualified cultural name, or a Filipino name on any other variant, is a policy violation under `CLAUDE.md` section 7 | | PENDING |
+| AR-4 | Watch the battle event feed through a sustained melee | A line reporting that armor absorbed damage and held off a lethal blow appears at least once, is readable as plain English, and is attributable to a blow the observer can see. It must be uncommon — it fires only when armor turned a killing blow into a survivable one. If it floods the feed, the emission condition has regressed from lethal-only to per-hit | | PENDING |
+| AR-5 | Open the Army Composition panel, change the armor composition away from its default, press `Shift+R` for a full reset, and inspect several agents on each side | The fielded mix of armor identities visibly follows the setting, and both factions field the same composition as each other. A visible asymmetry between the two sides is a defect: mirroring is what makes an outcome difference attributable to the simulation rather than to the draw | | PENDING |
+| AR-6 | Compare the movement of a warrior showing `Armor: Rigid Cuirass` against one showing `Armor: None`, both advancing across open ground | The rigid-armored warrior moves slightly slower. The modelled difference is six per cent, which is deliberately small, so **record honestly whether it is perceptible at all**. "Cannot tell them apart" is a legitimate and expected result here and should be written in the Actual column rather than treated as a failed test | | PENDING |
+| AR-7 | Compare the drawn pawn of a warrior showing `Armor: Rigid Cuirass` against one showing `Armor: None` | Expected today: **no visible difference**, because the renderer ignores armor entirely. Record what is actually seen. If the two do differ, the renderer has changed since this row was written and the row needs rewriting. If they do not, this row documents the known gap and stays open until a separate package wires the armor width factor and material tone through to `PawnRenderer.Draw` | | PENDING |
