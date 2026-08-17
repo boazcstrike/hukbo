@@ -59,15 +59,33 @@ public static class CollisionRules
     /// slack to spare.
     /// </summary>
     /// <remarks>
-    /// This value is bounded from above by simulation behaviour, not only by the
-    /// static validation guards. A radius of 4.5 world units clears every guard
-    /// arithmetically and still reintroduces a follower-trailing mutual-block
+    /// <para>
+    /// <b>The original reason for this value has expired.</b> It was chosen
+    /// because 4.5 world units cleared every static validation guard
+    /// arithmetically and still reintroduced a follower-trailing mutual-block
     /// deadlock: seed 12 of
     /// <c>LastStandFormationTests.NoLastStandBattleStallsAtTheTickLimitAcrossSeedsOneThroughTwoHundred</c>
-    /// stalls at the tick limit with living counts [9, 9]. That test is the
-    /// regression lock for exactly this class of bug. Measured on 2026-07-28:
-    /// 4.5 deadlocks, 4.25 and 4.125 do not. Do not raise this constant without
-    /// rerunning that test across every seed.
+    /// stalled at the tick limit with living counts [9, 9]. Measured 2026-07-28.
+    /// The intent-layer stall escape in <c>b9003a9</c> closed that case
+    /// afterwards. Re-measured 2026-08-16 with
+    /// <c>Hukbo.Tools.DeadlockProbe --survey</c>, 200 seeds and 18 agents per
+    /// cell: seed 12 at 4.5 now reaches a faction victory at tick 739, and at
+    /// this test's own threshold of
+    /// <see cref="FormationRules.MaximumLastStandThresholdAgents"/> both 4.25
+    /// and 4.5 stall 0 of 200.
+    /// </para>
+    /// <para>
+    /// <b>What still argues for 4.25 is a different measurement.</b> At the
+    /// shipping last-stand threshold of
+    /// <see cref="FormationRules.DefaultLastStandThresholdAgents"/>, 4.25 stalls
+    /// 0 of 200 seeds and 4.5 stalls 1 of 200 (seed 166). Summed across
+    /// thresholds 6 through 9 the totals are 5 stalls for 4.25 and 3 for 4.5, so
+    /// neither radius is clean and the radius mostly re-rolls which seeds are
+    /// unlucky. Raising this constant is an open tuning question, not a defect
+    /// repair; it moves both the state hash and the event hash on every seed, so
+    /// it needs its own decision and new golden expectations. Do not raise it
+    /// without rerunning that test across every seed.
+    /// </para>
     /// </remarks>
     public const int DefaultBodyRadiusRaw = (17 * FixedPoint.Scale) / 4;
 }

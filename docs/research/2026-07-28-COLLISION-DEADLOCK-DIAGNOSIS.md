@@ -166,6 +166,15 @@ that is permanently occupied.
 > it was, not as it is. Consequences 1 and 2 below fall with it; consequence 3,
 > that seeds 1 to 20 cannot detect a one-percent failure, still stands and is why
 > the regression test now runs 200.
+>
+> **The 4.5 column was re-measured on 2026-08-16, and it does not vanish.** Same
+> probe, same 200 seeds, same 18 agents: threshold 6 gives 1 stall in 200 (seed
+> 166), threshold 7 gives 0, threshold 8 gives 2 (seeds 21 and 153), and
+> threshold 9 gives 0. Summed over the four thresholds that is 3 stalls for 4.5
+> against 5 for 4.25, and 4.5 is the worse of the two at the shipping threshold
+> of 6, where it stalls one seed and 4.25 stalls none. This section's own thesis
+> survives its numbers: the radius re-rolls which seeds are unlucky rather than
+> making the packing safer.
 
 The rally jitter target is drawn from a span of `8 * BodyRadiusRaw + 1`, so the
 body radius is the *modulus* of the draw. Changing it does not make the packing
@@ -201,6 +210,33 @@ Three consequences follow, and they matter more than the original question did:
    Whatever fix is chosen, that test's seed range is itself a finding.
 
 ## 6. What this means for the options
+
+> **Option 6.4 was built on 2026-08-15, and this section's reading of it is
+> refuted.** Rotation and swap detection was implemented twice, in two
+> independent transcriptions of the rule. In the first form, where every member
+> of a component moves to its own claim, it fired zero times in 2,000 ticks of a
+> real stalled battle: 14,218 of 14,791 candidates were rejected because two
+> members' claims overlapped each other. In the second form, where each member
+> takes the ground the next one vacates, it committed 3,560 rotations and left
+> the stall count exactly where it found it — five seeds before, five after,
+> with threshold 7 going from two stalls to four. Every source and test change
+> was reverted and no code shipped.
+>
+> The bullet below reasoned from blocker-set stability without claim
+> compatibility ever having been measured, and that is the step that does not
+> hold. A blocker's centre is at least one body diameter away, because committed
+> bodies never overlap, while a claim is one movement step, so taking the vacated
+> ground is a jump of nearly three times the approved step and the resolver's own
+> displacement budget forbids it. Two locked warriors want the contested gap
+> *between* them, so their claims are mutually illegal. The stall is competition
+> for one piece of ground, not a permutation of ground, and an exchange rule has
+> nothing to exchange.
+>
+> **6.5 is the only remaining option that can move a warrior whose neighbour
+> wants the same ground, and it needs a design document of its own** — it changes
+> movement character in every battle and moves both hashes on every seed. The
+> plan titled "The collision mutual lock — plan" holds the counters; it and the
+> design were archived on 2026-08-16.
 
 This section states consequences, not a choice. Choosing is the next plan's job,
 after the scaling work is integrated, per the design's section 8.
