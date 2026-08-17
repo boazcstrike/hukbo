@@ -462,18 +462,54 @@ public sealed class MovementRuleset
     /// -1 for a key no profile row may carry. The canonical order is binding
     /// on the stored profile collection and on the content-hash fold.
     /// </summary>
+    /// <remarks>
+    /// <paramref name="armor"/> is deliberately ignored. The armor identity
+    /// package of 2026-08-16 made armor authoritative, and it reaches movement
+    /// through <c>ArmorWeightClasses.ScaleMovementSpeed</c>, applied once per
+    /// warrior at spawn in <c>BattleSimulation.CreateAgent</c> — never through
+    /// a per-armor profile row. Giving armor its own row for each baseline
+    /// would take this hand-authored table from six rows to roughly thirty-six
+    /// and fold every one of them into <see cref="ContentHash"/>, which the
+    /// armor identity design's section 7 rejects by name.
+    /// <para>
+    /// Before that package this arm matched
+    /// <see cref="ArmorId.LightOrganic"/> literally and returned -1 for
+    /// anything else, which made the lookup throw. That was the correct guard
+    /// while exactly one armor existed, and it became a crash the moment a
+    /// preset fielded a second one: selecting
+    /// <see cref="MovementPresetId.EquipmentRelativeFootworkV6"/>,
+    /// <see cref="MovementPresetId.EquipmentRelativeFootworkV7"/>, or
+    /// <see cref="MovementPresetId.MonotoneAllyClearanceV9"/> — all three
+    /// offered in the client's own movement-preset selector — alongside
+    /// combat preset <c>PrecolonialPhilippinesV7</c> threw
+    /// <see cref="ArgumentOutOfRangeException"/> on the first warrior wearing
+    /// anything but light organic armor.
+    /// </para>
+    /// <para>
+    /// Ignoring armor moves no hash. Every combat preset up to and including
+    /// version 6 fields <see cref="ArmorId.LightOrganic"/> on every roster
+    /// row, so each resolves to exactly the index it resolved to before, and
+    /// the canonical order this fold depends on is unchanged. The parameter is
+    /// kept in the signature rather than removed because the two sibling
+    /// lookups take the same triple and the three read as one key.
+    /// </para>
+    /// </remarks>
     private static int CanonicalLoadoutIndex(
-        WeaponId weapon, ArmorId armor, ShieldId shield) =>
-        (weapon, armor, shield) switch
+        WeaponId weapon, ArmorId armor, ShieldId shield)
+    {
+        _ = armor;
+
+        return (weapon, shield) switch
         {
-            (WeaponId.Kampilan, ArmorId.LightOrganic, ShieldId.None) => 0,
-            (WeaponId.Wasay, ArmorId.LightOrganic, ShieldId.None) => 1,
-            (WeaponId.Kalis, ArmorId.LightOrganic, ShieldId.None) => 2,
-            (WeaponId.Itak, ArmorId.LightOrganic, ShieldId.None) => 3,
-            (WeaponId.Kalis, ArmorId.LightOrganic, ShieldId.TallHardwood) => 4,
-            (WeaponId.Itak, ArmorId.LightOrganic, ShieldId.TallHardwood) => 5,
+            (WeaponId.Kampilan, ShieldId.None) => 0,
+            (WeaponId.Wasay, ShieldId.None) => 1,
+            (WeaponId.Kalis, ShieldId.None) => 2,
+            (WeaponId.Itak, ShieldId.None) => 3,
+            (WeaponId.Kalis, ShieldId.TallHardwood) => 4,
+            (WeaponId.Itak, ShieldId.TallHardwood) => 5,
             _ => -1,
         };
+    }
 
     /// <summary>
     /// The coupled validation of design section 5: a preset without

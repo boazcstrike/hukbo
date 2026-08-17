@@ -50,6 +50,40 @@ public sealed class AgentInspectorContentTests
         Assert.Equal("Armor: Light Organic", line);
     }
 
+    [Fact]
+    public void GetArmorLabel_EveryArmorIdMemberProducesNonEmptyLabel()
+    {
+        // Exhaustive by construction: this walks the live enum rather than
+        // a hand-maintained list, so a future ArmorId addition without a
+        // matching switch arm throws inside AgentInspectorContent.GetArmorLabel
+        // and this test goes red automatically. Nobody has to remember to
+        // add a row here.
+        foreach (var armor in Enum.GetValues<ArmorId>())
+        {
+            var label = AgentInspectorContent.GetArmorLabel(armor);
+
+            Assert.False(
+                string.IsNullOrWhiteSpace(label),
+                $"ArmorId.{armor} produced an empty or whitespace label.");
+        }
+    }
+
+    [Theory]
+    [InlineData(ArmorId.LightOrganic, "Light Organic")]
+    [InlineData(ArmorId.None, "None")]
+    [InlineData(ArmorId.QuiltedCotton, "Baluti — Quilted Armor")]
+    [InlineData(ArmorId.HideCorselet, "Hide Corselet")]
+    [InlineData(ArmorId.RigidCuirass, "Rigid Cuirass")]
+    [InlineData(ArmorId.ImportedIron, "Imported Iron")]
+    public void GetArmorLabel_RendersExpectedLabel(
+        ArmorId armor,
+        string expected)
+    {
+        var label = AgentInspectorContent.GetArmorLabel(armor);
+
+        Assert.Equal(expected, label);
+    }
+
     [Theory]
     [InlineData(ShieldId.None, "Shield: None")]
     [InlineData(ShieldId.TallHardwood, "Shield: Tall Hardwood")]
@@ -3070,6 +3104,112 @@ public sealed class AgentInspectorContentTests
                 shortRowCount <= AgentInspectorContent.WarriorNameReservedLineCount,
                 $"{name.Id} needs {shortRowCount} provenance rows, budget is " +
                 $"{AgentInspectorContent.WarriorNameReservedLineCount}.");
+        }
+    }
+
+    // ===== Armor-identity: armor-variant inspector lines =====
+
+    [Fact]
+    public void BuildArmorVariantLines_ForLightOrganic_ReturnsEmptyAndNeverThrows()
+    {
+        var lines = AgentInspectorContent.BuildArmorVariantLines(1UL, ArmorId.LightOrganic);
+
+        Assert.Empty(lines);
+    }
+
+    [Fact]
+    public void BuildArmorVariantLines_ForEveryVariantBearingArmorId_ReturnsExactlyThreeLines()
+    {
+        foreach (var armor in Enum.GetValues<ArmorId>())
+        {
+            if (armor == ArmorId.LightOrganic)
+            {
+                continue;
+            }
+
+            var lines = AgentInspectorContent.BuildArmorVariantLines(7UL, armor);
+
+            Assert.Equal(3, lines.Count);
+        }
+    }
+
+    [Fact]
+    public void BuildArmorVariantLines_ForEveryVariantBearingArmorId_LinesAreLabelThenTierThenNote()
+    {
+        foreach (var armor in Enum.GetValues<ArmorId>())
+        {
+            if (armor == ArmorId.LightOrganic)
+            {
+                continue;
+            }
+
+            var lines = AgentInspectorContent.BuildArmorVariantLines(11UL, armor);
+
+            Assert.StartsWith("        Armor variant: ", lines[0]);
+            Assert.StartsWith("        Armor evidence: ", lines[1]);
+            Assert.StartsWith("        ", lines[2]);
+        }
+    }
+
+    [Fact]
+    public void BuildArmorVariantLines_IsDeterministicForTheSameEntityIdAndArmor()
+    {
+        foreach (var armor in Enum.GetValues<ArmorId>())
+        {
+            var first = AgentInspectorContent.BuildArmorVariantLines(4242UL, armor);
+            var second = AgentInspectorContent.BuildArmorVariantLines(4242UL, armor);
+
+            Assert.Equal(first, second);
+        }
+    }
+
+    /// <summary>
+    /// Scans a range of entity ids to find one that selects the Baluti
+    /// variant — the one row CLAUDE.md section 7 clears the pair-form label
+    /// bar for — and asserts its tier line renders the Documented label,
+    /// rather than hardcoding a guessed entity id that could stop selecting
+    /// Baluti if the selection stream ever changes.
+    /// </summary>
+    [Fact]
+    public void BuildArmorVariantLines_ForQuiltedCotton_CanSelectBalutiWithDocumentedTier()
+    {
+        ulong? balutiEntityId = null;
+        for (var entityId = 0UL; entityId < 4096UL; entityId++)
+        {
+            var variant = ArmorVisualCatalog.SelectVariant(entityId, ArmorId.QuiltedCotton);
+            if (variant.Catalog.Id == ArmorVisualCatalog.Baluti.Catalog.Id)
+            {
+                balutiEntityId = entityId;
+                break;
+            }
+        }
+
+        Assert.True(
+            balutiEntityId.HasValue,
+            "No entityId in the scanned range selected the Baluti variant.");
+
+        var lines = AgentInspectorContent.BuildArmorVariantLines(
+            balutiEntityId!.Value,
+            ArmorId.QuiltedCotton);
+
+        Assert.Contains(
+            AgentInspectorContent.FormatArmorVariantLabelLine(
+                ArmorVisualCatalog.Baluti.Catalog.DisplayLabel),
+            lines);
+        Assert.Contains(
+            AgentInspectorContent.FormatArmorVariantTierLine(VisualEvidenceTier.Documented),
+            lines);
+    }
+
+    [Fact]
+    public void BuildArmorVariantLines_EveryArmorIdMemberNeverThrows()
+    {
+        foreach (var armor in Enum.GetValues<ArmorId>())
+        {
+            var exception = Record.Exception(
+                () => AgentInspectorContent.BuildArmorVariantLines(99UL, armor));
+
+            Assert.Null(exception);
         }
     }
 }

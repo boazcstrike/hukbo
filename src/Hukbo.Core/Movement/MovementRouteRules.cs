@@ -298,15 +298,24 @@ internal static class MovementRouteRules
     /// key is rank-independent, and an unmapped triple throws rather than
     /// resolving to a neighbouring row's spacing.
     /// </summary>
+    /// <remarks>
+    /// Armor is deliberately not part of this key. It reaches movement through
+    /// <c>ArmorWeightClasses.ScaleMovementSpeed</c> at spawn, not through a
+    /// per-armor offset row — see the matching remark on
+    /// <c>MovementRuleset.CanonicalLoadoutIndex</c> for why matching
+    /// <see cref="ArmorId.LightOrganic"/> literally here became a crash once a
+    /// preset fielded a second armor. Every preset up to and including version
+    /// 6 fields only light organic armor, so no resolved index moves.
+    /// </remarks>
     internal static int CanonicalOpponentIndex(CombatLoadout loadout) =>
-        (loadout.Weapon, loadout.Armor, loadout.Shield) switch
+        (loadout.Weapon, loadout.Shield) switch
         {
-            (WeaponId.Kampilan, ArmorId.LightOrganic, ShieldId.None) => 0,
-            (WeaponId.Wasay, ArmorId.LightOrganic, ShieldId.None) => 1,
-            (WeaponId.Kalis, ArmorId.LightOrganic, ShieldId.None) => 2,
-            (WeaponId.Itak, ArmorId.LightOrganic, ShieldId.None) => 3,
-            (WeaponId.Kalis, ArmorId.LightOrganic, ShieldId.TallHardwood) => 4,
-            (WeaponId.Itak, ArmorId.LightOrganic, ShieldId.TallHardwood) => 5,
+            (WeaponId.Kampilan, ShieldId.None) => 0,
+            (WeaponId.Wasay, ShieldId.None) => 1,
+            (WeaponId.Kalis, ShieldId.None) => 2,
+            (WeaponId.Itak, ShieldId.None) => 3,
+            (WeaponId.Kalis, ShieldId.TallHardwood) => 4,
+            (WeaponId.Itak, ShieldId.TallHardwood) => 5,
             _ => throw new ArgumentOutOfRangeException(
                 nameof(loadout),
                 loadout,

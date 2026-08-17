@@ -185,6 +185,17 @@ internal static class PresentationSalts
     public const ulong PawnSpriteVariantSalt = 0x3C8E71A4D9B25F60UL;
 
     /// <summary>
+    /// Armor variant selection stream (armor-identity-design.md section 5),
+    /// scoped by <c>EntityId</c>. Chooses among the documented variants of
+    /// the warrior's <c>CombatLoadout</c>-assigned <c>ArmorId</c> baseline.
+    /// Its own stream rather than reuse of any existing salt: no other
+    /// stream seeds an armor-scoped choice, and the one-salt-per-trait-
+    /// stream rule (R-W6.2) forbids folding a new trait into a salt already
+    /// spoken for by a different one.
+    /// </summary>
+    public const ulong ArmorVariantSalt = 0x1D6A94C7F3E85B02UL;
+
+    /// <summary>
     /// Every registered salt, existing and new, in declaration order. The
     /// pairwise-distinctness test walks this list; nothing else should need to.
     /// </summary>
@@ -222,5 +233,7 @@ internal static class PresentationSalts
             "Weapon and shield sprite variant selection."),
         new(nameof(PawnSpriteVariantSalt), PawnSpriteVariantSalt,
             "Pawn body atlas cell selection."),
+        new(nameof(ArmorVariantSalt), ArmorVariantSalt,
+            "Armor variant selection."),
     ];
 }

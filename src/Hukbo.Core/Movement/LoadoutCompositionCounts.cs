@@ -66,20 +66,30 @@ public readonly record struct LoadoutCompositionCounts(
     /// weapon, armor, or shield fails loudly here instead of vanishing from
     /// every composition-driven decision.
     /// </summary>
+    /// <remarks>
+    /// Armor is deliberately not part of this key. It reaches movement through
+    /// <c>ArmorWeightClasses.ScaleMovementSpeed</c> at spawn, not through a
+    /// per-armor composition bucket — see the matching remark on
+    /// <c>MovementRuleset.CanonicalLoadoutIndex</c>. Bucketing by armor as well
+    /// as weapon and shield would multiply these six counters by the armor
+    /// count for no decision that reads them, and matching
+    /// <see cref="ArmorId.LightOrganic"/> literally here threw on the first
+    /// warrior of a preset that fields a second armor.
+    /// </remarks>
     public LoadoutCompositionCounts Add(CombatLoadout loadout) =>
-        (loadout.Weapon, loadout.Armor, loadout.Shield) switch
+        (loadout.Weapon, loadout.Shield) switch
         {
-            (WeaponId.Kampilan, ArmorId.LightOrganic, ShieldId.None) =>
+            (WeaponId.Kampilan, ShieldId.None) =>
                 this with { Kampilan = checked(Kampilan + 1) },
-            (WeaponId.Wasay, ArmorId.LightOrganic, ShieldId.None) =>
+            (WeaponId.Wasay, ShieldId.None) =>
                 this with { Wasay = checked(Wasay + 1) },
-            (WeaponId.Kalis, ArmorId.LightOrganic, ShieldId.None) =>
+            (WeaponId.Kalis, ShieldId.None) =>
                 this with { Kalis = checked(Kalis + 1) },
-            (WeaponId.Itak, ArmorId.LightOrganic, ShieldId.None) =>
+            (WeaponId.Itak, ShieldId.None) =>
                 this with { Itak = checked(Itak + 1) },
-            (WeaponId.Kalis, ArmorId.LightOrganic, ShieldId.TallHardwood) =>
+            (WeaponId.Kalis, ShieldId.TallHardwood) =>
                 this with { KalisShield = checked(KalisShield + 1) },
-            (WeaponId.Itak, ArmorId.LightOrganic, ShieldId.TallHardwood) =>
+            (WeaponId.Itak, ShieldId.TallHardwood) =>
                 this with { ItakShield = checked(ItakShield + 1) },
             _ => throw new ArgumentOutOfRangeException(
                 nameof(loadout),

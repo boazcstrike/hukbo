@@ -480,7 +480,8 @@ public sealed partial class ArenaGame
                 agent.EntityId,
                 agent.Loadout.Weapon,
                 agent.Loadout.Shield,
-                agent.IsLeader);
+                agent.IsLeader,
+                armor: agent.Loadout.Armor);
             var pawnPrefix = PawnGeometry.PoseBlindPrefix.Create(
                 footAnchor,
                 _camera.Zoom,
@@ -1247,7 +1248,8 @@ public sealed partial class ArenaGame
                 agent.EntityId,
                 agent.Loadout.Weapon,
                 agent.Loadout.Shield,
-                agent.IsLeader);
+                agent.IsLeader,
+                agent.Loadout.Armor);
 
             // GPU-014, stage one. The cull rectangle without the posed layout
             // behind it. Pose-blind on purpose: a pose-aware cull would make

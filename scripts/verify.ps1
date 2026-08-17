@@ -127,6 +127,27 @@ if ($Game -eq 'Hukbo') {
         Preset = 'PrecolonialPhilippinesV5'
         MovementPreset = 'EvasiveFootworkV14'
     }
+
+    # The preset the client ships after the 2026-08-16 armor identity work.
+    # The V5 block above is deliberately not repointed, for exactly the reason
+    # the V11 and V13 blocks record: it is now the leak detector proving that
+    # armor mitigation never reaches a preset that declares no mitigation
+    # table. V7 restates V5 and adds armor, so running the two side by side
+    # under the same movement preset is what isolates armor's effect from
+    # everything else V5 already does.
+    #
+    # This invocation is also the only place the gate exercises a roster that
+    # fields more than one ArmorId. Without it the gate would keep measuring
+    # the preset the player no longer runs.
+    Invoke-RepositoryScript -Name 'benchmark.ps1' -Parameters @{
+        Agents = 200
+        Ticks = 10000
+        Seed = 1
+        NoBuild = $true
+        Game = $Game
+        Preset = 'PrecolonialPhilippinesV7'
+        MovementPreset = 'EvasiveFootworkV14'
+    }
 }
 
 

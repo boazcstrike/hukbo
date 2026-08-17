@@ -31,6 +31,26 @@ public enum BattleEventKind
     /// exists yet.
     /// </summary>
     Miss = 6,
+
+    /// <summary>
+    /// A landed blow's raw, unmitigated damage would have reduced the
+    /// target's <c>HitPoints</c> to zero or below, but the target's armor
+    /// reduced that same blow's damage enough that it did not. Non-attack:
+    /// constructed only through <see cref="BattleEvent.NonAttack"/>, so
+    /// <see cref="BattleEvent.Weapon"/>, <see cref="BattleEvent.Shield"/>,
+    /// <see cref="BattleEvent.HitLocation"/>, and
+    /// <see cref="BattleEvent.Resolution"/> are always <c>null</c>.
+    /// <see cref="BattleEvent.SourceEntityId"/> is the armored agent whose
+    /// life the armor saved; <see cref="BattleEvent.TargetEntityId"/> is
+    /// always <c>null</c>. <see cref="BattleEvent.Value"/> carries the
+    /// number of damage points the armor absorbed on that specific blow —
+    /// the difference between the blow's raw damage and its mitigated
+    /// damage. Emitted from <see cref="BattleSimulation"/> at most once per
+    /// target per tick, alongside that target's <see cref="Damage"/> event
+    /// for the tick, even when more than one landed blow against the same
+    /// target would individually have qualified.
+    /// </summary>
+    ArmorSaved = 7,
 }
 
 /// <summary>

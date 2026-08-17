@@ -30,6 +30,29 @@ public sealed class CombatRuleset
     /// </summary>
     private const string RankLevelsParameterName = "rankLevels";
 
+    /// <summary>
+    /// The constructor parameter armor-mitigation validation blames,
+    /// mirroring <see cref="RankLevelsParameterName"/> above for the same
+    /// reason: validation runs in a helper where the parameter itself is out
+    /// of scope, so <c>nameof</c> is unavailable.
+    /// </summary>
+    private const string ArmorMitigationParameterName = "armorMitigation";
+
+    /// <summary>
+    /// The lowest damage-mitigation value a preset may declare for one
+    /// <see cref="ArmorId"/>/<see cref="BodyPart"/> pair: no mitigation at
+    /// all.
+    /// </summary>
+    private const int MinimumMitigationBasisPoints = 0;
+
+    /// <summary>
+    /// The highest damage-mitigation value a preset may declare for one
+    /// <see cref="ArmorId"/>/<see cref="BodyPart"/> pair: full mitigation,
+    /// 100 per cent. Shares <see cref="ClashProfile.BasisPointScale"/> so
+    /// the two basis-point systems stay expressed in the same unit.
+    /// </summary>
+    private const int MaximumMitigationBasisPoints = ClashProfile.BasisPointScale;
+
     private readonly TargetWeightProfile _generalTargets;
     private readonly IReadOnlyDictionary<WeaponId, TargetWeightProfile> _weaponTargets;
     private readonly IReadOnlyList<ArmorId> _armors;
@@ -38,6 +61,7 @@ public sealed class CombatRuleset
     private readonly IReadOnlyDictionary<WeaponId, WeaponAttributes>? _weaponAttributes;
     private readonly ClashProfile? _declaredClashProfile;
     private readonly IReadOnlyDictionary<RankId, int>? _rankLevels;
+    private readonly IReadOnlyDictionary<ArmorId, IReadOnlyDictionary<BodyPart, int>>? _armorMitigation;
     private readonly IReadOnlyDictionary<(WeaponId Weapon, ShieldId Shield), EffectiveWeightTable> _effectiveWeights;
 
     /// <summary>
@@ -64,7 +88,8 @@ public sealed class CombatRuleset
         IReadOnlyList<CombatLoadout> roster,
         IReadOnlyDictionary<WeaponId, WeaponAttributes>? weaponAttributes = null,
         ClashProfile? clashProfile = null,
-        IReadOnlyDictionary<RankId, int>? rankLevels = null)
+        IReadOnlyDictionary<RankId, int>? rankLevels = null,
+        IReadOnlyDictionary<ArmorId, IReadOnlyDictionary<BodyPart, int>>? armorMitigation = null)
     {
         ArgumentNullException.ThrowIfNull(generalTargets);
         ArgumentNullException.ThrowIfNull(weaponTargets);
@@ -141,8 +166,21 @@ public sealed class CombatRuleset
             ? null
             : new Dictionary<RankId, int>(rankLevels);
 
+        // Deep copy: the outer dictionary and every inner per-body-part
+        // dictionary are both copied, matching the defensive-copy rationale
+        // above for every other constructor-supplied collection. Copying
+        // only the outer dictionary would leave ContentHash and
+        // ResolveArmorMitigation reading a table a caller could still mutate
+        // through its retained inner dictionaries after construction.
+        _armorMitigation = armorMitigation is null
+            ? null
+            : armorMitigation.ToDictionary(
+                pair => pair.Key,
+                pair => (IReadOnlyDictionary<BodyPart, int>)new Dictionary<BodyPart, int>(pair.Value));
+
         ValidateWeaponAttributes();
         ValidateRankLevels();
+        ValidateArmorMitigation();
         _effectiveWeights = BuildEffectiveWeightTables();
         ValidateResolvedTotals();
         ValidateClashProfileCoversTheRoster();
@@ -203,7 +241,8 @@ public sealed class CombatRuleset
             _roster,
             weaponAttributes: _weaponAttributes,
             clashProfile: profile,
-            rankLevels: _rankLevels);
+            rankLevels: _rankLevels,
+            armorMitigation: _armorMitigation);
     }
 
     public int ResolveWeaponWeight(WeaponId weapon, BodyPart bodyPart)
@@ -283,6 +322,74 @@ public sealed class CombatRuleset
         }
 
         return level;
+    }
+
+    /// <summary>
+    /// Whether this preset declares a per-armor damage-mitigation table.
+    /// False for every preset that predates it, whose warriors take no
+    /// damage reduction from armor at all. A preset that declares none
+    /// hashes none, which is what keeps every earlier preset's content hash
+    /// — and therefore its replays — exactly where it was.
+    /// </summary>
+    public bool HasArmorMitigation => _armorMitigation is not null;
+
+    /// <summary>
+    /// The damage-mitigation basis points this preset declares for
+    /// <paramref name="armor"/> at <paramref name="bodyPart"/>. Basis points
+    /// are out of 10,000, matching the convention
+    /// <c>LoadoutMovementProfile</c> already uses.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">
+    /// This preset declares no armor mitigation table; check
+    /// <see cref="HasArmorMitigation"/> first.
+    /// </exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="armor"/> or <paramref name="bodyPart"/> has no
+    /// declared value in this preset's mitigation table.
+    /// </exception>
+    public int ResolveArmorMitigation(ArmorId armor, BodyPart bodyPart)
+    {
+        if (_armorMitigation is null)
+        {
+            throw new InvalidOperationException(
+                $"Combat preset {Id} declares no armor mitigation table; " +
+                $"check {nameof(HasArmorMitigation)} before resolving " +
+                "mitigation.");
+        }
+
+        if (!_armorMitigation.TryGetValue(armor, out var byPart) ||
+            !byPart.TryGetValue(bodyPart, out var basisPoints))
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(armor),
+                armor,
+                "Unknown armor identity or body part for this combat " +
+                "ruleset's mitigation table.");
+        }
+
+        return basisPoints;
+    }
+
+    /// <summary>
+    /// Reduces <paramref name="damage"/> by the mitigation this preset
+    /// declares for <paramref name="armor"/> at <paramref name="bodyPart"/>,
+    /// rounding down. A preset that declares no armor mitigation table
+    /// returns <paramref name="damage"/> unchanged rather than throwing, so
+    /// this can be called unconditionally by every damage-application call
+    /// site regardless of which preset a battle is running under — the same
+    /// no-op-when-undeclared shape <see cref="TryResolveWeaponGrip"/> uses
+    /// for an optional feature.
+    /// </summary>
+    public int ApplyArmorMitigation(int damage, ArmorId armor, BodyPart bodyPart)
+    {
+        if (_armorMitigation is null)
+        {
+            return damage;
+        }
+
+        var basisPoints = ResolveArmorMitigation(armor, bodyPart);
+        var reduction = (int)((long)damage * basisPoints / ClashProfile.BasisPointScale);
+        return damage - reduction;
     }
 
     /// <summary>
@@ -462,6 +569,66 @@ public sealed class CombatRuleset
                     "must declare one for every rank its roster actually " +
                     "fields.",
                     RankLevelsParameterName);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Enforces the two configuration invariants a misconfigured armor
+    /// mitigation table would otherwise express as a warrior whose armor
+    /// silently does nothing, or a mitigation value that cannot mean
+    /// anything: every declared <see cref="ArmorId"/> member — not merely
+    /// the ones this preset's own roster fields — has a declared basis-point
+    /// value for every <see cref="BodyPart"/> this ruleset resolves, and
+    /// that value is a valid basis-point fraction. Coverage is checked
+    /// against every declared <see cref="ArmorId"/> member rather than only
+    /// this preset's roster because <see cref="ArmorId"/> is a shared,
+    /// append-only enum a later preset may extend, and a preset that
+    /// declares a mitigation table at all should fail loudly at
+    /// construction if a later member reaches it uncovered, rather than
+    /// silently resolving no mitigation the moment a roster changes.
+    /// Mirrors <see cref="ValidateRankLevels"/>.
+    /// </summary>
+    private void ValidateArmorMitigation()
+    {
+        if (_armorMitigation is null)
+        {
+            return;
+        }
+
+        foreach (var armor in Enum.GetValues<ArmorId>())
+        {
+            if (!_armorMitigation.TryGetValue(armor, out var byPart))
+            {
+                throw new ArgumentException(
+                    $"Armor mitigation table declares no row for armor " +
+                    $"{armor}. A preset that declares an armor mitigation " +
+                    "table must cover every declared ArmorId member.",
+                    ArmorMitigationParameterName);
+            }
+
+            foreach (var part in BodyPartCatalog.Ordered)
+            {
+                if (!byPart.TryGetValue(part, out var basisPoints))
+                {
+                    throw new ArgumentException(
+                        $"Armor mitigation table for armor {armor} declares " +
+                        $"no value for body part {part}. Every armor row " +
+                        "must cover every body part this ruleset resolves.",
+                        ArmorMitigationParameterName);
+                }
+
+                if (basisPoints < MinimumMitigationBasisPoints ||
+                    basisPoints > MaximumMitigationBasisPoints)
+                {
+                    throw new ArgumentOutOfRangeException(
+                        ArmorMitigationParameterName,
+                        basisPoints,
+                        $"Armor {armor} body part {part} declares a " +
+                        $"mitigation of {basisPoints} basis points, outside " +
+                        $"the valid [{MinimumMitigationBasisPoints}, " +
+                        $"{MaximumMitigationBasisPoints}] range.");
+                }
             }
         }
     }
@@ -880,6 +1047,34 @@ public sealed class CombatRuleset
             {
                 Fnv1a.Add(ref hash, (ulong)rank);
                 Fnv1a.Add(ref hash, (ulong)_rankLevels[rank]);
+            }
+        }
+
+        // Contributed only by a preset that declares an armor mitigation
+        // table, on the same terms as the three blocks above: a preset that
+        // declares none (every preset up to and including V6) mixes nothing
+        // here at all — not even a zero count — which is what leaves its
+        // content hash untouched by this feature. Armor identities are
+        // folded in ascending enum order and body parts in
+        // BodyPartCatalog.Ordered, matching the ordering convention every
+        // other fold in this method already uses, so two rulesets built
+        // with the same mitigation data supplied through dictionaries in a
+        // different order hash identically.
+        if (_armorMitigation is not null)
+        {
+            var mitigationArmorIds = _armorMitigation.Keys
+                .OrderBy(id => (int)id)
+                .ToArray();
+            Fnv1a.Add(ref hash, (ulong)mitigationArmorIds.Length);
+            foreach (var armor in mitigationArmorIds)
+            {
+                Fnv1a.Add(ref hash, (ulong)armor);
+                var byPart = _armorMitigation[armor];
+                foreach (var part in BodyPartCatalog.Ordered)
+                {
+                    Fnv1a.Add(ref hash, (ulong)part);
+                    Fnv1a.Add(ref hash, (ulong)byPart[part]);
+                }
             }
         }
 

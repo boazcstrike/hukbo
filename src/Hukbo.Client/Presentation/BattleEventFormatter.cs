@@ -81,6 +81,9 @@ internal static class BattleEventFormatter
                 $"{battleEvent.Value} ticks in flight",
             BattleEventKind.Miss =>
                 "shot spent itself without landing",
+            BattleEventKind.ArmorSaved =>
+                $"armor absorbed {battleEvent.Value} damage — held off " +
+                "a lethal blow",
             _ => "unknown event",
         };
     }

@@ -1,3 +1,5 @@
+using Hukbo.Core.Combat;
+
 namespace Hukbo.Client.Presentation.Catalogs;
 
 /// <summary>
@@ -836,6 +838,57 @@ internal static class AppearanceComponentCatalog
             VisualDetailTier.Medium),
         AppearanceComponentCategory.Armor,
         AppearanceRenderChannel.Silhouette);
+
+    /// <summary>
+    /// Maps the authoritative <see cref="ArmorId"/> — the simulation's
+    /// combat armor identity — to the category-F appearance component the
+    /// pawn draws as its body-armor silhouette. This is separate from
+    /// <see cref="Catalogs.ArmorVisualCatalog"/>, which resolves the
+    /// cultural/citation variant beneath a given <see cref="ArmorId"/>;
+    /// this method resolves which silhouette shape gets drawn at all.
+    ///
+    /// <list type="bullet">
+    /// <item><see cref="ArmorId.None"/> and <see cref="ArmorId.LightOrganic"/>
+    /// (the legacy baseline, which ships no variants of its own in
+    /// <see cref="Catalogs.ArmorVisualCatalog"/>) both draw
+    /// <see cref="ArmorF1Unarmored"/>.</item>
+    /// <item><see cref="ArmorId.QuiltedCotton"/> draws
+    /// <see cref="ArmorF2CordedFiberArmor"/>.</item>
+    /// <item><see cref="ArmorId.HideCorselet"/> draws
+    /// <see cref="ArmorF3HideCorselet"/>.</item>
+    /// <item><see cref="ArmorId.RigidCuirass"/> draws
+    /// <see cref="ArmorF4WoodenBreastplate"/>.</item>
+    /// <item><see cref="ArmorId.ImportedIron"/> also draws
+    /// <see cref="ArmorF4WoodenBreastplate"/>. This is a deliberate,
+    /// honestly-documented substitution: no dedicated iron-cuirass
+    /// silhouette exists in this catalog yet, and the wooden breastplate is
+    /// the closest rigid-torso silhouette already shipped. A future package
+    /// that adds an iron-specific component should replace this arm of the
+    /// switch rather than leave the substitution standing by default.</item>
+    /// </list>
+    ///
+    /// <see cref="ArmorF5ShellSetHelmet"/> is a head-worn component, not
+    /// body armor, and is never reachable from this method — head
+    /// protection is out of this package's scope. Every defined
+    /// <see cref="ArmorId"/> member maps to exactly one entry here; there is
+    /// no fallback arm, so a future <see cref="ArmorId"/> addition that
+    /// forgets to extend this switch fails loudly at the throw below rather
+    /// than silently drawing the wrong silhouette.
+    /// </summary>
+    public static AppearanceComponentEntry ResolveArmorComponent(ArmorId armor) =>
+        armor switch
+        {
+            ArmorId.None => ArmorF1Unarmored,
+            ArmorId.LightOrganic => ArmorF1Unarmored,
+            ArmorId.QuiltedCotton => ArmorF2CordedFiberArmor,
+            ArmorId.HideCorselet => ArmorF3HideCorselet,
+            ArmorId.RigidCuirass => ArmorF4WoodenBreastplate,
+            // No dedicated iron-cuirass silhouette exists in this catalog;
+            // the wooden breastplate is the nearest rigid-torso shape
+            // already shipped. See this method's doc comment.
+            ArmorId.ImportedIron => ArmorF4WoodenBreastplate,
+            _ => throw new ArgumentOutOfRangeException(nameof(armor), armor, null),
+        };
 
     // ================= Category G — Belt, sash, and waist wrapping (three options, all shipped) =================
 

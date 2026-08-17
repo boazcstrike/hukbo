@@ -17,9 +17,9 @@ internal static class PawnAppearanceFactory
     private static readonly Color MediumSkin = new(156, 103, 66);
     private static readonly Color DarkSkin = new(119, 76, 50);
 
-    // Weapon and shield roles come only from the authoritative Core loadout.
-    // Entity ID drives stature, build, clothing, skin, and head treatment
-    // only — it must never influence equipment identity.
+    // Weapon, shield, and armor roles come only from the authoritative Core
+    // loadout. Entity ID drives stature, build, clothing, skin, and head
+    // treatment only — it must never influence equipment identity.
     /// <param name="isLeader">
     /// Whether the simulation has currently elected this entity as its
     /// contingent's leader (<c>AgentView.IsLeader</c>). Forwarded to
@@ -52,13 +52,32 @@ internal static class PawnAppearanceFactory
     /// real values through the existing render and inspector call sites once
     /// more than one block ships.
     /// </param>
+    /// <param name="armor">
+    /// The agent's authoritative armor identity (<c>CombatLoadout.Armor</c>).
+    /// Resolves both <see cref="PawnAppearance.ArmorComponentId"/> (the
+    /// drawn silhouette, via
+    /// <see cref="AppearanceComponentCatalog.ResolveArmorComponent"/>) and
+    /// <see cref="PawnAppearance.ArmorVariantId"/> (the cultural/citation
+    /// variant, via <see cref="ArmorVisualCatalog.SelectVariant"/>). Placed
+    /// last and defaulted to <see cref="ArmorId.None"/>, rather than
+    /// alongside <paramref name="weapon"/> and <paramref name="shield"/>
+    /// where it conceptually belongs, so the very large existing set of
+    /// call sites built before armor identity reached this factory —
+    /// geometry, quad-count, cull, gait, and inspector tests among them —
+    /// keep compiling unchanged even where they already pass
+    /// <paramref name="isLeader"/> positionally. A caller that does know the
+    /// entity's real armor — <see cref="PawnAppearanceCache.Resolve"/> and
+    /// the two render call sites chief among them — must forward it rather
+    /// than lean on the default.
+    /// </param>
     public static PawnAppearance Create(
         ulong entityId,
         WeaponId weapon,
         ShieldId shield,
         bool isLeader = false,
         int factionId = 0,
-        ulong scenarioSeed = 0)
+        ulong scenarioSeed = 0,
+        ArmorId armor = ArmorId.None)
     {
         var bodyMix = Mix(entityId ^ 0xA0761D6478BD642FUL);
         var clothingMix = Mix(entityId ^ 0xE7037ED1A0B428DBUL);
@@ -107,6 +126,15 @@ internal static class PawnAppearanceFactory
         // recipe carries one.
         var garmentBaseTone = skinColor;
 
+        // The drawn armor silhouette is a pure function of armor alone (no
+        // entity-ID variance — every warrior wearing the same ArmorId draws
+        // the same silhouette), and the cultural/citation variant beneath it
+        // is a pure function of (entityId, armor), matching the weapon tint
+        // and shield skin streams above. Neither reads bodyMix, clothingMix,
+        // or detailMix.
+        var armorComponent = AppearanceComponentCatalog.ResolveArmorComponent(armor);
+        var armorVariant = ArmorVisualCatalog.SelectVariant(entityId, armor);
+
         return new PawnAppearance(
             weaponRole,
             shieldRole,
@@ -124,7 +152,9 @@ internal static class PawnAppearanceFactory
             shieldSkin.Catalog.Id,
             shieldSkin.FaceColor,
             preset.Catalog.Id,
-            garmentBaseTone);
+            garmentBaseTone,
+            armorComponent.Catalog.Id,
+            armorVariant.Catalog.Id);
     }
 
     /// <summary>

@@ -1163,6 +1163,66 @@ internal static class AgentInspectorContent
         "early-1600s vocabulary entry.";
 
     /// <summary>
+    /// The inspector's armor-variant lines (armor-identity-design.md
+    /// section 3, section 5) — the spectator-discoverability channel for
+    /// the cultural-identity, evidence-tier, and citation layer
+    /// <see cref="ArmorVisualCatalog"/> selects over a warrior's
+    /// authoritative Core <see cref="ArmorId"/> baseline, mirroring
+    /// <see cref="BuildShieldVariantLines"/>'s own shape: a label line, a
+    /// tier line, and a note line, read straight off the catalog rather
+    /// than hand-duplicated. Selection is deterministic in
+    /// <paramref name="entityId"/> and <paramref name="armor"/>, so the
+    /// same warrior always shows the same variant across frames and
+    /// replays — <see cref="ArmorVisualCatalog.SelectVariant"/> is a pure
+    /// function of the two, never re-rolled per call. Returns an empty
+    /// list for <see cref="ArmorId.LightOrganic"/>, the legacy baseline no
+    /// shipped preset fields (armor-identity-design.md section 4):
+    /// <see cref="ArmorVisualCatalog.GetVariants"/> reports no rows for it,
+    /// so there is nothing for the inspector to name, and a replay
+    /// recorded under an older preset still renders without a variant
+    /// block. Never throws for any other defined <see cref="ArmorId"/>.
+    /// This closes the CLAUDE.md section 7 gap the armor row otherwise
+    /// leaves open: <see cref="FormatArmorLine"/> alone shows a cultural
+    /// identification (for example "Baluti — Quilted Armor") with no
+    /// evidence tier anywhere in the inspector, unlike the weapon row and
+    /// the cosmetic shield block, which both already carry one.
+    /// </summary>
+    /// <remarks>
+    /// Pure: reads only the static <see cref="ArmorVisualCatalog"/> tables
+    /// keyed by <paramref name="armor"/>, and the deterministic selection
+    /// stream keyed by <paramref name="entityId"/> and
+    /// <paramref name="armor"/>. Touches no <c>SpriteBatch</c>,
+    /// <c>GraphicsDevice</c>, or window.
+    /// </remarks>
+    internal static IReadOnlyList<string> BuildArmorVariantLines(
+        ulong entityId,
+        ArmorId armor)
+    {
+        if (ArmorVisualCatalog.GetVariants(armor).Count == 0)
+        {
+            return [];
+        }
+
+        var variant = ArmorVisualCatalog.SelectVariant(entityId, armor);
+
+        return new List<string>
+        {
+            FormatArmorVariantLabelLine(variant.Catalog.DisplayLabel),
+            FormatArmorVariantTierLine(variant.Catalog.EvidenceTier),
+            FormatArmorVariantNoteLine(variant.Catalog.Notes),
+        };
+    }
+
+    internal static string FormatArmorVariantLabelLine(string label) =>
+        $"        Armor variant: {label}";
+
+    internal static string FormatArmorVariantTierLine(VisualEvidenceTier tier) =>
+        $"        Armor evidence: {FormatVisualEvidenceTierLabel(tier)}";
+
+    internal static string FormatArmorVariantNoteLine(string note) =>
+        $"        {note}";
+
+    /// <summary>
     /// VIS-016: the inspector's shield-variant lines (shield-visuals-
     /// design.md; R-W2.6, R-W2.7, R-X.6, R-X.10) — the spectator-
     /// discoverability channel for the presentation-only skin work
@@ -1578,10 +1638,31 @@ internal static class AgentInspectorContent
     internal static string FormatShieldLine(ShieldId shield) =>
         $"Shield: {GetShieldLabel(shield)}";
 
+    /// <summary>
+    /// Maps every <see cref="ArmorId"/> member to its player-facing label.
+    /// </summary>
+    /// <remarks>
+    /// CLAUDE.md section 7 permits a Filipino cultural identification in
+    /// player-facing UI only in the paired form (Filipino name, em dash,
+    /// plain English descriptor), and only where the evidence tier is
+    /// recorded. Per docs/research/HISTORICAL_1500s_ARMOR.md section 7,
+    /// <em>baluti</em> is the only body-armor term that clears the
+    /// attestation bar: Pigafetta's own 1521 Visayan vocabulary glosses it
+    /// as quilted garments used for fighting. Every other Filipino armor
+    /// term in that research is graded OPEN or EXCLUDE, so
+    /// <see cref="ArmorId.QuiltedCotton"/> is deliberately the only member
+    /// below carrying a Filipino name; the rest use plain English
+    /// descriptors until further research clears them.
+    /// </remarks>
     internal static string GetArmorLabel(ArmorId armor) =>
         armor switch
         {
             ArmorId.LightOrganic => "Light Organic",
+            ArmorId.None => "None",
+            ArmorId.QuiltedCotton => "Baluti — Quilted Armor",
+            ArmorId.HideCorselet => "Hide Corselet",
+            ArmorId.RigidCuirass => "Rigid Cuirass",
+            ArmorId.ImportedIron => "Imported Iron",
             _ => throw new ArgumentOutOfRangeException(
                 nameof(armor),
                 armor,

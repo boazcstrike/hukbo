@@ -878,4 +878,72 @@ public sealed class PawnAppearanceFactoryTests
         throw new InvalidOperationException(
             $"No (factionId, scenarioSeed) pair in the searched range resolves {block}.");
     }
+
+    // ================= Armor identity threads through from the authoritative loadout =================
+
+    [Fact]
+    public void Create_SameEntityIdDifferentArmorId_ResolvesDifferentArmorComponentButIdenticalEverythingElse()
+    {
+        const ulong entityId = 77;
+
+        var unarmored = PawnAppearanceFactory.Create(entityId, WeaponId.Kalis, ShieldId.None, armor: ArmorId.None);
+        var quiltedCotton = PawnAppearanceFactory.Create(entityId, WeaponId.Kalis, ShieldId.None, armor: ArmorId.QuiltedCotton);
+        var hideCorselet = PawnAppearanceFactory.Create(entityId, WeaponId.Kalis, ShieldId.None, armor: ArmorId.HideCorselet);
+        var rigidCuirass = PawnAppearanceFactory.Create(entityId, WeaponId.Kalis, ShieldId.None, armor: ArmorId.RigidCuirass);
+
+        // Proves the drawn armor follows the authoritative loadout rather
+        // than the entity's own random roll: the only input that changed
+        // between these four calls is armor, and only ArmorComponentId (and
+        // the cultural variant beneath it) may move.
+        Assert.NotEqual(unarmored.ArmorComponentId, quiltedCotton.ArmorComponentId);
+        Assert.NotEqual(unarmored.ArmorComponentId, hideCorselet.ArmorComponentId);
+        Assert.NotEqual(unarmored.ArmorComponentId, rigidCuirass.ArmorComponentId);
+        Assert.NotEqual(quiltedCotton.ArmorComponentId, hideCorselet.ArmorComponentId);
+        Assert.NotEqual(hideCorselet.ArmorComponentId, rigidCuirass.ArmorComponentId);
+
+        Assert.Equal(unarmored.StatureMultiplier, quiltedCotton.StatureMultiplier);
+        Assert.Equal(unarmored.BuildMultiplier, quiltedCotton.BuildMultiplier);
+        Assert.Equal(unarmored.HeadTreatment, quiltedCotton.HeadTreatment);
+        Assert.Equal(unarmored.ClothingColor, quiltedCotton.ClothingColor);
+        Assert.Equal(unarmored.AccentColor, quiltedCotton.AccentColor);
+        Assert.Equal(unarmored.SkinColor, quiltedCotton.SkinColor);
+        Assert.Equal(unarmored.HeadTreatmentColor, quiltedCotton.HeadTreatmentColor);
+        Assert.Equal(unarmored.WeaponTintId, quiltedCotton.WeaponTintId);
+        Assert.Equal(unarmored.ShieldSkinId, quiltedCotton.ShieldSkinId);
+        Assert.Equal(unarmored.AppearancePresetId, quiltedCotton.AppearancePresetId);
+    }
+
+    [Theory]
+    [InlineData(ArmorId.None)]
+    [InlineData(ArmorId.LightOrganic)]
+    [InlineData(ArmorId.QuiltedCotton)]
+    [InlineData(ArmorId.HideCorselet)]
+    [InlineData(ArmorId.RigidCuirass)]
+    [InlineData(ArmorId.ImportedIron)]
+    public void Create_EveryDefinedArmorIdResolvesWithoutThrowingAndNeverDrawsTheHelmet(ArmorId armor)
+    {
+        var appearance = PawnAppearanceFactory.Create(41, WeaponId.Itak, ShieldId.None, armor: armor);
+
+        Assert.False(string.IsNullOrEmpty(appearance.ArmorComponentId));
+        Assert.False(string.IsNullOrEmpty(appearance.ArmorVariantId));
+        // F5 is a helmet, not body armor, and head protection is out of
+        // this package's scope — it must never be reachable here.
+        Assert.NotEqual(
+            AppearanceComponentCatalog.ArmorF5ShellSetHelmet.Catalog.Id,
+            appearance.ArmorComponentId);
+    }
+
+    [Fact]
+    public void Create_OmittedArmorArgumentDefaultsToNone()
+    {
+        // The very large existing set of call sites across this suite never
+        // passes armor at all. This pins that the omitted-argument default
+        // really is ArmorId.None (the bare-torso baseline) rather than some
+        // other silently inconsistent value.
+        var implicitDefault = PawnAppearanceFactory.Create(5, WeaponId.Kampilan, ShieldId.None);
+        var explicitNone = PawnAppearanceFactory.Create(5, WeaponId.Kampilan, ShieldId.None, armor: ArmorId.None);
+
+        Assert.Equal(explicitNone.ArmorComponentId, implicitDefault.ArmorComponentId);
+        Assert.Equal(explicitNone.ArmorVariantId, implicitDefault.ArmorVariantId);
+    }
 }

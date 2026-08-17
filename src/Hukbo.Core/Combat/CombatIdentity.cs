@@ -103,9 +103,190 @@ public enum WeaponGrip
 /// Stable armor identity. Numeric values are part of the deterministic
 /// replay and content-hash contract; do not renumber or reorder.
 /// </summary>
+/// <remarks>
+/// This enum is append-only. A new baseline takes the next free value and
+/// every existing value keeps the one it has, because a recorded replay
+/// stores the numeric value rather than the name. Renumbering a member, or
+/// removing one, silently rewrites the meaning of every replay and content
+/// hash that already mentions it.
+/// <para>
+/// <see cref="LightOrganic"/> is retained deliberately and is deliberately
+/// unused by new presets. Every preset up to and including
+/// <see cref="CombatPresetId.PrecolonialPhilippinesV6"/> fields it on every
+/// roster row, so it can never be retired; new presets field
+/// <see cref="None"/> instead, which avoids a second generic value competing
+/// with it for the same meaning.
+/// </para>
+/// </remarks>
 public enum ArmorId
 {
+    /// <summary>
+    /// Legacy. Retained unchanged so the replays of every preset up to and
+    /// including <see cref="CombatPresetId.PrecolonialPhilippinesV6"/> keep
+    /// reproducing. New presets do not field it.
+    /// </summary>
     LightOrganic = 1,
+
+    /// <summary>
+    /// No body armor. A bare torso, documented at Mactan in 1521.
+    /// </summary>
+    None = 2,
+
+    /// <summary>
+    /// A layered plant-fibre or cotton garment.
+    /// </summary>
+    QuiltedCotton = 3,
+
+    /// <summary>
+    /// A corselet of carabao or buffalo hide.
+    /// </summary>
+    HideCorselet = 4,
+
+    /// <summary>
+    /// A rigid plate of hardwood, horn, or bamboo worn over the torso.
+    /// </summary>
+    RigidCuirass = 5,
+
+    /// <summary>
+    /// Imported iron. Rare, and historically contested — see
+    /// docs/research/HISTORICAL_1500s_ARMOR.md section 4.6.
+    /// </summary>
+    ImportedIron = 6,
+}
+
+/// <summary>
+/// How much a warrior's armor encumbers them. Armor affects movement through
+/// this three-value class rather than through a per-armor movement row,
+/// because the canonical loadout key is
+/// <c>(WeaponId, ArmorId, ShieldId)</c> and giving armor its own row for each
+/// baseline would multiply that hand-authored table roughly sixfold.
+/// </summary>
+/// <remarks>
+/// The class is a gameplay grouping, not a historical measurement. No source
+/// in the period states what any armor weighed or how much it slowed its
+/// wearer.
+/// </remarks>
+public enum ArmorWeightClass
+{
+    /// <summary>
+    /// Flexible organic armor, or none at all. No movement penalty.
+    /// </summary>
+    Light = 1,
+
+    /// <summary>
+    /// Hide. A small movement penalty.
+    /// </summary>
+    Medium = 2,
+
+    /// <summary>
+    /// A rigid plate of hardwood, horn, bamboo, or iron. The largest movement
+    /// penalty this model applies.
+    /// </summary>
+    Rigid = 3,
+}
+
+/// <summary>
+/// Maps every <see cref="ArmorId"/> to exactly one
+/// <see cref="ArmorWeightClass"/>.
+/// </summary>
+/// <remarks>
+/// The mapping is total by construction: <see cref="Resolve"/> throws for an
+/// unmapped value rather than returning a default, so a future armor fails
+/// loudly here instead of silently inheriting the light class and its absent
+/// movement penalty. That is the same forward-compatibility guard
+/// <c>MovementRuleset.CanonicalLoadoutIndex</c> and
+/// <c>LoadoutCompositionCounts.Add</c> already apply to the loadout triple.
+/// </remarks>
+public static class ArmorWeightClasses
+{
+    /// <summary>
+    /// Resolves one armor identity's weight class.
+    /// </summary>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// Thrown when <paramref name="armor"/> is not a declared
+    /// <see cref="ArmorId"/> member.
+    /// </exception>
+    public static ArmorWeightClass Resolve(ArmorId armor) =>
+        armor switch
+        {
+            ArmorId.LightOrganic => ArmorWeightClass.Light,
+            ArmorId.None => ArmorWeightClass.Light,
+            ArmorId.QuiltedCotton => ArmorWeightClass.Light,
+            ArmorId.HideCorselet => ArmorWeightClass.Medium,
+            ArmorId.RigidCuirass => ArmorWeightClass.Rigid,
+            ArmorId.ImportedIron => ArmorWeightClass.Rigid,
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(armor),
+                armor,
+                "Every ArmorId must declare a weight class."),
+        };
+
+    /// <summary>
+    /// Basis points of a warrior's unencumbered movement speed left after
+    /// their armor's weight class is applied, where 10,000 is 100 per cent.
+    /// </summary>
+    /// <remarks>
+    /// Provisional gameplay tuning under CLAUDE.md section 7, not a historical
+    /// measurement. No source in the period states what any armor weighed or
+    /// how much it slowed its wearer.
+    /// <para>
+    /// The penalties are deliberately small. Damage reduction is meant to be
+    /// armor's effect; the movement cost exists so the choice has a price a
+    /// spectator can see in the inspector, not so it decides battles. A large
+    /// penalty here would also compound with the mitigation to stall
+    /// engagements, which is the failure mode the armor identity design's
+    /// section 6.1 warns against by name.
+    /// </para>
+    /// </remarks>
+    public static int PaceBasisPoints(ArmorWeightClass weightClass) =>
+        weightClass switch
+        {
+            ArmorWeightClass.Light => 10_000,
+            ArmorWeightClass.Medium => 9_700,
+            ArmorWeightClass.Rigid => 9_400,
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(weightClass),
+                weightClass,
+                "Every ArmorWeightClass must declare a pace."),
+        };
+
+    /// <summary>
+    /// Scales an unencumbered movement speed by the pace its armor allows.
+    /// </summary>
+    /// <remarks>
+    /// This is applied once per warrior at spawn, in
+    /// <c>BattleSimulation.CreateAgent</c>, rather than through a
+    /// <c>LoadoutMovementProfile</c> row. The profile rows are empty for every
+    /// preset whose <c>MovementRuleset.UsesEquipmentRelativeFootwork</c> is
+    /// false, which includes every preset from V10 onward and therefore the
+    /// one the client ships, so a pace modifier hung there would never be read
+    /// by the running game.
+    /// <para>
+    /// It is applied unconditionally and is still a no-op for every combat
+    /// preset up to and including version 6, because all six field
+    /// <see cref="ArmorId.LightOrganic"/> on every roster row,
+    /// <see cref="ArmorId.LightOrganic"/> resolves to
+    /// <see cref="ArmorWeightClass.Light"/>, and Light resolves to a flat
+    /// 10,000 basis points. Their agents therefore spawn with a byte-identical
+    /// movement speed and their recorded replays keep reproducing. That is why
+    /// this needs no gate of its own.
+    /// </para>
+    /// <para>
+    /// Integer arithmetic throughout, in the same basis-point convention
+    /// <c>LoadoutMovementProfile</c> already uses, because the result reaches
+    /// the per-tick state hash.
+    /// </para>
+    /// </remarks>
+    public static int ScaleMovementSpeed(int movementSpeedRaw, ArmorId armor)
+    {
+        var pace = PaceBasisPoints(Resolve(armor));
+        if (pace == 10_000)
+        {
+            return movementSpeedRaw;
+        }
+
+        return (int)((long)movementSpeedRaw * pace / 10_000);
+    }
 }
 
 /// <summary>
@@ -186,6 +367,25 @@ public enum CombatPresetId
     /// measurement.
     /// </summary>
     PrecolonialPhilippinesV6 = 6,
+
+    /// <summary>
+    /// V5's tables, roster, ranks, weapon attributes, and clash profile
+    /// restated without modification, with armor made authoritative: a
+    /// per-<c>(ArmorId, BodyPart)</c> damage-mitigation table in basis
+    /// points, and a roster that fields five armor baselines rather than
+    /// repeating <see cref="ArmorId.LightOrganic"/> on every row. Descends
+    /// from V5 rather than V6, because V5 is the preset the client ships and
+    /// the only one that declares ranged weapons and shielded roster rows;
+    /// descending from the higher-numbered V6 would have silently dropped
+    /// both from the player's build. V1 through V6 stay registered and
+    /// unmodified so their replays remain reproducible, and their content
+    /// hashes are unmoved because the mitigation table is folded only by a
+    /// preset that declares one. Every mitigation value is a provisional
+    /// gameplay-tuning reconstruction under CLAUDE.md section 7, never a
+    /// historical measurement — no source in the period states what any
+    /// armor stopped. See the armor identity design.
+    /// </summary>
+    PrecolonialPhilippinesV7 = 7,
 }
 
 /// <summary>

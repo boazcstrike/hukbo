@@ -106,7 +106,18 @@ internal readonly record struct PawnAppearance(
     // skin, and head-treatment-color outputs are unchanged (R-W6.2 salt
     // independence).
     string AppearancePresetId,
-    Color GarmentBaseTone)
+    Color GarmentBaseTone,
+    // Armor identity is not this file's addition of new equipment — it
+    // joins WeaponRole and ShieldRole above as a third role resolved only
+    // from the authoritative Core loadout (ArmorId), never from the entity
+    // ID and never from a region's static preset recipe. The drawn
+    // silhouette component is a pure function of ArmorId alone
+    // (Catalogs.AppearanceComponentCatalog.ResolveArmorComponent), and the
+    // cultural/citation variant beneath it is a pure function of
+    // (EntityId, ArmorId), exactly like the weapon tint and shield skin
+    // above — cosmetic variety only, never equipment identity.
+    string ArmorComponentId,
+    string ArmorVariantId)
 {
     /// <summary>
     /// The pair-form label: the Filipino name, an em dash, and a plain

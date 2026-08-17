@@ -65,26 +65,32 @@ internal sealed class ClientSettingsStore
     /// the same terms as the 11-to-12 bump: a version 12 file loads through
     /// <see cref="AcceptedSchemaVersions"/> with only that absent field
     /// defaulting.
+    /// Raised again from 13 to 14 by the <see cref="ArmorComposition"/>
+    /// setting (the 2026-08-15/16 armor identity design). Backward
+    /// compatible on the same terms as the 12-to-13 bump: a version 13 file
+    /// loads through <see cref="AcceptedSchemaVersions"/> with only that
+    /// absent field defaulting to <see cref="ArmorComposition.Default"/>.
     /// </summary>
-    public const int SupportedSchemaVersion = 13;
+    public const int SupportedSchemaVersion = 14;
 
     /// <summary>
     /// Schema versions <see cref="Load"/> accepts without discarding the
-    /// whole file. Versions 11 and 12 and the current version qualify
-    /// because the 10-to-11, 11-to-12, and 12-to-13 changes each only add an
-    /// independently defaulted field, and a file missing such a field loads
-    /// with that field at its default rather than being thrown away. The
-    /// window widens with each of these bumps rather than sliding forward:
-    /// the 11-to-12 bump that shipped the pawn body sprite kept version 10
-    /// accepted, and nothing about adding a second defaulted field makes an
-    /// older file less readable than it already was. Version 9 and everything
-    /// before it stay incompatible for a different reason: the 9-to-10 change
-    /// is a deliberate composition reset, so those files must be discarded
-    /// whole, on the same grounds as the 2-to-3, 5-to-6, and 6-to-7 resets
-    /// recorded on <see cref="ArmyComposition"/>.
+    /// whole file. Versions 11 through 13 and the current version qualify
+    /// because the 10-to-11, 11-to-12, 12-to-13, and 13-to-14 changes each
+    /// only add an independently defaulted field, and a file missing such a
+    /// field loads with that field at its default rather than being thrown
+    /// away. The window widens with each of these bumps rather than sliding
+    /// forward: the 13-to-14 bump that shipped armor composition keeps
+    /// version 10 accepted exactly as the 11-to-12 and 12-to-13 bumps did,
+    /// and nothing about adding a fourth defaulted field makes an older file
+    /// less readable than it already was. Version 9 and everything before it
+    /// stay incompatible for a different reason: the 9-to-10 change is a
+    /// deliberate composition reset, so those files must be discarded whole,
+    /// on the same grounds as the 2-to-3, 5-to-6, and 6-to-7 resets recorded
+    /// on <see cref="ArmyComposition"/>.
     /// </summary>
     private static readonly int[] AcceptedSchemaVersions =
-        [10, 11, 12, SupportedSchemaVersion];
+        [10, 11, 12, 13, SupportedSchemaVersion];
 
     // Moved from Stylized to Full on 2026-08-13 by the lethal blow
     // legibility design, on the explicit request of the person the
@@ -190,10 +196,16 @@ internal sealed class ClientSettingsStore
                 SerializerOptions);
 
             // Schema, theme, and composition validate together: a mismatch in
-            // any of them means the file cannot be trusted as a whole. Gore
-            // intensity and motion intensity validate independently below so
-            // that a settings file written before either field existed - or
-            // with a corrupt value in one of those fields - still keeps the
+            // any of them means the file cannot be trusted as a whole. A
+            // present but invalid armor composition joins that same
+            // whole-file rejection, because a corrupt set of percentages is
+            // as untrustworthy as a corrupt army composition; a missing
+            // armor composition is not an error at all and instead resolves
+            // through ResolveArmorComposition below, which is what every
+            // file older than schema version 14 looks like. Gore intensity
+            // and motion intensity validate independently below so that a
+            // settings file written before either field existed - or with a
+            // corrupt value in one of those fields - still keeps the
             // spectator's saved theme.
             if (raw is not
                 {
@@ -201,7 +213,9 @@ internal sealed class ClientSettingsStore
                     Composition: not null,
                 } ||
                 !AcceptedSchemaVersions.Contains(raw.SchemaVersion) ||
-                !raw.Composition.IsValid())
+                !raw.Composition.IsValid() ||
+                (raw.ArmorComposition is { } armorComposition &&
+                 !armorComposition.IsValid()))
             {
                 // A rejected file is replaced by defaults in memory, which
                 // looks exactly like a first run from the outside. Saying which
@@ -222,7 +236,9 @@ internal sealed class ClientSettingsStore
                     "hasComposition",
                     raw?.Composition is not null,
                     "compositionValid",
-                    raw?.Composition?.IsValid() ?? false);
+                    raw?.Composition?.IsValid() ?? false,
+                    "armorCompositionValid",
+                    raw?.ArmorComposition?.IsValid() ?? true);
                 return Default(defaultThemeId);
             }
 
@@ -230,6 +246,7 @@ internal sealed class ClientSettingsStore
                 SupportedSchemaVersion,
                 raw.SelectedThemeId,
                 raw.Composition,
+                ResolveArmorComposition(raw.ArmorComposition),
                 ResolveGoreIntensity(raw.GoreIntensity),
                 ResolveMotionIntensity(raw.MotionIntensity),
                 ResolveAutoCameraMode(raw.AutoCameraMode),
@@ -289,7 +306,8 @@ internal sealed class ClientSettingsStore
         MovementPresetId movementPreset,
         UiChromeStyle uiChromeStyle,
         PawnVisualStyle pawnVisualStyle = DefaultPawnVisualStyle,
-        WeaponVisualStyle weaponVisualStyle = DefaultWeaponVisualStyle)
+        WeaponVisualStyle weaponVisualStyle = DefaultWeaponVisualStyle,
+        ArmorComposition? armorComposition = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(selectedThemeId);
         ArgumentNullException.ThrowIfNull(composition);
@@ -310,6 +328,7 @@ internal sealed class ClientSettingsStore
                 SupportedSchemaVersion,
                 selectedThemeId,
                 composition,
+                ResolveArmorComposition(armorComposition),
                 ResolveGoreIntensity(goreIntensity),
                 ResolveMotionIntensity(motionIntensity),
                 ResolveAutoCameraMode(autoCameraMode),
@@ -404,7 +423,8 @@ internal sealed class ClientSettingsStore
             next.MovementPreset,
             next.UiChromeStyle,
             next.PawnVisualStyle,
-            next.WeaponVisualStyle);
+            next.WeaponVisualStyle,
+            next.ArmorComposition);
     }
 
     private void LogDefaulted(string defaultThemeId, string reason) =>
@@ -426,6 +446,7 @@ internal sealed class ClientSettingsStore
             SupportedSchemaVersion,
             defaultThemeId,
             ArmyComposition.Default,
+            ArmorComposition.Default,
             DefaultGoreIntensity,
             DefaultMotionIntensity,
             DefaultAutoCameraMode,
@@ -435,6 +456,24 @@ internal sealed class ClientSettingsStore
             DefaultUiChromeStyle,
             DefaultPawnVisualStyle,
             DefaultWeaponVisualStyle);
+
+    /// <summary>
+    /// A missing armor composition resolves to
+    /// <see cref="ArmorComposition.Default"/> without invalidating any
+    /// sibling field. Missing is what every settings file at schema version
+    /// 13 or below - written before this field existed - looks like. A
+    /// present but invalid armor composition is not resolved here: the
+    /// caller in <see cref="Load"/> rejects the whole file for that case,
+    /// on the same terms as an invalid <see cref="ArmyComposition"/>, so by
+    /// the time this method runs from <see cref="Load"/> a non-null value
+    /// has already been proven valid. The <see cref="TrySave"/> caller
+    /// passes a caller-constructed value that is not independently
+    /// re-validated here either, matching how <see cref="TrySave"/> already
+    /// trusts its <c>composition</c> parameter.
+    /// </summary>
+    private static ArmorComposition ResolveArmorComposition(
+        ArmorComposition? persisted) =>
+        persisted ?? ArmorComposition.Default;
 
     /// <summary>
     /// A missing or out-of-range gore level resolves to the default without
@@ -565,6 +604,7 @@ internal sealed class ClientSettingsStore
         int SchemaVersion,
         string? SelectedThemeId,
         ArmyComposition? Composition,
+        ArmorComposition? ArmorComposition,
         GoreIntensity? GoreIntensity,
         MotionIntensity? MotionIntensity,
         AutoCameraMode? AutoCameraMode,

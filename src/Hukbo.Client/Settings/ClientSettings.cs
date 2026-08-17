@@ -6,6 +6,7 @@ internal sealed record ClientSettings(
     int SchemaVersion,
     string SelectedThemeId,
     ArmyComposition Composition,
+    ArmorComposition ArmorComposition,
     GoreIntensity GoreIntensity,
     MotionIntensity MotionIntensity,
     AutoCameraMode AutoCameraMode,
@@ -167,4 +168,112 @@ internal sealed record ArmyComposition(
         MaharlikaCount +
         TimawaCount +
         AlipingNamamahayCount;
+}
+
+/// <summary>
+/// The spectator-chosen share of each armor baseline fielded by both
+/// factions, expressed as five percentages that always sum to 100.
+/// </summary>
+/// <remarks>
+/// Combat preset V7 is the first preset whose roster fields more than one
+/// <see cref="Hukbo.Core.Combat.ArmorId"/> baseline per (weapon, shield,
+/// rank) loadout; <c>ArenaGame.ExpandCompositionToRosterCounts</c>'s
+/// three-argument overload is what spends these five percentages, splitting
+/// each base loadout's <see cref="ArmyComposition"/>-derived count across
+/// its five armor-variant roster rows in the same order this record lists
+/// them: None, QuiltedCotton, HideCorselet, RigidCuirass, ImportedIron.
+/// Every preset up to and including V6 fields exactly one armor baseline
+/// per loadout, so this record has nothing to spend against those rosters,
+/// and the two-argument overload — which never reads an
+/// <see cref="ArmorComposition"/> at all — runs instead.
+/// <para>
+/// Both factions field the identical armor share: a scenario's roster
+/// counts are one array shared by the whole scenario rather than one array
+/// per faction, so the mirroring <see cref="ArmyComposition"/>'s own remarks
+/// already describe for rank composition applies to armor composition for
+/// the same structural reason.
+/// </para>
+/// <para>
+/// <b>The default percentages below are a PROVISIONAL gameplay-tuning
+/// choice under CLAUDE.md section 7, never a historical measurement.</b>
+/// Question 11 of docs/research/HISTORICAL_1500s_ARMOR.md's open-questions
+/// section states plainly that no source in the record gives a proportion
+/// of fighters who wore body armor, and that both "armor was normal" and
+/// "armor was rare" go beyond what any source actually says. These
+/// percentages exist only so the game can field a mix of armor at all; they
+/// carry no evidentiary weight and must never be presented as a historical
+/// measurement of pre-colonial Philippine armor prevalence.
+/// </para>
+/// </remarks>
+internal sealed record ArmorComposition(
+    int NonePercent,
+    int QuiltedCottonPercent,
+    int HideCorseletPercent,
+    int RigidCuirassPercent,
+    int ImportedIronPercent)
+{
+    /// <summary>
+    /// One entry per armor baseline this record dials: the five non-legacy
+    /// armor baselines combat preset V7's roster fields.
+    /// <see cref="Hukbo.Core.Combat.ArmorId.LightOrganic"/> is excluded for
+    /// the same reason V7's own roster excludes it — see that preset's own
+    /// remarks.
+    /// </summary>
+    public const int CategoryCount = 5;
+
+    // PROVISIONAL, see the class remarks: no source states a real
+    // proportion, so these five values are a gameplay-tuning starting point
+    // rather than a historical claim. They sum to exactly 100.
+    private const int DefaultNonePercent = 35;
+    private const int DefaultQuiltedCottonPercent = 30;
+    private const int DefaultHideCorseletPercent = 20;
+    private const int DefaultRigidCuirassPercent = 12;
+    private const int DefaultImportedIronPercent = 3;
+
+    public static ArmorComposition Default { get; } = new(
+        DefaultNonePercent,
+        DefaultQuiltedCottonPercent,
+        DefaultHideCorseletPercent,
+        DefaultRigidCuirassPercent,
+        DefaultImportedIronPercent);
+
+    /// <summary>
+    /// True when every category percentage is non-negative and the five
+    /// percentages sum to exactly 100. A persisted composition that fails
+    /// this is never trusted by the store.
+    /// </summary>
+    public bool IsValid()
+    {
+        foreach (var count in CategoryCounts)
+        {
+            if (count < 0)
+            {
+                return false;
+            }
+        }
+
+        return CategorySum == 100;
+    }
+
+    /// <summary>
+    /// The five percentages, in the same ascending
+    /// <see cref="Hukbo.Core.Combat.ArmorId"/> order combat preset V7's
+    /// roster repeats each base loadout's five armor-variant rows in: None,
+    /// QuiltedCotton, HideCorselet, RigidCuirass, ImportedIron.
+    /// </summary>
+    public int[] CategoryCounts =>
+    [
+        NonePercent,
+        QuiltedCottonPercent,
+        HideCorseletPercent,
+        RigidCuirassPercent,
+        ImportedIronPercent,
+    ];
+
+    private int CategorySum =>
+        NonePercent +
+        QuiltedCottonPercent +
+        HideCorseletPercent +
+        RigidCuirassPercent +
+        ImportedIronPercent;
 }

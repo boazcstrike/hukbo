@@ -229,6 +229,7 @@ public sealed partial class ArenaGame : Game
     private UiFontSet? _fonts;
     private MonoGameSoundPlayer? _soundPlayer;
     private Settings.ArmyComposition _activeComposition;
+    private Settings.ArmorComposition _activeArmorComposition;
     private MovementPresetId _activeMovementPreset;
     private bool _isSoundLogVisible;
     private bool _isEventLogVisible;
@@ -367,6 +368,7 @@ public sealed partial class ArenaGame : Game
             BuildScenario(
                 _matchSeries.CurrentSeed,
                 initialSettings.Composition,
+                initialSettings.ArmorComposition,
                 initialSettings.MovementPreset);
         _presentation = new PresentationCoordinator(
             EventHistoryCapacity,
@@ -379,6 +381,7 @@ public sealed partial class ArenaGame : Game
         _presentation.Dust.MotionIntensity = _motionManager.Value;
         _menu = new MenuOverlay(catalog.Themes, catalog.Standards);
         _activeComposition = initialSettings.Composition;
+        _activeArmorComposition = initialSettings.ArmorComposition;
         _activeMovementPreset = initialSettings.MovementPreset;
         _armyCompositionPanel = new ArmyCompositionPanel(
             ToPanelComposition(_activeComposition),
@@ -417,6 +420,7 @@ public sealed partial class ArenaGame : Game
             BuildScenario(
                 _matchSeries.CurrentSeed,
                 _activeComposition,
+                _activeArmorComposition,
                 _activeMovementPreset);
         _simulation = BattleSimulation.Create(_scenario);
         _camera = new SpectatorCamera(_scenario.MapWidth, _scenario.MapHeight);
@@ -1633,14 +1637,26 @@ public sealed partial class ArenaGame : Game
     // behind its leader. Every preset from V1 to V10 stays registered and
     // byte-identical for a replay that names one of them. See the archived
     // document titled "Last-stand engagement — plan".
+    //
+    // The combat preset moved on again, from PrecolonialPhilippinesV5 to
+    // PrecolonialPhilippinesV7, for the armor identity package. V7 restates
+    // every one of V5's nine (weapon, shield, rank) base loadouts, but fields
+    // five armor-baseline variants of each rather than one, so its roster has
+    // forty-five rows instead of nine. ExpandCompositionToRosterCounts's
+    // three-argument overload is what spreads a base loadout's rank-derived
+    // count across its five armor-variant rows, using the spectator's armor
+    // composition sliders; CreateDefault still stays on V4/V4, so the
+    // headless determinism baseline and every other caller remain
+    // unaffected.
     private static Scenario BuildScenario(
         ulong seed,
         Settings.ArmyComposition composition,
+        Settings.ArmorComposition armorComposition,
         MovementPresetId movementPreset)
     {
         var scenario = Scenario.CreateDefault(seed, composition.UnitsPerTeam * 2) with
         {
-            CombatPreset = CombatPresetId.PrecolonialPhilippinesV5,
+            CombatPreset = CombatPresetId.PrecolonialPhilippinesV7,
             MovementPreset = movementPreset,
         };
 
@@ -1649,19 +1665,38 @@ public sealed partial class ArenaGame : Game
         {
             RosterCounts = ExpandCompositionToRosterCounts(
                 rules.Roster,
-                composition),
+                composition,
+                armorComposition),
         };
     }
 
     /// <summary>
-    /// RU-43's fix for the inert composition sliders: expands the
-    /// spectator's four rank-count sliders (<see cref="RankId.Datu"/>,
-    /// <see cref="RankId.Maharlika"/>, <see cref="RankId.Timawa"/>,
-    /// <see cref="RankId.AlipingNamamahay"/>) into one count per
-    /// <paramref name="roster"/> row, in <paramref name="roster"/> order, so
-    /// the result can always be assigned straight to
-    /// <see cref="Scenario.RosterCounts"/>: its length always equals
-    /// <paramref name="roster"/>.Count, and its sum always equals
+    /// RU-43's fix for the inert composition sliders, delegating to the
+    /// three-argument overload below with
+    /// <see cref="Settings.ArmorComposition.Default"/>. Every combat preset
+    /// up to and including V6 fields exactly one armor baseline per
+    /// (weapon, shield, rank) loadout, so the armor-level split the
+    /// three-argument overload adds never has more than one row to split
+    /// across and this overload's result is unchanged from before that
+    /// overload existed.
+    /// </summary>
+    internal static ImmutableArray<int> ExpandCompositionToRosterCounts(
+        IReadOnlyList<CombatLoadout> roster,
+        Settings.ArmyComposition composition) =>
+        ExpandCompositionToRosterCounts(
+            roster,
+            composition,
+            Settings.ArmorComposition.Default);
+
+    /// <summary>
+    /// RU-43's fix for the inert composition sliders, widened for the armor
+    /// identity package: expands the spectator's four rank-count sliders
+    /// (<see cref="RankId.Datu"/>, <see cref="RankId.Maharlika"/>,
+    /// <see cref="RankId.Timawa"/>, <see cref="RankId.AlipingNamamahay"/>)
+    /// into one count per <paramref name="roster"/> row, in
+    /// <paramref name="roster"/> order, so the result can always be assigned
+    /// straight to <see cref="Scenario.RosterCounts"/>: its length always
+    /// equals <paramref name="roster"/>.Count, and its sum always equals
     /// <paramref name="composition"/>.UnitsPerTeam, which is what
     /// <see cref="Scenario.Validate"/> requires.
     /// <para>
@@ -1680,10 +1715,25 @@ public sealed partial class ArenaGame : Game
     /// calibrated weight would change V5's measured ranged share, which is
     /// exactly the failure this method exists to avoid.
     /// </para>
+    /// <para>
+    /// Combat preset V7 goes one step further: each of its nine
+    /// (weapon, shield) base loadouts is fielded with five armor-baseline
+    /// variants rather than one, so a rank's roster rows first group by
+    /// (weapon, shield) — collapsing the five armor variants of one base
+    /// loadout into a single group, so V4 and V5 (where every group already
+    /// has exactly one row) behave exactly as before — and each group's
+    /// rank-derived count is only then split a second time across its own
+    /// armor-variant rows, by <paramref name="armorComposition"/>'s five
+    /// percentages, using the same <see cref="ApportionByLargestRemainder"/>
+    /// helper. Both factions always receive the identical split, because
+    /// <see cref="Scenario.RosterCounts"/> is one array shared by the whole
+    /// scenario rather than one array per faction.
+    /// </para>
     /// </summary>
     internal static ImmutableArray<int> ExpandCompositionToRosterCounts(
         IReadOnlyList<CombatLoadout> roster,
-        Settings.ArmyComposition composition)
+        Settings.ArmyComposition composition,
+        Settings.ArmorComposition armorComposition)
     {
         var rankTargets = new Dictionary<RankId, int>
         {
@@ -1696,8 +1746,14 @@ public sealed partial class ArenaGame : Game
         var result = new int[roster.Count];
         foreach (var (rank, targetCount) in rankTargets)
         {
-            var rankIndices = new List<int>();
-            var rankWeights = new List<int>();
+            // Group this rank's roster rows by (weapon, shield): every
+            // armor variant of one base loadout shares a group, in the
+            // order the group is first encountered while scanning the
+            // roster. Under V4 and V5 every group ends up with exactly one
+            // row, because those rosters never repeat a (weapon, shield)
+            // pair within one rank.
+            var groupKeys = new List<(WeaponId Weapon, ShieldId Shield)>();
+            var groupRows = new List<List<int>>();
             for (var index = 0; index < roster.Count; index++)
             {
                 if (roster[index].Rank != rank)
@@ -1705,21 +1761,52 @@ public sealed partial class ArenaGame : Game
                     continue;
                 }
 
-                rankIndices.Add(index);
-                rankWeights.Add(ResolveRosterEntryWeight(roster[index]));
+                var key = (roster[index].Weapon, roster[index].Shield);
+                var groupIndex = groupKeys.IndexOf(key);
+                if (groupIndex < 0)
+                {
+                    groupKeys.Add(key);
+                    groupRows.Add([]);
+                    groupIndex = groupKeys.Count - 1;
+                }
+
+                groupRows[groupIndex].Add(index);
             }
 
-            if (rankIndices.Count == 0)
+            if (groupKeys.Count == 0)
             {
                 continue;
             }
 
-            var apportioned = ApportionByLargestRemainder(
+            var groupWeights = groupRows
+                .Select(rows => ResolveRosterEntryWeight(roster[rows[0]]))
+                .ToList();
+            var groupCounts = ApportionByLargestRemainder(
                 targetCount,
-                rankWeights);
-            for (var slot = 0; slot < rankIndices.Count; slot++)
+                groupWeights);
+
+            for (var groupIndex = 0; groupIndex < groupRows.Count; groupIndex++)
             {
-                result[rankIndices[slot]] = apportioned[slot];
+                var rows = groupRows[groupIndex];
+                var groupCount = groupCounts[groupIndex];
+                if (rows.Count == 1)
+                {
+                    result[rows[0]] = groupCount;
+                    continue;
+                }
+
+                var armorWeights = rows
+                    .Select(row => ResolveArmorWeight(
+                        roster[row].Armor,
+                        armorComposition))
+                    .ToList();
+                var armorCounts = ApportionByLargestRemainder(
+                    groupCount,
+                    armorWeights);
+                for (var slot = 0; slot < rows.Count; slot++)
+                {
+                    result[rows[slot]] = armorCounts[slot];
+                }
             }
         }
 
@@ -1771,6 +1858,48 @@ public sealed partial class ArenaGame : Game
             out var weight)
             ? weight
             : 1;
+
+    /// <summary>
+    /// The five armor baselines combat preset V7's roster fields, in the
+    /// same ascending order <see cref="Settings.ArmorComposition"/>'s
+    /// percentages are declared in and V7's own roster repeats them for
+    /// every base loadout.
+    /// <see cref="Hukbo.Core.Combat.ArmorId.LightOrganic"/> is excluded for
+    /// the same reason it is excluded from V7's roster.
+    /// </summary>
+    private static readonly ArmorId[] ArmorCompositionOrder =
+    [
+        ArmorId.None,
+        ArmorId.QuiltedCotton,
+        ArmorId.HideCorselet,
+        ArmorId.RigidCuirass,
+        ArmorId.ImportedIron,
+    ];
+
+    /// <summary>
+    /// The spectator's percentage share for one armor baseline, used as an
+    /// apportionment weight when a base loadout's roster group has more
+    /// than one armor-variant row. An armor baseline outside
+    /// <see cref="ArmorCompositionOrder"/> throws rather than silently
+    /// dropping warriors, on the same grounds as the unmapped-rank check at
+    /// the end of the three-argument
+    /// <see cref="ExpandCompositionToRosterCounts"/> overload.
+    /// </summary>
+    private static int ResolveArmorWeight(
+        ArmorId armor,
+        Settings.ArmorComposition armorComposition)
+    {
+        var index = Array.IndexOf(ArmorCompositionOrder, armor);
+        if (index < 0)
+        {
+            throw new InvalidOperationException(
+                $"Roster row carries armor {armor}, which has no " +
+                $"{nameof(Settings.ArmorComposition)} slider. Widen the " +
+                "armor composition record before rostering that baseline.");
+        }
+
+        return armorComposition.CategoryCounts[index];
+    }
 
     /// <summary>
     /// Largest-remainder apportionment of <paramref name="total"/> across
@@ -2299,6 +2428,7 @@ public sealed partial class ArenaGame : Game
             _matchSeries.FullReset();
             var reloaded = _settingsStore.Load(_themeManager.ActiveTheme.Id);
             _activeComposition = reloaded.Composition;
+            _activeArmorComposition = reloaded.ArmorComposition;
             _activeMovementPreset = reloaded.MovementPreset;
             _isCompositionStaged = false;
         }
@@ -2317,6 +2447,7 @@ public sealed partial class ArenaGame : Game
         _scenario = BuildScenario(
             _matchSeries.CurrentSeed,
             _activeComposition,
+            _activeArmorComposition,
             _activeMovementPreset);
         _simulation = BattleSimulation.Create(_scenario);
         _loggedOutcomeTick = -1;

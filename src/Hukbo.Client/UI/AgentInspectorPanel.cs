@@ -145,11 +145,21 @@ internal sealed class AgentInspectorPanel
                 theme.Colors.Selection,
                 _accentPulse.Amount));
 
+        // Armor is passed explicitly for the same reason weapon and shield
+        // are: it is authoritative equipment identity read off the loadout,
+        // not an entity-id roll. The parameter carries a default so that
+        // adding it did not break every existing call site at once, which
+        // makes it possible to omit here by accident — and omitting it would
+        // silently resolve this portrait to ArmorId.None while the text rows
+        // directly beneath it reported the warrior's real armor. Passing it
+        // by name is what keeps the portrait and the rows telling the same
+        // story.
         var appearance = PawnAppearanceFactory.Create(
             selected.EntityId,
             selected.Loadout.Weapon,
             selected.Loadout.Shield,
-            selected.IsLeader);
+            selected.IsLeader,
+            armor: selected.Loadout.Armor);
         var factionLabel = GetFactionLabel(selected.FactionId);
         var stateLabel = selected.IsAlive ? "ALIVE" : "DEAD";
         var targetLabel = selected.TargetEntityId?.ToString() ?? "none";
@@ -305,6 +315,24 @@ internal sealed class AgentInspectorPanel
                 contentWidthBudget,
                 candidate => bodyFont.MeasureString(candidate).X));
 
+        // Armor-identity: the resolved armor variant's own label, evidence
+        // tier, and note (or no lines at all for the legacy
+        // ArmorId.LightOrganic baseline) follow the weapon-variant lines
+        // immediately below, ahead of the shield-variant block, matching the
+        // main rows' own weapon-then-armor-then-shield order
+        // (FormatArmorLine precedes FormatShieldLine in
+        // AgentInspectorContent.BuildLowerLines). entityId comes from the
+        // selected agent itself, never from any appearance roll, because
+        // armor identity is authoritative Core state read off the loadout.
+        var armorVariantLines = AgentInspectorContent.BuildArmorVariantLines(
+            selected.EntityId,
+            selected.Loadout.Armor);
+        var wrappedArmorVariantLines = armorVariantLines.SelectMany(
+            line => AgentInspectorContent.WrapText(
+                line,
+                contentWidthBudget,
+                candidate => bodyFont.MeasureString(candidate).X));
+
         // VIS-016: the shield-variant lines (the resolved skin's own label,
         // evidence tier, and note, plus the standalone palisay research
         // note) follow the weapon-variant lines immediately below, wrapped
@@ -348,6 +376,7 @@ internal sealed class AgentInspectorPanel
         var extraLines = evidenceLines
             .Concat(wrappedWarriorNameLines)
             .Concat(wrappedVariantLines)
+            .Concat(wrappedArmorVariantLines)
             .Concat(wrappedShieldVariantLines)
             .Concat(wrappedAppearancePresetLines)
             .ToArray();

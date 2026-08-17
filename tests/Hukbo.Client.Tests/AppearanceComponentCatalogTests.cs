@@ -1,5 +1,6 @@
 using Hukbo.Client.Presentation;
 using Hukbo.Client.Presentation.Catalogs;
+using Hukbo.Core.Combat;
 using Microsoft.Xna.Framework;
 
 namespace Hukbo.Client.Tests;
@@ -827,5 +828,64 @@ public sealed class AppearanceComponentCatalogTests
         {
             Assert.Contains(AppearanceComponentCatalog.All, entry => entry.Category == category);
         }
+    }
+
+    // ================= Armor identity: authoritative ArmorId -> drawn category-F component =================
+
+    public static TheoryData<ArmorId> AllArmorIds()
+    {
+        var data = new TheoryData<ArmorId>();
+        foreach (var armor in Enum.GetValues<ArmorId>())
+        {
+            data.Add(armor);
+        }
+
+        return data;
+    }
+
+    [Theory]
+    [MemberData(nameof(AllArmorIds))]
+    public void AppearanceComponentCatalog_ResolveArmorComponent_EveryDefinedArmorIdResolvesWithoutThrowing(
+        ArmorId armor)
+    {
+        var entry = AppearanceComponentCatalog.ResolveArmorComponent(armor);
+
+        Assert.Equal(AppearanceComponentCategory.Armor, entry.Category);
+        Assert.Contains(AppearanceComponentCatalog.All, e => e.Catalog.Id == entry.Catalog.Id);
+    }
+
+    // The mapping table this package's brief specifies verbatim: None and
+    // LightOrganic (the legacy baseline, unfielded by any shipped preset)
+    // both draw the unarmored silhouette; QuiltedCotton, HideCorselet, and
+    // RigidCuirass each draw their own dedicated silhouette; ImportedIron
+    // draws the wooden breastplate because no dedicated iron silhouette
+    // exists yet (see ResolveArmorComponent's own doc comment for the
+    // honestly-documented substitution).
+    [Theory]
+    [InlineData(ArmorId.None, "appearance.armor.f1")]
+    [InlineData(ArmorId.LightOrganic, "appearance.armor.f1")]
+    [InlineData(ArmorId.QuiltedCotton, "appearance.armor.f2")]
+    [InlineData(ArmorId.HideCorselet, "appearance.armor.f3")]
+    [InlineData(ArmorId.RigidCuirass, "appearance.armor.f4")]
+    [InlineData(ArmorId.ImportedIron, "appearance.armor.f4")]
+    public void AppearanceComponentCatalog_ResolveArmorComponent_MatchesThePinnedMapping(
+        ArmorId armor,
+        string expectedComponentId)
+    {
+        Assert.Equal(
+            expectedComponentId,
+            AppearanceComponentCatalog.ResolveArmorComponent(armor).Catalog.Id);
+    }
+
+    [Theory]
+    [MemberData(nameof(AllArmorIds))]
+    public void AppearanceComponentCatalog_ResolveArmorComponent_NeverReturnsTheHelmet(ArmorId armor)
+    {
+        // F5 is a head-worn component (a helmet), not body armor. Head
+        // protection is out of this package's scope, and the mapping must
+        // never reach it.
+        Assert.NotEqual(
+            AppearanceComponentCatalog.ArmorF5ShellSetHelmet.Catalog.Id,
+            AppearanceComponentCatalog.ResolveArmorComponent(armor).Catalog.Id);
     }
 }

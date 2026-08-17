@@ -1015,18 +1015,19 @@ public sealed class ClientSettingsStoreTests
     }
 
     /// <summary>
-    /// The literal <c>13</c> rather than
+    /// The literal <c>14</c> rather than
     /// <see cref="ClientSettingsStore.SupportedSchemaVersion"/> is asserted
     /// against here, so this test still catches the schema window narrowing
     /// unexpectedly even if the constant itself moves in the same change. It
-    /// was literal <c>12</c> before the 12-to-13 bump added the weapon
-    /// visual style field, and literal <c>11</c> before that, before the
-    /// 11-to-12 bump added the pawn visual style field. The input file
-    /// itself stays at schema version 11 - a load always normalizes the
-    /// loaded settings' <c>SchemaVersion</c> to whatever is currently
-    /// supported, so the source file predating both the pawn visual style
-    /// field and the weapon visual style field is what this test still
-    /// exercises.
+    /// was the literal <c>13</c> before the 13-to-14 bump added the armor
+    /// composition field, literal <c>12</c> before the 12-to-13 bump added
+    /// the weapon visual style field, and literal <c>11</c> before that,
+    /// before the 11-to-12 bump added the pawn visual style field. The
+    /// input file itself stays at schema version 11 - a load always
+    /// normalizes the loaded settings' <c>SchemaVersion</c> to whatever is
+    /// currently supported, so the source file predating the pawn visual
+    /// style field, the weapon visual style field, and the armor
+    /// composition field is what this test still exercises.
     /// </summary>
     [Fact]
     public void ASchemaVersionElevenFileLoadsAndRoundTripsTheChromeStyle()
@@ -1043,9 +1044,38 @@ public sealed class ClientSettingsStoreTests
 
             var settings = store.Load("command");
 
-            Assert.Equal(13, settings.SchemaVersion);
+            Assert.Equal(14, settings.SchemaVersion);
             Assert.Equal("signal", settings.SelectedThemeId);
             Assert.Equal(UiChromeStyle.NineSlice, settings.UiChromeStyle);
+        });
+    }
+
+    /// <summary>
+    /// A schema version 13 file - the shape every settings file had before
+    /// the 13-to-14 bump added <see cref="ArmorComposition"/> - loads
+    /// cleanly and defaults the new field to
+    /// <see cref="ArmorComposition.Default"/>, on the same terms
+    /// <see cref="AFileMissingWeaponVisualStyleLoadsCleanlyAndDefaultsItToProcedural"/>
+    /// already proves for weapon visual style.
+    /// </summary>
+    [Fact]
+    public void ASchemaVersionThirteenFileLoadsAndDefaultsTheArmorComposition()
+    {
+        WithTemporarySettings((store, settingsPath) =>
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(settingsPath)!);
+            File.WriteAllText(
+                settingsPath,
+                "{\"schemaVersion\":13,\"selectedThemeId\":\"signal\"," +
+                ValidCompositionJson +
+                ",\"goreIntensity\":2,\"motionIntensity\":0," +
+                "\"autoCameraMode\":2,\"uiChromeStyle\":1}");
+
+            var settings = store.Load("command");
+
+            Assert.Equal(14, settings.SchemaVersion);
+            Assert.Equal("signal", settings.SelectedThemeId);
+            Assert.Equal(ArmorComposition.Default, settings.ArmorComposition);
         });
     }
 

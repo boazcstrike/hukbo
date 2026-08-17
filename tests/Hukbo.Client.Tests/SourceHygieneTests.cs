@@ -518,8 +518,9 @@ public sealed class SourceHygieneTests
                 File.ReadAllText(arenaPath),
                 "_presentation.PawnAppearances.Resolve("));
 
-        Assert.Equal(5, arenaArguments.Length);
-        Assert.Equal("agent.IsLeader", arenaArguments[^1], StringComparer.Ordinal);
+        Assert.Equal(6, arenaArguments.Length);
+        Assert.Equal("agent.IsLeader", arenaArguments[4], StringComparer.Ordinal);
+        Assert.Equal("agent.Loadout.Armor", arenaArguments[^1], StringComparer.Ordinal);
 
         var inspectorPath = Path.Combine(
             root, "src", "Hukbo.Client", "UI", "AgentInspectorPanel.cs");
@@ -528,9 +529,20 @@ public sealed class SourceHygieneTests
                 File.ReadAllText(inspectorPath),
                 "PawnAppearanceFactory.Create("));
 
-        Assert.Equal(4, inspectorArguments.Length);
+        // Five arguments since the armor identity package: the inspector
+        // portrait must be handed the warrior's authoritative armor for the
+        // same reason it is handed the weapon and the shield. The armor
+        // parameter carries a default, so omitting it compiles cleanly and
+        // silently resolves the portrait to ArmorId.None while the armor rows
+        // drawn directly beneath it report the real armor. Pinning the
+        // argument here is what makes that particular silence fail the build.
+        Assert.Equal(5, inspectorArguments.Length);
         Assert.Equal(
-            "selected.IsLeader", inspectorArguments[^1], StringComparer.Ordinal);
+            "selected.IsLeader", inspectorArguments[3], StringComparer.Ordinal);
+        Assert.Equal(
+            "armor: selected.Loadout.Armor",
+            inspectorArguments[^1],
+            StringComparer.Ordinal);
 
         // The metrics probe builds its own appearance rather than reading the
         // renderer's cache, and the comment above it promises the two passes
@@ -542,9 +554,10 @@ public sealed class SourceHygieneTests
         var probeArguments = SplitTopLevelArguments(
             ExtractCallArguments(arenaSource, "PawnAppearanceFactory.Create("));
 
-        Assert.Equal(4, probeArguments.Length);
+        Assert.Equal(5, probeArguments.Length);
+        Assert.Equal("agent.IsLeader", probeArguments[3], StringComparer.Ordinal);
         Assert.Equal(
-            "agent.IsLeader", probeArguments[^1], StringComparer.Ordinal);
+            "armor: agent.Loadout.Armor", probeArguments[^1], StringComparer.Ordinal);
 
         var quadCountArguments = SplitTopLevelArguments(
             ExtractCallArguments(arenaSource, "PawnQuadCount.Count("));

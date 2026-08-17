@@ -27,6 +27,19 @@ public sealed class BattleSimulation
     private readonly AgentState[] _agentStates;
     private readonly Dictionary<ulong, int> _agentIndexes;
     private readonly int[] _damageTotals;
+
+    // Armor identity: parallel to _damageTotals, one slot per agent,
+    // cleared and populated on the same schedule. _armorSavedTargets[i]
+    // is set the first time, within a tick, that a landed blow against
+    // agent i would have been lethal at its raw damage but was not once
+    // armor mitigation was applied; _armorSavedPoints[i] then holds the
+    // number of damage points that specific blow's armor absorbed. Only
+    // the first qualifying blow against a target in a tick is recorded,
+    // in the fixed iteration order the two damage-accumulation loops
+    // below already use, so a target hit by two such blows in the same
+    // tick still reports exactly one ArmorSaved event.
+    private readonly bool[] _armorSavedTargets;
+    private readonly int[] _armorSavedPoints;
     private readonly (int XRaw, int YRaw, ulong TargetId)?[] _movementProposals;
     private readonly (int SourceIndex, int TargetIndex, BodyPart HitLocation,
         AttackResolution Resolution, int? ComboPosition)[] _attackProposals;
@@ -248,6 +261,8 @@ public sealed class BattleSimulation
         _agentStates = agents;
         _agentIndexes = new Dictionary<ulong, int>(agents.Length);
         _damageTotals = new int[agents.Length];
+        _armorSavedTargets = new bool[agents.Length];
+        _armorSavedPoints = new int[agents.Length];
         _movementProposals =
             new (int XRaw, int YRaw, ulong TargetId)?[agents.Length];
         _hasRangedWeapon = DetermineHasRangedWeapon(rules);
@@ -1171,7 +1186,24 @@ public sealed class BattleSimulation
             xRaw,
             yRaw,
             scenario.MaximumHitPoints,
-            scenario.MovementSpeedRaw,
+            // Armor reaches movement here, once per warrior at spawn, rather
+            // than through a LoadoutMovementProfile row. Those rows are empty
+            // for every preset whose UsesEquipmentRelativeFootwork is false,
+            // which includes every movement preset from V10 onward and so the
+            // one the client ships, meaning a pace modifier hung there would
+            // never be read by the running game. This is the same shape the
+            // weapon profile above already uses: a per-loadout value resolved
+            // once at spawn into an immutable AgentState field.
+            //
+            // It is unconditional and still a no-op for every combat preset up
+            // to and including version 6, because all six field
+            // ArmorId.LightOrganic on every roster row and light armor carries
+            // a flat 10,000 basis points. Their agents spawn with a
+            // byte-identical movement speed, so their recorded replays keep
+            // reproducing.
+            ArmorWeightClasses.ScaleMovementSpeed(
+                scenario.MovementSpeedRaw,
+                loadout.Armor),
             scenario.PerceptionRangeRaw,
             profile.AttackRangeRaw,
             profile.DamagePerAttack,
@@ -4900,6 +4932,8 @@ public sealed class BattleSimulation
     private void GatherAndCommitAttacks(List<BattleEvent> events)
     {
         Array.Clear(_damageTotals);
+        Array.Clear(_armorSavedTargets);
+        Array.Clear(_armorSavedPoints);
         var proposalCount = 0;
         var marksAcceptedAttackers = _movementRules.UsesEquipmentRelativeFootwork;
         if (marksAcceptedAttackers)
@@ -5022,8 +5056,30 @@ public sealed class BattleSimulation
             // only which of two equal sources the code commits to.
             if (arrivalResolution == AttackResolution.Landed)
             {
+                var arrivalMitigatedDamage = _rules.ApplyArmorMitigation(
+                    projectile.DamageAtLaunch,
+                    arrivalTarget.Loadout.Armor,
+                    arrivalHitLocation);
                 _damageTotals[arrivalTargetIndex] = checked(
-                    _damageTotals[arrivalTargetIndex] + projectile.DamageAtLaunch);
+                    _damageTotals[arrivalTargetIndex] + arrivalMitigatedDamage);
+
+                // Armor identity: this blow's raw damage alone would have
+                // been lethal against arrivalTarget.HitPoints as it stands
+                // before the end-of-pass damage-application loop applies
+                // it — the same pre-tick baseline the combo-lethality check
+                // below uses — but the mitigated damage is not. Recorded
+                // only the first time this is true for this target in this
+                // tick.
+                if (!_armorSavedTargets[arrivalTargetIndex] &&
+                    projectile.DamageAtLaunch > 0 &&
+                    arrivalMitigatedDamage > 0 &&
+                    arrivalTarget.HitPoints - projectile.DamageAtLaunch <= 0 &&
+                    arrivalTarget.HitPoints - arrivalMitigatedDamage > 0)
+                {
+                    _armorSavedTargets[arrivalTargetIndex] = true;
+                    _armorSavedPoints[arrivalTargetIndex] =
+                        projectile.DamageAtLaunch - arrivalMitigatedDamage;
+                }
             }
 
             // Credited to the launcher's faction, in the same shape the
@@ -5183,7 +5239,7 @@ public sealed class BattleSimulation
                 target.Loadout.Weapon,
                 target.Loadout.Shield);
 
-            var comboPosition = ResolveComboTransition(source, target, resolution);
+            var comboPosition = ResolveComboTransition(source, target, resolution, hitLocation);
 
             ArmBreakOffIfIntercepted(target, resolution);
 
@@ -5205,8 +5261,29 @@ public sealed class BattleSimulation
             // the attacker's cooldown; it simply carries no damage.
             if (resolution == AttackResolution.Landed)
             {
+                var mitigatedDamage = _rules.ApplyArmorMitigation(
+                    source.DamagePerAttack,
+                    target.Loadout.Armor,
+                    hitLocation);
                 _damageTotals[targetIndex] = checked(
-                    _damageTotals[targetIndex] + source.DamagePerAttack);
+                    _damageTotals[targetIndex] + mitigatedDamage);
+
+                // Armor identity: this blow's raw damage alone would have
+                // been lethal against target.HitPoints as it stands before
+                // the end-of-pass damage-application loop applies it — the
+                // same pre-tick baseline the combo-lethality check below
+                // uses — but the mitigated damage is not. Recorded only the
+                // first time this is true for this target in this tick.
+                if (!_armorSavedTargets[targetIndex] &&
+                    source.DamagePerAttack > 0 &&
+                    mitigatedDamage > 0 &&
+                    target.HitPoints - source.DamagePerAttack <= 0 &&
+                    target.HitPoints - mitigatedDamage > 0)
+                {
+                    _armorSavedTargets[targetIndex] = true;
+                    _armorSavedPoints[targetIndex] =
+                        source.DamagePerAttack - mitigatedDamage;
+                }
             }
 
             // Credited to the attacker's faction. Every accepted attack has
@@ -5303,6 +5380,23 @@ public sealed class BattleSimulation
                 target.EntityId,
                 damage,
                 target.FactionId);
+
+            // Armor identity: emitted in the same position this target's
+            // Damage event occupies for this tick, immediately after it,
+            // so the pair stays adjacent in the ordered event stream. The
+            // flag was set above, in the same fixed iteration order the
+            // two damage-accumulation loops already use, so this is a pure
+            // read of state already computed — no new random draw.
+            if (_armorSavedTargets[index])
+            {
+                AddEvent(
+                    events,
+                    BattleEventKind.ArmorSaved,
+                    target.EntityId,
+                    null,
+                    _armorSavedPoints[index],
+                    target.FactionId);
+            }
         }
 
         for (var index = 0; index < _damageTotals.Length; index++)
@@ -5367,7 +5461,8 @@ public sealed class BattleSimulation
     private int? ResolveComboTransition(
         AgentState source,
         AgentState target,
-        AttackResolution resolution)
+        AttackResolution resolution,
+        BodyPart hitLocation)
     {
         var weaponProfile = ResolveAttackerWeaponProfile(source.Loadout);
 
@@ -5450,8 +5545,12 @@ public sealed class BattleSimulation
             // it stands before the end-of-pass-1 damage-application loop
             // applies it, not adjusted for any other attacker's damage
             // accumulated this same tick.
+            var mitigatedDamageForKillCheck = _rules.ApplyArmorMitigation(
+                source.DamagePerAttack,
+                target.Loadout.Armor,
+                hitLocation);
             var killedByThisBlow =
-                target.HitPoints - source.DamagePerAttack <= 0;
+                target.HitPoints - mitigatedDamageForKillCheck <= 0;
 
             // The blow landed, so it always counts, regardless of what
             // happens next.

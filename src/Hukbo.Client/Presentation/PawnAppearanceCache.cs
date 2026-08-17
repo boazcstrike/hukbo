@@ -30,9 +30,9 @@ namespace Hukbo.Client.Presentation;
 /// </item>
 /// <item>
 /// <description>
-/// <b>Key.</b> The tuple (entity ID, weapon, shield, leadership), not the
-/// entity ID alone. Keying on identity alone would silently return a stale
-/// appearance the moment either the loadout or the leadership behind that
+/// <b>Key.</b> The tuple (entity ID, weapon, shield, armor, leadership), not
+/// the entity ID alone. Keying on identity alone would silently return a
+/// stale appearance the moment the loadout or the leadership behind that
 /// identity changed, and the key must not depend on a property the
 /// simulation is not contractually obliged to keep.
 /// </description>
@@ -60,8 +60,8 @@ namespace Hukbo.Client.Presentation;
 /// <item>
 /// <description>
 /// <b>Invalidation.</b> Not "none" — that used to be true of every key input
-/// at once, and it no longer is. Entity ID, weapon, and shield still cannot
-/// change while a battle runs, and <c>PawnAppearanceCacheTests</c> asserts
+/// at once, and it no longer is. Entity ID, weapon, shield, and armor still
+/// cannot change while a battle runs, and <c>PawnAppearanceCacheTests</c> asserts
 /// that against the shape of <c>AgentView</c> and <c>CombatLoadout</c>
 /// themselves: if a loadout ever becomes mutable mid-battle, that test fails
 /// and this cache is invalid. Leadership is different: it is mutable by
@@ -97,7 +97,7 @@ namespace Hukbo.Client.Presentation;
 /// merely stops being accelerated.
 /// </para>
 /// <para>
-/// <see cref="Resolve"/> deliberately takes only the four key inputs and
+/// <see cref="Resolve"/> deliberately takes only its five key inputs and
 /// calls the factory the way both render call sites already do, leaving
 /// <c>factionId</c> and <c>scenarioSeed</c> at the factory's own defaults.
 /// Accepting an input that is not part of the key would let two reads with
@@ -180,12 +180,26 @@ internal sealed class PawnAppearanceCache
     /// constant — because leadership is mutable mid-battle; see this type's
     /// own remarks, "Invalidation".
     /// </param>
+    /// <param name="armor">
+    /// The agent's authoritative armor (<c>CombatLoadout.Armor</c>), part of
+    /// the key. Defaults to <see cref="ArmorId.None"/> — unlike
+    /// <paramref name="isLeader"/> above, this parameter is defaulted rather
+    /// than required, because this factory's own <c>armor</c> parameter is
+    /// itself defaulted for the same reason (see
+    /// <see cref="PawnAppearanceFactory.Create"/>'s remarks): a required
+    /// parameter here would force every existing caller of this method,
+    /// including ones this package does not own, to be edited in the same
+    /// change. A caller that does know the entity's real armor — the real
+    /// render call site chief among them — must still forward it rather than
+    /// lean on the default, exactly as the other key fields require.
+    /// </param>
     public PawnAppearance Resolve(
         int ordinal,
         ulong entityId,
         WeaponId weapon,
         ShieldId shield,
-        bool isLeader)
+        bool isLeader,
+        ArmorId armor = ArmorId.None)
     {
         if ((uint)ordinal >= (uint)Capacity)
         {
@@ -194,7 +208,7 @@ internal sealed class PawnAppearanceCache
             // it costs; growing the array instead is the one thing this type
             // must never do.
             _recorder.AddAppearanceCacheMisses(1);
-            return PawnAppearanceFactory.Create(entityId, weapon, shield, isLeader);
+            return PawnAppearanceFactory.Create(entityId, weapon, shield, isLeader, armor: armor);
         }
 
         ref var entry = ref _entries[ordinal];
@@ -203,14 +217,15 @@ internal sealed class PawnAppearanceCache
             entry.EntityId == entityId &&
             entry.Weapon == weapon &&
             entry.Shield == shield &&
-            entry.IsLeader == isLeader)
+            entry.IsLeader == isLeader &&
+            entry.Armor == armor)
         {
             _recorder.AddAppearanceCacheHits(1);
             return entry.Appearance;
         }
 
         var appearance =
-            PawnAppearanceFactory.Create(entityId, weapon, shield, isLeader);
+            PawnAppearanceFactory.Create(entityId, weapon, shield, isLeader, armor: armor);
 
         _recorder.AddAppearanceCacheMisses(1);
 
@@ -220,7 +235,7 @@ internal sealed class PawnAppearanceCache
             _recorder.AddAppearanceCacheFills(1);
         }
 
-        entry = new Entry(true, entityId, weapon, shield, isLeader, appearance);
+        entry = new Entry(true, entityId, weapon, shield, isLeader, armor, appearance);
         return appearance;
     }
 
@@ -250,5 +265,6 @@ internal sealed class PawnAppearanceCache
         WeaponId Weapon,
         ShieldId Shield,
         bool IsLeader,
+        ArmorId Armor,
         PawnAppearance Appearance);
 }
