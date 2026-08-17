@@ -32,8 +32,11 @@ titled "The collision mutual lock — plan" holds the counters, and the design's
 banner records what its section 6 now means. One incidental finding is worth more than the attempt: at
 body radius 4.5, which is the value this bug has pinned since July, **0 of 200
 seeds now stall**, so the body radius is a tuning question again rather than a
-workaround. The two questions the sweep moved into [`TODO.md`](TODO.md) are
-parked there again, one of them now with an answer.
+workaround. The questions the sweep moved into [`TODO.md`](TODO.md) are parked
+there again, re-measured on 2026-08-16 and filed as four entries: option 6.5,
+which is unbuilt and needs a design of its own; the stationary blocker no option
+addresses; the body radius, which is a tuning argument rather than a free win;
+and the 2,000-agent traffic jam.
 
 Swept an eighth time on 2026-08-15, and **nothing left the folder.** Every
 document still here was re-checked against the code by a separate reader, one

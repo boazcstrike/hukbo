@@ -52,49 +52,69 @@ is not authorized work; it is a reminder that the question was decided
   No figure anywhere describes what a spectator watches today, so whoever picks
   this up re-measures first and compares against nothing in this entry.
 
-## From the follower-trailing deadlock diagnosis (2026-07-28, re-checked 2026-08-15)
+## From the follower-trailing deadlock diagnosis (2026-07-28, re-checked 2026-08-16)
 
-**Both entries below were taken off the shelf on 2026-08-15 and put back the
-same day.** The design that carries them,
-the design titled "Follower-trailing mutual block in the collision resolver —\ndesign",
-was archived that morning because none of its five options had ever been built;
-the user then directed that the work be finished, so it was revived and executed
-through the plan titled "The collision mutual lock — plan". Both were archived
-on 2026-08-16.
-That plan closed with **no code shipped**: rotation and swap detection was built
-twice and does not fix the stall, for reasons both documents record. These two
-questions are parked again, and the first of them has an answer now that it did
-not have before.
+**This workstream is closed, and what survives it is one unbuilt option and
+three questions.** The design titled "Follower-trailing mutual block in the
+collision resolver — design" was archived on 2026-08-15, revived the same day
+when the user directed that the work be finished, executed through the plan
+titled "The collision mutual lock — plan", and archived again with that plan on
+2026-08-16. That plan closed with **no code shipped**: option 6.4, rotation and
+swap detection, was built twice in two independent implementations and does not
+fix the stall. `CollisionResolver` still has no cycle detection, no atomic
+multi-body commit, and no tangent projection.
 
-- **The body radius is no longer pinned by this bug, and that is new
-  information.** The whole reason `DefaultBodyRadiusRaw` sits at 4.25 is that
-  4.5 hung seed 12 in a 2026-07-28 measurement. That measurement was repeated on
-  2026-08-15 against current code, and again on 2026-08-16: seed 12 at 4.5 now
-  reaches a decision at tick 739, and **0 of 200 seeds reach the tick limit at
-  that radius** at the last-stand threshold of 9 that the regression test uses.
-  That result does not carry to the shipping threshold of 6, where the
-  2026-08-16 survey found 4.5 stalling 1 seed in 200 (seed 166) against 4.25's
-  0. Summed over thresholds 6 through 9 it is 3 stalls for 4.5 and 5 for 4.25,
-  so neither radius is clean and the argument for either is a tuning argument. The
-  intent-layer escape closed the 4.5 case as thoroughly as it closed 4.25. What
-  the body radius should be is therefore a tuning question that can be argued on
-  its own merits, and nobody has argued it. Changing the constant still moves
-  both hashes on every seed and is not authorized by this entry.
-- **The 2,000-agent point** below is unchanged and unmeasured since 2026-07-28.
+Every figure in this section was re-measured on 2026-08-16 against `main` at
+`b3260a6`, with `Hukbo.Tools.DeadlockProbe --survey`, 200 seeds and 18 agents
+per cell. The probe defaults to a threshold of
+`FormationRules.MaximumLastStandThresholdAgents`, so a run without `--threshold`
+measures the regression test's configuration rather than the player's:
 
-- **`CollisionRules.DefaultBodyRadiusRaw` is 4.25 for a reason that has
-  expired.** The constant's own remark still records the 2026-07-28 measurement
-  in which 4.5 stalled seed 12 for 9,976 ticks with nine agents alive on each
-  side. That remark is now stale in its conclusion though accurate as history,
-  and it should be updated by whoever next touches the constant. The 2026-08-15
-  re-measurement is above.
+| `LastStandThresholdAgents` | Radius 4.25 (shipping) | Radius 4.5 |
+| --- | --- | --- |
+| 6 — the shipping default | 0 / 200 | 1 / 200 (seed 166) |
+| 7 | 2 / 200 (seeds 160, 161) | 0 / 200 |
+| 8 | 3 / 200 (seeds 95, 157, 177) | 2 / 200 (seeds 21, 153) |
+| 9 — the regression test's own | 0 / 200 | 0 / 200 |
+
+- **Option 6.5, sliding along the obstruction, is the one option left and it is
+  unbuilt.** Rather than holding position, a refused mover would project its
+  step onto the tangent of the blocking body and try that. It is the only option
+  that can move a warrior whose neighbour wants the same ground, because it does
+  not need the neighbour to go anywhere — which is exactly what defeated 6.4. It
+  is **not authorized**, and it needs a design document of its own before anyone
+  writes code, for four reasons that a plan cannot settle on its own. It changes
+  movement character in every battle, so whether a shield wall should flow
+  around an obstruction is a gameplay and historical judgment rather than defect
+  repair. It moves the state hash and the event hash on every seed. It does not
+  obviously resolve a symmetric head-on pair, where both tangents point the same
+  way. And its acceptance criterion is already known and is narrow: the five
+  seeds in the table above, at thresholds 7 and 8, none of which a player can
+  reach.
+- **One case no option addresses: a blocker that never proposes a move.** The
+  diagnosis note's section 6 closes on it — an agent whose destination is
+  permanently owned by a stationary agent that has no reason to leave. That is
+  neither a resolution-order problem nor a swap, and a complete fix has to say
+  something about it. Nothing has.
+- **The body radius is an unmade tuning argument, not a free win.** The whole
+  reason `CollisionRules.DefaultBodyRadiusRaw` sits at 4.25 is that 4.5 hung
+  seed 12 in a 2026-07-28 measurement. That reason expired with the intent-layer
+  escape in `b9003a9`: seed 12 at 4.5 now reaches a decision at tick 739. But
+  4.5 is the worse radius where the game actually ships, stalling seed 166 at a
+  threshold of 6 where 4.25 stalls nothing, and across thresholds 6 through 9
+  the totals are 3 stalls for 4.5 against 5 for 4.25. Neither radius is clean,
+  and the radius mostly re-rolls which seeds are unlucky. Changing the constant
+  moves both hashes on every seed and is **not authorized** by this entry. The
+  constant's own remark was rewritten at `b3260a6` and no longer needs fixing.
 - **The 2,000-agent point is a traffic jam that contains a fight.** At the
   shipping radius it measured 1,943,319 blocked agent-ticks, a longest blocked
   streak of 108 ticks, a front that never widened past 104,460 raw units, and
-  1,352 of 2,000 agents still alive when the 10,000-tick cap arrived. 2,000 is a
-  stress point rather than a shipping configuration — the shipped default is 500
-  in total — and whether it is a supported population at all was never decided.
-  The thousand-unit performance design and plan own the population question now.
+  1,352 of 2,000 agents still alive when the 10,000-tick cap arrived. That is
+  unchanged and unmeasured since 2026-07-28. 2,000 is a stress point rather than
+  a shipping configuration — the shipped default is 500 in total — and whether
+  it is a supported population at all was never decided. The thousand-unit
+  performance design and plan own the population question now.
+
 
 ## From the ranged units package (2026-08-07)
 
@@ -242,3 +262,20 @@ passed by a person on 2026-08-14. These three items outlived it.
   `BloodEffectSystem`'s own constructor defaults of 256, 384, and 32 are dead
   in production, because every caller that matters goes through
   `PresentationCoordinator`, which never uses them. Context: task PV-12 of the pawn visual fidelity plan.
+
+## From the collision audit (2026-08-16)
+
+- **Four tool lock files are missing the `Hukbo.Shared.Core` entry.**
+  `Hukbo.Tools.CohesionTrace`, `Hukbo.Tools.ContingentShape`,
+  `Hukbo.Tools.CueDemand`, and `Hukbo.Tools.WeaponBalance` each reference
+  `Hukbo.Core`, which has referenced `Hukbo.Shared.Core` since the tier-1
+  extraction, but their `packages.lock.json` files still describe the project
+  graph as it was before it. `Hukbo.Tools.DeadlockProbe` had the same drift and
+  was corrected at the commit that filed this entry, because running the probe
+  regenerated its lock file as a side effect. Nothing is broken by this: no
+  package version is involved, `tools/` is not in `Hukbo.slnx` and is not in the
+  canonical gate, and each file corrects itself the moment its project is
+  restored. What it costs is a dirty working tree for whoever next runs one of
+  those four tools. Regenerating them is mechanical, but it is still a lock-file
+  change, so it wants a deliberate commit of its own rather than riding along
+  with unrelated work.
