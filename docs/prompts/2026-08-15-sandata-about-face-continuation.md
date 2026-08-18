@@ -11,6 +11,30 @@ them fixes the bug.
 
 ---
 
+> **SUPERSEDED IN PART, 2026-08-19. Read this before anything below it.**
+>
+> The "fix, already decided" in this prompt — order the column by projected
+> arclength — was implemented in full and **does not work**. It reorders the
+> column correctly, with no oscillation, and it relocates the freeze from the
+> retarget hairpin to the path's own 145-degree corner at `(110,110)`, costing
+> two tests that passed before. Bringing `SlotTargets.ComputeTarget` into scope
+> was then tried in three further variants, and none of them frees the map
+> either.
+>
+> Seven attempts have now failed. Before writing any code, read
+> `docs/plans/2026-08-19-sandata-corner-trail-placement-findings.md`, which
+> records all of them and the corner geometry that rules out every
+> target-placement rule. The short version: at that corner a correctly placed
+> follower is 5.7 world units in front of a leader that is about to walk
+> forward, and the pre-existing build clears it with half a world unit of slack.
+> What is needed is a yield behaviour — the follower gives way, or the leader
+> waits for it to clear the apex — and that has no design yet.
+>
+> Everything below is still accurate about the *bug*, the traps, and the rules.
+> Treat its stated solution as one of the refuted attempts.
+
+---
+
 You are continuing work on **Sandata**, the second game in the `autonomous-arena`
 repository (working directory `C:\Users\boazs\webdev\autonomous-arena`). Read
 `CLAUDE.md` first — sections 4, 5, 6, 9, and 10 bind you.
@@ -74,9 +98,8 @@ Follow the design's own staging:
 
 ## Acceptance criteria
 
-Branch `sandata-about-face-acceptance` (worktree
-`.claude/worktrees/sandata-about-face-acceptance`, commit `43ed199`) carries three tests that **currently fail and are supposed
-to**. They are the real bar:
+`main` carries, since `1a7b97d`, three tests that **currently fail and are
+supposed to**. They are the real bar:
 
 - `SweepingTheRealMap_TheSquadReachesTheClosetRoom`
 - `SweepingTheRealMap_EveryRoomIsClearedEventually`
@@ -93,10 +116,28 @@ from the closet's own floor cell at (112,464) — nowhere near arrival.
 the leader's sampled position never changed between tick 1000 and tick 20,000.
 ```
 
-## Do not retry these — three attempts, all failed
+## Do not retry these — seven attempts, all failed
 
-Each was a real defect and none was this bug. Two were reverted; the third
-shipped because it is a prerequisite.
+The first three were each a real defect and none was this bug; two were reverted
+and the third shipped because it is a prerequisite. Attempts four through seven
+are recorded in
+`docs/plans/2026-08-19-sandata-corner-trail-placement-findings.md`:
+
+4. **Ordering the column by projected arclength** — this prompt's own stated
+   fix. Implemented on branch `sandata-about-face-attempt-4` at `4c74336`.
+   Relocates the freeze and costs two passing tests.
+5. **Trail offset as an exact straight-line distance between bodies.** Refuted
+   by `ComputeTarget_OnRightAngleCorner_StaysInCorridor…`: it pushes the target
+   through a wall.
+6. **The same as a floor, applied after the lateral offset.** Refuted the same
+   way.
+7. **Clamping a follower so it is never ahead of the leader along its heading.**
+   Passes every `SlotTargetsTests` case and is the identity on straight paths.
+   Still does not free the map: it pulls the follower abeam, where the whole
+   separation is the perpendicular component of about 8.5 world units, which is
+   the body diameter exactly.
+
+The original three:
 
 1. `SlotTargets.ComputeTarget` clamps a negative slot arclength onto the path
    head, stacking every trailing slot on one point. Real defect. Replacing it
@@ -146,10 +187,12 @@ shipped because it is a prerequisite.
   archived plan, and never write a path into that folder.
 - No agent may flip a manual smoke-checklist row.
 
-## Worktrees on disk (swept and updated 2026-08-19)
+## Branches on disk (updated 2026-08-19)
 
 ```
-.claude/worktrees/sandata-about-face-acceptance   43ed199   the three arrival tests, rebased onto main
+main                              the three arrival tests, failing deliberately
+.claude/worktrees/sandata-about-face-acceptance   holds branch sandata-about-face-attempt-4
+sandata-about-face-attempt-4      decision 1 implemented; makes the map worse, unmerged on purpose
 ```
 
 Confirm before removing any of them — some may belong to another session.
