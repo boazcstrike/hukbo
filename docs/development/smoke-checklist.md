@@ -15,20 +15,29 @@ The gate, the current gate results, and the recorded baselines live in
 `docs/development/testing.md`. Superseded measurement runs live in
 `docs/development/measurement-history.md`.
 
-## Where the checklist stands, 2026-08-15
+## Where the checklist stands, 2026-08-16
 
-**14 rows in 3 subsections, every one `PENDING`.** One is `GR-5`; twelve are
-`WS-1` through `WS-12`, added on 2026-08-15 by the weapon and shield sprite
-atlas package; and `CC-1` was added the same day by the contingent cohesion
-package, for the opt-in movement preset V15. No `PASS`, `FAIL`, `BLOCKED`, or
-`DECLINED` row is left.
+**22 rows in 3 subsections, every one `PENDING`.** Twelve are `WS-1` through
+`WS-12`, added on 2026-08-15 by the weapon and shield sprite atlas package; and
+`CC-1` was added the same day by the contingent cohesion package, for the opt-in
+movement preset V15. `SPB-1` through `SPB-9` were added on 2026-08-18
+by the shield size against projectile size package. No `PASS`, `FAIL`, `BLOCKED`, or `DECLINED` row is left.
+
+`GR-5` closed `PASS` on 2026-08-16, run by a person at an interactive desktop.
+It was the last open row of the GPU render smoke family, so that whole section
+was deleted here and lifted into the archive record titled "GPU render smoke —
+`GR-5` — family closed in full 2026-08-16". Nothing of that family remains open:
+`GR-1`, `GR-2` and `GR-4` closed on 2026-08-14, `GR-3` on 2026-08-15, and
+Phase 3's `GR-6` through `GR-10` never existed, because the NO-GO verdict closed
+the instanced backend they covered.
+
 Twenty-nine rows closed on 2026-08-15 and were lifted
 out with the six families that closed in full: calibrated army composition,
 death collapse, UI chrome nine-slice, pawn visual fidelity, pawn sprite body,
 and the hidden battle event log. Each has a dated archive record carrying its
 family's name, and every one of those records says the same thing about its
 evidence — the tester returned a pass verdict and wrote down no separate
-observation, though several rows had asked for one.
+observation, though several rows had asked for one. `GR-5`'s record says it too.
 
 **Recount before trusting that figure.** Count the status column itself, and
 count every status: a row that is neither `PENDING` nor a result is still a row.
@@ -75,39 +84,6 @@ is `ClientSettingsStore.DefaultMovementPreset`, currently
 `MovementPresetId.CohortLateralSpreadV13`. A preset chosen in the Army
 Composition panel is staged for the next Full Reset rather than applied to the
 battle in progress.
-
-## GPU render smoke (gpu-render Phases 1 and 2)
-
-**Four of this family's five rows have closed** — `GR-1`, `GR-2` and `GR-4` on
-2026-08-14, `GR-3` on 2026-08-15 — and their records are the archives titled
-"GPU render smoke — PARTIAL 2026-08-14", "GPU render smoke — `GR-4`", and "GPU
-render smoke — `GR-3`". The one row below is what is left.
-
-**Read this before deciding `GR-5` cannot be run.** The tester who ran this
-family on 2026-08-14 stopped at it for one stated reason: the team size cannot
-be raised above 500. That is correct and it is not a blockage, because the
-ceiling is **per team, not per battle**.
-`ArmyCompositionStepper.MaximumUnitsPerTeam` is `500`, the panel's row is
-labelled `Units Per Team`, and `ArenaGame` builds the scenario with
-`composition.UnitsPerTeam * 2`, so the maximum gives exactly the 1,000-unit
-battle this row wants. `GR-3` was run that way on 2026-08-15 and passed. `GR-5`
-watches hit pulses inside that same battle, from the same launch; the panel
-offers no bigger one to reach.
-
-`HitEffectSystemTests` proves the per-frame pulse lookup returns what the
-per-pawn scan returned. It cannot prove that the pulses read the same on screen,
-which is the whole of this row's question.
-
-Only a human running `./scripts/run.ps1` on an interactive Windows desktop may
-flip this row. Compilation, unit tests, and a window-opening probe run do not.
-Leave it `PENDING` if untouched; report `BLOCKED` honestly.
-
-| # | Step | Expected | Actual | Status |
-| --- | --- | --- | --- | --- |
-| GR-5 | In the same 1,000-unit battle `GR-3` uses — `Units Per Team` at its maximum of 500, which is per team and gives 1,000 warriors on the field — wait for the two sides to close and watch hit pulses in the dense melee | Pulse strength and timing read exactly as before the per-frame lookup replaced the per-pawn scan | Attempted 2026-08-14 and not run, because the tester read the 500 ceiling as a per-battle one. It is per team, and `GR-3` passed at that setting on 2026-08-15, so there is no larger battle to wait for | PENDING |
-
-Phase 3's rows GR-6 through GR-10 are deliberately absent. They covered the
-instanced backend, which the NO-GO verdict closed and which does not exist.
 
 ## Weapon and shield sprite atlas (weapon-sprite)
 
@@ -177,35 +153,6 @@ Leave it `PENDING` if untouched; report `BLOCKED` honestly.
 | # | Step | Expected | Actual | Status |
 | --- | --- | --- | --- | --- |
 | CC-1 | Open the Army Composition panel, select `V15 Contingent Cohesion Before Contact`, press `Shift+R` for a full reset, and watch one full battle from the default camera station. Then do the same with `V13 Cohort Lateral Spread` and compare | Under V15 a contingent visibly crosses the field as a body rather than dissolving into individual pursuit, and the difference from V13 is discernible without being told which preset is running. Record whether the two are tellable apart at all, because a change nobody can see on screen is the failure this row exists to catch. Spacing must still look irregular — the warriors close up, they do not dress into ranks or files, and if they look tidy that is a defect against the design's section 3 | | PENDING |
-| SB-1 | Start a battle, let it run, press `B`, then press `B` again | Every warrior's head and torso changes to drawn art on the very next frame, and changes back on the second press. No stall, no flicker, and the battle does not pause or restart | | PENDING |
-| SB-2 | Press `B` to enable the mode, quit the game, relaunch | The game comes back up still drawing sprite bodies, because the choice was persisted | | PENDING |
-| SB-3 | With sprite bodies on, watch a full engagement at the default camera fit and say whether the two sides stay tellable apart | Team A still reads blue and Team B still reads red at a glance, without relying on the selection boxes. The faction wash is a provisional tuning value at 0.32; if the sides blur together, record that and the mode fails its own acceptance | | PENDING |
-| SB-4 | Zoom in on one contingent and compare warriors side by side | Warriors visibly differ from one another — skin tone, headband colour and presence, hair, facial hair, tattoos, build. They do not all share one body. Record roughly how many distinct bodies you can pick out | | PENDING |
-| SB-5 | Watch a warrior die with sprite bodies on | The drawn body rotates and falls with the collapse, staying attached to the legs. It does not stay standing upright while the rest of the pawn falls | | PENDING |
-| SB-6 | Watch a warrior walk and run with sprite bodies on | The legs still animate underneath the drawn torso. Gait is unaffected by the mode | | PENDING |
-| SB-7 | Watch a warrior fight with sprite bodies on | The weapon arm still swings and still points at the target, drawn over the body rather than under it. The shield still sits in front of the torso | | PENDING |
-| SB-8 | Zoom all the way out until pawns resolve the `Low` detail tier | The body falls back to the procedural quads with no flicker and no gap at the changeover. This is expected behaviour, not a defect | | PENDING |
-
-## Battle event log hidden by default (the 2026-08-15 hide-event-log change)
-
-The battle event log no longer draws on launch. The right-hand column it used
-to occupy is given back to the arena, and the log returns either through the
-new `Events` button on the control bar or through F8. The sound log keeps F9
-and its own button, and the two are independent: either, both, or neither may
-be shown.
-
-None of these rows may be closed by a passing test, by a build, or by a
-screenshot probe. Only a person at an interactive Windows desktop, watching a
-live battle, may flip one of them. Leave untouched rows `PENDING`; report
-`BLOCKED` honestly.
-
-| # | Step | Expected | Actual | Status |
-| --- | --- | --- | --- | --- |
-| HEL-1 | Launch the client and look at the right-hand side of the window before pressing anything | No event log is drawn, and the arena extends to the right margin of the window rather than stopping short of a log column. The control bar carries a new `Events` button, shown inactive | | PENDING |
-| HEL-2 | Press F8, then press F8 again | The event log appears in the right-hand column and the arena narrows to make room for it; the `Events` button reads as active while it is shown. The second press hides it again and the arena returns to full width | | PENDING |
-| HEL-3 | Click the `Events` button on the control bar twice | The button toggles the same visibility F8 toggles, and its active state tracks whether the log is shown | | PENDING |
-| HEL-4 | With the event log hidden, press F9 to show the sound log | The sound log occupies the whole right-hand column on its own rather than only its usual lower share, and the arena narrows by exactly the column width | | PENDING |
-| HEL-5 | With the event log hidden, click and scroll where the log used to be, then press Escape | Nothing in the hidden log reacts: the click reaches the arena beneath it, the wheel drives the camera rather than a log scroll, and Escape is handled by whatever would handle it with no log present | | PENDING |
 
 ## Shield size against projectile size (the 2026-08-15 shield-projectile-block design)
 

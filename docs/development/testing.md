@@ -1704,8 +1704,11 @@ against: `slipLateral` 5,018, `dodgeIncoming` 714, `giveGround` 890,
 
 Moved to [smoke-checklist.md](smoke-checklist.md) on 2026-08-11.
 
-As of 2026-08-15 it carries one row in one section: `GR-5`, `PENDING`, with no
-`PASS`, `FAIL`, or `BLOCKED` row left anywhere in it. On the day it was split
+As of 2026-08-16 it carries thirteen rows in two sections — `WS-1` through
+`WS-12` for the weapon and shield sprite atlas, and `CC-1` for movement preset
+V15 — every one of them `PENDING`, with no `PASS`, `FAIL`, or `BLOCKED` row left
+anywhere in it. `GR-5` closed `PASS` on 2026-08-16 and took the last of the GPU
+render smoke family with it. On the day it was split
 out it carried 105 rows across 29 sections. **Only a person at an interactive
 desktop may flip a row**, and no agent may, for any reason, including a passing
 automated test. Recount that figure from the checklist's own status column

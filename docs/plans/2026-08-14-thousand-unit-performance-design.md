@@ -13,11 +13,11 @@ until the user gives one.
 ask for a 1,000-unit battle today. The two render smoke
 rows that exist to check exactly that are `GR-3` (set both teams to 500, watch one
 full engagement at all three camera stations) and `GR-5` (watch hit pulses in a
-dense 1,000-unit melee). `GR-3` closed `PASS` on 2026-08-15, run by a person at
-the desktop, so a 1,000-unit battle has now been watched; `GR-5` remains
-`PENDING`, and the preamble in
-`docs/development/smoke-checklist.md` records that the reason given for not
-running them does not hold: the ceiling is per team, so 500 on each side is the
+dense 1,000-unit melee). **Both have since closed `PASS`** — `GR-3` on
+2026-08-15 and `GR-5` on 2026-08-16, each run by a person at the desktop — so a
+1,000-unit battle has now been watched, and watched again for its hit pulses,
+on a build with none of the work below done. The reason once given for not
+running them did not hold: the ceiling is per team, so 500 on each side is the
 battle those rows ask for.
 
 So the question is not "can the game field 1,000 units". It can. The question is
@@ -343,7 +343,9 @@ The acceptance evidence is therefore:
   `EmbeddedProjectileSystem.Capacity` is 256 and `TrampleMarkSystem.Capacity` is
   128. Against 1,000 pawns those are small, and a spectator may see effects
   starve rather than saturate. This is a legibility question, not a performance
-  one, and `GR-3` closed `PASS` on 2026-08-15 with a person watching to answer it.
+  one, and `GR-3` closed `PASS` on 2026-08-15 and `GR-5` on 2026-08-16, with a
+  person watching to answer it. Neither row asked about effect starvation
+  specifically, so a pass on both is not a finding about these two capacities.
 - **Should the map scale with the unit count?** It does not today, so 1,000 units
   fight on the same field 200 units do. That is a look-and-feel decision with a
   large performance consequence in both directions.
@@ -362,9 +364,14 @@ this workstream's answer is unusual, so it is stated plainly.
 only in one form: a 1,000-unit battle that does not stutter, where today's does
 or does not. There is no new visual, no new event, no new
 inspector row, and no new sound. The spectator-visible deliverable is `GR-3` and
-`GR-5` being runnable and passing; `GR-3` closed `PASS` on 2026-08-15 and
-`GR-5` remains open, and the honest statement of that is that if
-the re-measurement in Phase 0 shows the frame already holds, **the correct
-outcome of this workstream is to run those two rows and build nothing**. That
-outcome is a success, not a wasted plan, and the plan document is ordered so
-that it is reachable at the end of Phase 0.
+`GR-5` being runnable and passing, and **both have now passed** — `GR-3` on
+2026-08-15, `GR-5` on 2026-08-16 — on today's build, with nothing from this
+document implemented. The honest statement of that is that if the re-measurement
+in Phase 0 shows the frame already holds, **the correct outcome of this
+workstream is to build nothing**, and half the evidence for that outcome is
+already in hand. That is a success, not a wasted plan, and the plan document is
+ordered so that it is reachable at the end of Phase 0.
+
+What the two passes do not do is stand in for the measurement. A person watching
+answers the legibility question; TU-4's two-clause trigger is a p95 comparison
+against 8.0 milliseconds and against half that frame, and no one has re-run it.
