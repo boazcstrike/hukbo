@@ -15,34 +15,38 @@ The gate, the current gate results, and the recorded baselines live in
 `docs/development/testing.md`. Superseded measurement runs live in
 `docs/development/measurement-history.md`.
 
-## Where the checklist stands, 2026-08-15
+## Where the checklist stands, 2026-08-19
 
-**34 rows in 6 subsections, every one `PENDING`.** Counted from the status
-column on 2026-08-18, not carried forward from the previous figure. Seven are
-`AR-1` through `AR-7`, added by the armor identity package; eight are `SB-1`
-through `SB-8` and five are `HEL-1` through `HEL-5`, added by the shield size
-against projectile size package; twelve are `WS-1` through `WS-12` from the
-weapon and shield sprite atlas package; `CC-1` came from the contingent
-cohesion package, for the opt-in movement preset V15; and `GR-5` is the last
-survivor of the GPU render family.
+**33 rows in 5 subsections, every one `PENDING`.** Counted from the status
+column on 2026-08-19, not carried forward from any previous figure. Twelve are
+`WS-1` through `WS-12` from the weapon and shield sprite atlas package; `CC-1`
+came from the contingent cohesion package, for the opt-in movement preset V15;
+five are `HEL-1` through `HEL-5` from the hide-event-log change; eight are
+`SB-1` through `SB-8` from the shield size against projectile size package; and
+seven are `AR-1` through `AR-7` from the armor identity package.
+
+`GR-5` closed `PASS` on 2026-08-16 and took the last of the GPU render smoke
+family with it, so that section is gone from this file and its archive record
+is dated 2026-08-16.
 
 The armor rows are unlike most of the others in that they cover a preset that
 **is** the shipped default, so a tester needs to choose nothing to reach them.
 Two of them, `AR-6` and `AR-7`, are expected to be hard or impossible to pass
 as written and say so in their own rows; recording "cannot tell" or "no visible
 difference" against those two is a real result, not a failure to test properly.
-No `PASS`, `FAIL`, `BLOCKED`, or `DECLINED` row is left.
-Twenty-nine rows closed on 2026-08-15 and were lifted
-out with the six families that closed in full: calibrated army composition,
-death collapse, UI chrome nine-slice, pawn visual fidelity, pawn sprite body,
-and the hidden battle event log. Each has a dated archive record carrying its
-family's name, and every one of those records says the same thing about its
-evidence — the tester returned a pass verdict and wrote down no separate
-observation, though several rows had asked for one.
+
+No `PASS`, `FAIL`, `BLOCKED`, or `DECLINED` row is left. Twenty-nine rows
+closed on 2026-08-15 and were lifted out with the six families that closed in
+full: calibrated army composition, death collapse, UI chrome nine-slice, pawn
+visual fidelity, pawn sprite body, and the hidden battle event log. Each has a
+dated archive record carrying its family's name, and every one of those records
+says the same thing about its evidence — the tester returned a pass verdict and
+wrote down no separate observation, though several rows had asked for one.
 
 **Recount before trusting that figure.** Count the status column itself, and
-count every status: a row that is neither `PENDING` nor a result is still a row.
-Every count in this file that was ever taken on faith turned out to be wrong.
+count every status: a row that is neither `PENDING` nor a result is still a
+row. Every count in this file that was ever taken on faith turned out to be
+wrong.
 
 ## Rules for editing this file
 
@@ -85,39 +89,6 @@ is `ClientSettingsStore.DefaultMovementPreset`, currently
 `MovementPresetId.CohortLateralSpreadV13`. A preset chosen in the Army
 Composition panel is staged for the next Full Reset rather than applied to the
 battle in progress.
-
-## GPU render smoke (gpu-render Phases 1 and 2)
-
-**Four of this family's five rows have closed** — `GR-1`, `GR-2` and `GR-4` on
-2026-08-14, `GR-3` on 2026-08-15 — and their records are the archives titled
-"GPU render smoke — PARTIAL 2026-08-14", "GPU render smoke — `GR-4`", and "GPU
-render smoke — `GR-3`". The one row below is what is left.
-
-**Read this before deciding `GR-5` cannot be run.** The tester who ran this
-family on 2026-08-14 stopped at it for one stated reason: the team size cannot
-be raised above 500. That is correct and it is not a blockage, because the
-ceiling is **per team, not per battle**.
-`ArmyCompositionStepper.MaximumUnitsPerTeam` is `500`, the panel's row is
-labelled `Units Per Team`, and `ArenaGame` builds the scenario with
-`composition.UnitsPerTeam * 2`, so the maximum gives exactly the 1,000-unit
-battle this row wants. `GR-3` was run that way on 2026-08-15 and passed. `GR-5`
-watches hit pulses inside that same battle, from the same launch; the panel
-offers no bigger one to reach.
-
-`HitEffectSystemTests` proves the per-frame pulse lookup returns what the
-per-pawn scan returned. It cannot prove that the pulses read the same on screen,
-which is the whole of this row's question.
-
-Only a human running `./scripts/run.ps1` on an interactive Windows desktop may
-flip this row. Compilation, unit tests, and a window-opening probe run do not.
-Leave it `PENDING` if untouched; report `BLOCKED` honestly.
-
-| # | Step | Expected | Actual | Status |
-| --- | --- | --- | --- | --- |
-| GR-5 | In the same 1,000-unit battle `GR-3` uses — `Units Per Team` at its maximum of 500, which is per team and gives 1,000 warriors on the field — wait for the two sides to close and watch hit pulses in the dense melee | Pulse strength and timing read exactly as before the per-frame lookup replaced the per-pawn scan | Attempted 2026-08-14 and not run, because the tester read the 500 ceiling as a per-battle one. It is per team, and `GR-3` passed at that setting on 2026-08-15, so there is no larger battle to wait for | PENDING |
-
-Phase 3's rows GR-6 through GR-10 are deliberately absent. They covered the
-instanced backend, which the NO-GO verdict closed and which does not exist.
 
 ## Weapon and shield sprite atlas (weapon-sprite)
 

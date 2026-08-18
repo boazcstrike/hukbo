@@ -25,10 +25,18 @@ Four phases, and the first one can end the workstream.
 
 **Phase 0 has a real stop condition.** If the re-measurement shows the
 1,000-unit frame already inside budget at all three camera stations, the correct
-action is to run `GR-5` and close the workstream having written no
-code. `GR-3` closed `PASS` on 2026-08-15, run by a person at the desktop against
-that row's own `Expected` column. Task TU-4 is that decision point
-and it is a genuine one.
+action is to close the workstream having written no code. Task TU-4 is that
+decision point and it is a genuine one.
+
+**Both smoke rows have since closed `PASS`** — `GR-3` on 2026-08-15 and `GR-5`
+on 2026-08-16, each run by a person at the desktop against that row's own
+`Expected` column, and each closing with a pass verdict and no separate
+observation recorded. Task TU-16 is therefore already satisfied, and it is
+satisfied on today's build with no optimisation done. What remains missing is
+the *measured* half of TU-4: the render matrix has not been re-run and the tick
+cost has not been attributed, so nobody has checked the frame against the
+two-clause trigger. A person watching is evidence about legibility; it is not
+the p95 comparison this plan's stop condition names.
 
 ---
 
@@ -87,7 +95,7 @@ is the one that applies.
 | --- | --- | --- | --- | --- |
 | TU-14 | **Run the canonical gate and record it.** `./scripts/verify.ps1` with no arguments, from a clean worktree at the integration commit. Paste the real output. All five workload digests must match the design's section 6 table exactly | `docs/development/testing.md` | A recorded gate result with every stage's verdict and all five state and event hashes quoted. **Not delegable** — no sub-agent report substitutes for the gate's own output | Every live task above |
 | TU-15 | **Re-run both measurements and record the delta.** The 500- and 1,000-agent headless points under the shipped presets, whose digests must equal `9486F45B5BC59B80` / `B2D66B025BD1BBD3` and `01F9FD533AE0F018` / `9B25A4FA432E4CE8`, and the render matrix from TU-1. Record before and after side by side, including max and p99, not only p50 — the design's section 3 states the tail is the target | `docs/development/measurement-history.md`, `docs/development/render-baselines/`, `docs/development/testing.md` | Both digest pairs byte-identical, `maximumPenetrationRaw 0` at every point, and a before-and-after table covering p50, p95, p99, and max | TU-14 |
-| TU-16 | **Run `GR-5`.** `GR-3` closed `PASS` on 2026-08-15, run by a person at the desktop against that row's own `Expected` column; no observation beyond the pass itself was recorded. Set `Units Per Team` to 500 for both teams, start the 1,000-unit battle, and watch hit pulses in the dense melee. **A person at the desktop, watching. No agent may flip this row**, and neither compilation, nor a green gate, nor a window-opening probe is evidence for it. Report `BLOCKED` honestly if it cannot be run | `docs/development/smoke-checklist.md` | The row carries a real `Actual` column written by the person who watched, and a status of `PASS`, `FAIL`, or `BLOCKED` | TU-15, or TU-4 directly if Phase 0 stopped the workstream |
+| TU-16 | **Run `GR-5`. Done.** It closed `PASS` on 2026-08-16, run by a person at the desktop against that row's own `Expected` column, in the same 1,000-unit battle `GR-3` used when it closed `PASS` on 2026-08-15; no observation beyond the pass itself was recorded for either. The GPU render smoke family closed in full and its section was deleted from the live checklist, so this task has nothing left to run. If code is ever shipped under Phase 1 or Phase 2, that is a visual change to a battle both rows have already judged, and the correct response is a fresh row rather than a re-run of a lifted one | `docs/development/smoke-checklist.md` | Satisfied. The archive record titled "GPU render smoke — `GR-5` — family closed in full 2026-08-16" carries the row, its `Actual` column, and its `PASS` | Closed ahead of the rest of the plan |
 
 ---
 
@@ -105,7 +113,8 @@ The workstream is complete when all of the following hold, and not before.
    simulation at 500 and 1,000 agents, and for the render matrix at all three
    stations and all three agent counts.
 5. `GR-3` and `GR-5` carry a status written by a person who watched a 1,000-unit
-   battle. `GR-3` closed `PASS` on 2026-08-15; `GR-5` remains open.
+   battle. **Satisfied** — `GR-3` closed `PASS` on 2026-08-15 and `GR-5` on
+   2026-08-16, both lifted out of the live checklist into dated archive records.
 6. Every claim of improvement in the recorded documentation is backed by the
    output of the command that produced it.
 
