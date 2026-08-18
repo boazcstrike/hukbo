@@ -613,4 +613,188 @@ public sealed class RoomSweepAngleHouseTests
         Assert.NotEqual((int)OperatorIntent.Engage, leader.Intent);
         Assert.Equal(ClosetRoomId, group.TargetRoomId);
     }
+
+    /// <summary>
+    /// The regression itself, driven the full length of the observed freeze:
+    /// after the objective room clears around tick 675 and the group
+    /// retargets to <see cref="ClosetRoomId"/> around tick 680, the squad
+    /// must actually cross the map into that room rather than parking
+    /// wherever its path head happened to sit when the retarget fired. The
+    /// broken build freezes the leader near world (446,121), roughly 13
+    /// world units from its own path head and hundreds of world units short
+    /// of the closet. This asserts the fixed build lands close to a real,
+    /// walkable floor cell inside the closet room itself — found from
+    /// <see cref="RoomLayout"/> and <see cref="SandataSimulation.BuildPathBlockedCells"/>
+    /// at run time — never against the broken run's own frozen coordinates.
+    /// </summary>
+    [Fact]
+    public void SweepingTheRealMap_TheSquadReachesTheClosetRoom()
+    {
+        var (grid, buckets, layout) = BakeAngleHouse();
+        var blocked = SandataSimulation.BuildPathBlockedCells(grid);
+
+        var closetFloorCellIndex = -1;
+        for (var cellIndex = 0; cellIndex < blocked.Length; cellIndex++)
+        {
+            if (!blocked[cellIndex] && layout.RoomIdAt(cellIndex) == ClosetRoomId)
+            {
+                closetFloorCellIndex = cellIndex;
+                break;
+            }
+        }
+
+        Assert.True(
+            closetFloorCellIndex >= 0,
+            "the closet has no walkable floor cell left, so this test cannot measure arrival against it.");
+
+        var closetAnchorX = FixedPoint.FromWhole(grid.CellX(closetFloorCellIndex) * NavGrid.CellSizeWu);
+        var closetAnchorY = FixedPoint.FromWhole(grid.CellY(closetFloorCellIndex) * NavGrid.CellSizeWu);
+
+        var groups = ImmutableArray.Create(new GroupPathState(
+            GroupId: 1UL,
+            DestinationCellIndex: ObjectiveCellIndex,
+            HasOutstandingRequest: true,
+            StartCellIndex: SpawnCellIndex,
+            GoalCellIndex: ObjectiveCellIndex,
+            RequestTick: 0));
+
+        var sim = new SandataSimulation(
+            BuildMission(),
+            SandataRuleset.ModernTacticalV1,
+            grid,
+            buckets,
+            BuildState(BuildAngleHouseRoster(), groups),
+            ImmutableArray<CoverRecord>.Empty,
+            layout);
+
+        for (var tick = 0L; tick < 20_000; tick++)
+        {
+            sim.RunTick(tick);
+        }
+
+        var leader = sim.State.Operators.Single(o => o.EntityId == 1UL);
+        var distanceToClosetWu = Math.Sqrt(FixedPoint.SquaredDistance(
+            leader.PositionX, leader.PositionY, closetAnchorX, closetAnchorY)) / FixedPoint.Scale;
+
+        Assert.True(
+            distanceToClosetWu < 150.0,
+            $"after 20,000 ticks the leader stood at ({leader.PositionX.ToDouble()},{leader.PositionY.ToDouble()}), " +
+            $"{distanceToClosetWu:F1} world units from the closet's own floor cell at " +
+            $"({closetAnchorX.ToDouble()},{closetAnchorY.ToDouble()}) — nowhere near arrival.");
+    }
+
+    /// <summary>
+    /// The real end-to-end bar a room-clearing sweep exists to meet: every
+    /// room on the map eventually clears, not just the objective room the
+    /// earlier regression tests already exercise. The broken build strands
+    /// the group short of <see cref="ClosetRoomId"/>, so that room — and
+    /// nothing else the sweep would have reached after it — ever clears.
+    /// </summary>
+    [Fact]
+    public void SweepingTheRealMap_EveryRoomIsClearedEventually()
+    {
+        var (grid, buckets, layout) = BakeAngleHouse();
+
+        var groups = ImmutableArray.Create(new GroupPathState(
+            GroupId: 1UL,
+            DestinationCellIndex: ObjectiveCellIndex,
+            HasOutstandingRequest: true,
+            StartCellIndex: SpawnCellIndex,
+            GoalCellIndex: ObjectiveCellIndex,
+            RequestTick: 0));
+
+        var sim = new SandataSimulation(
+            BuildMission(),
+            SandataRuleset.ModernTacticalV1,
+            grid,
+            buckets,
+            BuildState(BuildAngleHouseRoster(), groups),
+            ImmutableArray<CoverRecord>.Empty,
+            layout);
+
+        for (var tick = 0L; tick < 20_000; tick++)
+        {
+            sim.RunTick(tick);
+        }
+
+        var uncleared = sim.State.RoomClearStates.Where(r => !r.Cleared).Select(r => r.RoomId).ToArray();
+
+        Assert.True(
+            uncleared.Length == 0,
+            $"{uncleared.Length} of {sim.State.RoomClearStates.Length} rooms never cleared: " +
+            $"[{string.Join(", ", uncleared)}].");
+    }
+
+    /// <summary>
+    /// The spectator-visible symptom the brief names directly: the leader
+    /// must keep moving past the tick 680 retarget rather than parking
+    /// forever. Samples the leader's position at fixed intervals well after
+    /// the retarget and requires at least one later sample to differ from
+    /// the first — the broken build fails this by never producing a second,
+    /// different sample at all.
+    /// </summary>
+    [Fact]
+    public void SweepingTheRealMap_TheSquadNeverStopsForGood()
+    {
+        var (grid, buckets, layout) = BakeAngleHouse();
+
+        var groups = ImmutableArray.Create(new GroupPathState(
+            GroupId: 1UL,
+            DestinationCellIndex: ObjectiveCellIndex,
+            HasOutstandingRequest: true,
+            StartCellIndex: SpawnCellIndex,
+            GoalCellIndex: ObjectiveCellIndex,
+            RequestTick: 0));
+
+        var sim = new SandataSimulation(
+            BuildMission(),
+            SandataRuleset.ModernTacticalV1,
+            grid,
+            buckets,
+            BuildState(BuildAngleHouseRoster(), groups),
+            ImmutableArray<CoverRecord>.Empty,
+            layout);
+
+        const long firstSampleTick = 1_000; // safely after the ~680-tick retarget
+        const long sampleIntervalTicks = 1_000;
+
+        var haveFirstSample = false;
+        var everMovedAfterFirstSample = false;
+        var frozenAtX = FixedPoint.Zero;
+        var frozenAtY = FixedPoint.Zero;
+        var frozenAtTick = -1L;
+
+        for (var tick = 0L; tick < 20_000; tick++)
+        {
+            sim.RunTick(tick);
+
+            if (tick < firstSampleTick || (tick - firstSampleTick) % sampleIntervalTicks != 0)
+            {
+                continue;
+            }
+
+            var leader = sim.State.Operators.Single(o => o.EntityId == 1UL);
+
+            if (!haveFirstSample)
+            {
+                frozenAtX = leader.PositionX;
+                frozenAtY = leader.PositionY;
+                frozenAtTick = tick;
+                haveFirstSample = true;
+                continue;
+            }
+
+            if (leader.PositionX != frozenAtX || leader.PositionY != frozenAtY)
+            {
+                everMovedAfterFirstSample = true;
+                break;
+            }
+        }
+
+        Assert.True(
+            everMovedAfterFirstSample,
+            $"the leader's sampled position never changed between tick {firstSampleTick} and tick 20,000 " +
+            $"— it froze at ({frozenAtX.ToDouble()},{frozenAtY.ToDouble()}) around tick {frozenAtTick} " +
+            "and never moved again.");
+    }
 }
