@@ -74,8 +74,8 @@ Follow the design's own staging:
 
 ## Acceptance criteria
 
-Branch `sandata-hold-test` (worktree `.claude/worktrees/sandata-hold-test`,
-commit `deebfd1`) carries three tests that **currently fail and are supposed
+Branch `sandata-about-face-acceptance` (worktree
+`.claude/worktrees/sandata-about-face-acceptance`, commit `43ed199`) carries three tests that **currently fail and are supposed
 to**. They are the real bar:
 
 - `SweepingTheRealMap_TheSquadReachesTheClosetRoom`
@@ -146,14 +146,10 @@ shipped because it is a prerequisite.
   archived plan, and never write a path into that folder.
 - No agent may flip a manual smoke-checklist row.
 
-## Worktrees on disk when this was written
+## Worktrees on disk (swept and updated 2026-08-19)
 
 ```
-.claude/worktrees/sandata-rooms         9f794ce   merged, sweepable
-.claude/worktrees/sandata-unreachable   effc97e   merged, sweepable
-.claude/worktrees/sandata-ghost-decay   92391fb   merged, sweepable
-.claude/worktrees/sandata-hold          5438ae1   hold plus the three arrival tests
-.claude/worktrees/sandata-hold-test     deebfd1   the three arrival tests alone
+.claude/worktrees/sandata-about-face-acceptance   43ed199   the three arrival tests, rebased onto main
 ```
 
 Confirm before removing any of them — some may belong to another session.
