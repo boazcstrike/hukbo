@@ -1,6 +1,7 @@
 using Hukbo.Client.Audio;
 using Hukbo.Client.Rendering;
 using Hukbo.Client.Settings;
+using Hukbo.Core.Combat;
 using Hukbo.Core.Simulation;
 
 namespace Hukbo.Client.Presentation;
@@ -13,6 +14,13 @@ internal sealed class PresentationCoordinator
     /// so the many presentation tests that build a coordinator without caring
     /// about measurement keep their existing call, and so a normal run — where
     /// the render probe is off — pays only no-op calls.
+    /// </param>
+    /// <param name="combatRules">
+    /// The combat ruleset the battle resolves under, which <see cref="DamageTally"/>
+    /// applies for armour. Defaulted to the preset <c>ArenaGame</c> ships,
+    /// <see cref="CombatPresetId.PrecolonialPhilippinesV8"/>, so the many tests
+    /// that build a coordinator keep their existing call; a caller running a
+    /// different preset must pass that preset's ruleset.
     /// </param>
     /// <summary>
     /// Mirrors <c>Scenario</c>'s own default for
@@ -38,7 +46,8 @@ internal sealed class PresentationCoordinator
         int embeddedProjectileCapacity = EmbeddedProjectileSystem.Capacity,
         int attackCapacity = PawnAppearanceCache.Capacity,
         int deathCollapseCapacity = PawnAppearanceCache.Capacity,
-        IRenderMetricsRecorder? renderMetricsRecorder = null)
+        IRenderMetricsRecorder? renderMetricsRecorder = null,
+        CombatRuleset? combatRules = null)
     {
         PawnAppearances = new PawnAppearanceCache(
             renderMetricsRecorder ?? NullRenderMetricsRecorder.Instance);
@@ -58,6 +67,9 @@ internal sealed class PresentationCoordinator
         DefenderReactions = new DefenderReactionSystem(attackCapacity);
         DeathCollapse = new DeathCollapseSystem(deathCollapseCapacity);
         BattleReportAccumulator = new BattleReportAccumulator();
+        DamageTally = new WeaponDamageTally(
+            combatRules ?? CombatPresetRegistry.Get(
+                CombatPresetId.PrecolonialPhilippinesV8));
     }
 
     public PlaybackController Playback { get; } = new();
@@ -197,6 +209,12 @@ internal sealed class PresentationCoordinator
     /// </summary>
     public BattleReportAccumulator BattleReportAccumulator { get; }
 
+    /// <summary>
+    /// The per-faction, per-weapon damage tally, fed from <see cref="IngestTick"/>
+    /// and cleared by <see cref="ResetFor"/>. The damage card reads it.
+    /// </summary>
+    public WeaponDamageTally DamageTally { get; }
+
     public MatchSummary? Summary { get; private set; }
 
     /// <summary>
@@ -238,6 +256,7 @@ internal sealed class PresentationCoordinator
         // survives the merge; only this branch changed that method, and it
         // needs the views to attribute a report row.
         BattleReportAccumulator.Ingest(events, tickCombatByFaction, agents);
+        DamageTally.Ingest(events, agents);
 
         // HitEffects, Blood, Swings and ClashEffects used to be driven from
         // here with (events, agents). The attack-animation-v2 migration moved
@@ -416,6 +435,7 @@ internal sealed class PresentationCoordinator
         PawnAppearances.Clear();
         EventFeed.Clear();
         BattleReportAccumulator.Clear();
+        DamageTally.Reset();
         HitEffects.Clear();
         Blood.Clear();
         AttackFrames.Clear();
