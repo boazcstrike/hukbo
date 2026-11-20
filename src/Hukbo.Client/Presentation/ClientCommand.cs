@@ -81,4 +81,14 @@ internal enum ClientCommand
     // it is a comparison aid, and if the smoke rows prefer it off the default
     // flips instead.
     ToggleInterpolation,
+
+    // Appended, never inserted, for the same reason: no existing member's
+    // ordinal moves.
+    //
+    // Shows and hides the weapon damage tally card (the 2026-11-21 weapon
+    // damage tally design, section 2). Bound to T, which was free. A key
+    // rather than a menu row for the reason ToggleWeaponSprites records: the
+    // menu panel is full. Starts hidden and is not persisted, so a first-time
+    // spectator's view does not change.
+    ToggleDamageTally,
 }

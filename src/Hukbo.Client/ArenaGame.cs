@@ -124,6 +124,7 @@ public sealed partial class ArenaGame : Game
     private readonly SoundDirector _soundDirector;
     private readonly MatchSummaryPanel _summaryPanel = new();
     private readonly BattleReportPanel _battleReportPanel = new();
+    private readonly DamageTallyPanel _damageTallyPanel = new();
 
     /// <summary>
     /// Guards the unrecoverable action. There is no save, so a stray click on
@@ -235,6 +236,14 @@ public sealed partial class ArenaGame : Game
     private bool _isSoundLogVisible;
     private bool _isEventLogVisible;
     private bool _isBattleReportVisible;
+
+    // The damage card starts hidden and is not persisted (design section 2).
+    // _damageTallyHover is the row the pointer is over this frame, or null:
+    // the draw pass and the render probe both ring agents from it, so it is
+    // cleared at the top of every Update and set only while the card is
+    // visible and consumed the pointer.
+    private bool _isDamageTallyVisible;
+    private DamageTallyHover? _damageTallyHover;
     private bool _isArmyCompositionPanelVisible;
     private bool _isCompositionStaged;
     private bool _exitRequested;
@@ -371,10 +380,11 @@ public sealed partial class ArenaGame : Game
             ? new SpriteBatchRenderMetricsRecorder()
             : NullRenderMetricsRecorder.Instance;
 
-        // Computed ahead of the scenario field below, purely to size the
+        // Computed ahead of the scenario field below, to size the
         // coordinator's projectile store from the real
         // Scenario.MaximumProjectilesInFlight rather than a duplicated
-        // literal. initialSettings.Composition is exactly what
+        // literal, and to give its damage tally the scenario's own combat
+        // ruleset. initialSettings.Composition is exactly what
         // _activeComposition becomes two statements below, so this mirrors
         // the same BuildScenario call that produces _scenario itself; the
         // repeated call is a pure, allocation-cheap read, not a second
@@ -388,7 +398,9 @@ public sealed partial class ArenaGame : Game
         _presentation = new PresentationCoordinator(
             EventHistoryCapacity,
             projectileCapacity: startupScenarioForCapacity.MaximumProjectilesInFlight,
-            renderMetricsRecorder: _renderMetricsRecorder);
+            renderMetricsRecorder: _renderMetricsRecorder,
+            combatRules: CombatPresetRegistry.Get(
+                startupScenarioForCapacity.CombatPreset));
 
         // A restored preference takes effect from tick zero, so the spectator
         // never has to reopen the menu after a relaunch.
@@ -903,6 +915,7 @@ public sealed partial class ArenaGame : Game
         }
 
         var pointerConsumed = false;
+        _damageTallyHover = null;
 
         // Which surface claimed the press. The priority chain below is
         // invisible from outside the debugger, and a click that "did nothing"
@@ -1127,6 +1140,18 @@ public sealed partial class ArenaGame : Game
                     _motionManager.Value);
                 pointerConsumed = interaction.PointerConsumed;
                 consumedBy = pointerConsumed ? "inspector" : consumedBy;
+            }
+
+            if (!pointerConsumed && _isDamageTallyVisible)
+            {
+                interaction = _damageTallyPanel.Update(
+                    _input,
+                    _presentation.DamageTally,
+                    layout.ArenaBounds,
+                    gameTime.ElapsedGameTime);
+                pointerConsumed = interaction.PointerConsumed;
+                consumedBy = pointerConsumed ? "damageTally" : consumedBy;
+                _damageTallyHover = _damageTallyPanel.Hovered;
             }
 
             if (!pointerConsumed &&
@@ -1377,6 +1402,11 @@ public sealed partial class ArenaGame : Game
             return LogKeyCommand("I", ClientCommand.ToggleInterpolation);
         }
 
+        if (_input.WasPressed(Keys.T))
+        {
+            return LogKeyCommand("T", ClientCommand.ToggleDamageTally);
+        }
+
         return ClientCommand.None;
     }
 
@@ -1510,6 +1540,10 @@ public sealed partial class ArenaGame : Game
                 return;
             case ClientCommand.ToggleInterpolation:
                 _isInterpolationEnabled = !_isInterpolationEnabled;
+                return;
+            case ClientCommand.ToggleDamageTally:
+                _isDamageTallyVisible = !_isDamageTallyVisible;
+                _damageTallyHover = null;
                 return;
             case ClientCommand.Minimize:
                 SDL_MinimizeWindow(Window.Handle);
@@ -2616,7 +2650,9 @@ public sealed partial class ArenaGame : Game
             _scenario.MapWidth,
             _scenario.MapHeight);
         LogScenarioBuilt(resetCommand.ToString());
-        _presentation.ResetFor(resetCommand);
+        _presentation.ResetFor(
+            resetCommand,
+            CombatPresetRegistry.Get(_scenario.CombatPreset));
         _presentation.EventFeed.SetScenarioSeed(_scenario.Seed);
         _soundDirector.Clear();
         _hoverSelection.Clear();

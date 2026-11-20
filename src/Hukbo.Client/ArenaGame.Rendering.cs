@@ -425,6 +425,7 @@ public sealed partial class ArenaGame
     {
         var selectedEntityId = _presentation.Selection.SelectedEntityId;
         var hoveredEntityId = _hoverSelection.SelectedEntityId;
+        var spotlightHover = _damageTallyHover;
 
         // GPU-005. Counted in a local and stored once below rather than
         // incremented through a field per agent. This method is probe-only, so
@@ -561,7 +562,10 @@ public sealed partial class ArenaGame
                 layout,
                 appearance,
                 state,
-                isLeader: agent.IsLeader));
+                isLeader: agent.IsLeader,
+                isSpotlit: DamageTallySpotlight.Matches(
+                    spotlightHover,
+                    agent)));
         }
 
         // GPU-005, as amended by GPU-014. One pawn-layout construction begun
@@ -712,6 +716,16 @@ public sealed partial class ArenaGame
                 fonts,
                 _soundDirector,
                 layout.SoundLogBounds,
+                theme);
+        }
+
+        if (_isDamageTallyVisible)
+        {
+            _damageTallyPanel.Draw(
+                spriteBatch,
+                pixel,
+                fonts,
+                layout.ArenaBounds,
                 theme);
         }
 
@@ -1205,6 +1219,8 @@ public sealed partial class ArenaGame
         bool drawDeadPass,
         ref int pawnGeometryInvocations)
     {
+        var spotlightHover = _damageTallyHover;
+        var spotlightColor = _themeManager.ActiveTheme.Colors.StatusInfo;
         for (var ordinal = 0; ordinal < agents.Count; ordinal++)
         {
             var agent = agents[ordinal];
@@ -1402,7 +1418,12 @@ public sealed partial class ArenaGame
                 bodyAtlas: _pawnBodyAtlas,
                 entityId: agent.EntityId,
                 weaponVisualStyle: _configuredWeaponVisualStyle,
-                weaponAtlas: _weaponSpriteAtlas);
+                weaponAtlas: _weaponSpriteAtlas,
+                spotlightColor: DamageTallySpotlight.Matches(
+                    spotlightHover,
+                    agent)
+                    ? spotlightColor
+                    : null);
 
             DrawEmbeddedProjectiles(spriteBatch, pixel, agent.EntityId, pawnLayout);
 

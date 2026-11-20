@@ -562,11 +562,25 @@ public sealed class SourceHygieneTests
         var quadCountArguments = SplitTopLevelArguments(
             ExtractCallArguments(arenaSource, "PawnQuadCount.Count("));
 
-        Assert.Equal(4, quadCountArguments.Length);
+        // Five since the damage tally's hover spotlight: the probe must count
+        // the ring through the same DamageTallySpotlight.Matches predicate the
+        // draw pass rings agents with, or the two passes stop agreeing.
+        Assert.Equal(5, quadCountArguments.Length);
         Assert.Equal(
             "isLeader: agent.IsLeader",
-            quadCountArguments[^1],
+            quadCountArguments[3],
             StringComparer.Ordinal);
+        Assert.StartsWith(
+            "isSpotlit: DamageTallySpotlight.Matches(",
+            quadCountArguments[^1],
+            StringComparison.Ordinal);
+
+        var drawLayoutArguments = SplitTopLevelArguments(
+            ExtractCallArguments(arenaSource, "PawnRenderer.DrawLayout("));
+        Assert.StartsWith(
+            "spotlightColor: DamageTallySpotlight.Matches(",
+            drawLayoutArguments[^1],
+            StringComparison.Ordinal);
     }
 
     /// <summary>

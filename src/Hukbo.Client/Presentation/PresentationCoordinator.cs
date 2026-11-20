@@ -211,9 +211,11 @@ internal sealed class PresentationCoordinator
 
     /// <summary>
     /// The per-faction, per-weapon damage tally, fed from <see cref="IngestTick"/>
-    /// and cleared by <see cref="ResetFor"/>. The damage card reads it.
+    /// and cleared by <see cref="ResetFor"/>, which also swaps in a tally for
+    /// the next battle's combat ruleset when given one. The damage card reads
+    /// it, so a caller must read this property each time rather than hold it.
     /// </summary>
-    public WeaponDamageTally DamageTally { get; }
+    public WeaponDamageTally DamageTally { get; private set; }
 
     public MatchSummary? Summary { get; private set; }
 
@@ -406,7 +408,16 @@ internal sealed class PresentationCoordinator
         return Summary;
     }
 
-    public void ResetFor(ClientCommand resetCommand)
+    /// <param name="combatRules">
+    /// The combat ruleset the next battle resolves under. A reset rebuilds the
+    /// scenario, so its combat preset can differ from the previous battle's;
+    /// when supplied, <see cref="DamageTally"/> is replaced by a tally that
+    /// applies that ruleset's armour rule. Left <c>null</c>, the existing
+    /// tally is only cleared and keeps its ruleset.
+    /// </param>
+    public void ResetFor(
+        ClientCommand resetCommand,
+        CombatRuleset? combatRules = null)
     {
         if (resetCommand is not ClientCommand.NextRound and
             not ClientCommand.FullReset)
@@ -435,7 +446,15 @@ internal sealed class PresentationCoordinator
         PawnAppearances.Clear();
         EventFeed.Clear();
         BattleReportAccumulator.Clear();
-        DamageTally.Reset();
+        if (combatRules is null)
+        {
+            DamageTally.Reset();
+        }
+        else
+        {
+            DamageTally = new WeaponDamageTally(combatRules);
+        }
+
         HitEffects.Clear();
         Blood.Clear();
         AttackFrames.Clear();
