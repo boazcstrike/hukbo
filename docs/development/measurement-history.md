@@ -3825,3 +3825,67 @@ alive. Both hashes moved together this time: contact memory is hashed state, and
 an operator that stops holding `Engage` against a corpse resumes advancing, so
 the workload's shots, positions, and deaths all diverge from the recorded run.
 The current figure and the full reasoning live in `docs/development/testing.md`.
+
+
+## Ring-search targeting baseline — 2026-11-21
+
+Phase 0 of `docs/plans/2026-11-21-wmao-optimizations.md`, recorded on branch
+`wmao-optimizations` at `c1c0347`. That commit changes only documents, so this
+is the simulation as it stands on `main` at `0ccc0d3`. It runs the **shipped**
+presets, combat V8 and movement V14, rather than the V5 and V13 pair the
+2026-08-14 thousand-unit figures used.
+
+Commands, one per agent count, all seed 1, 10,000 requested ticks:
+
+```powershell
+./scripts/benchmark.ps1 -Agents 200 -Preset 8 -MovementPreset 14 -Output <path>
+./scripts/benchmark.ps1 -Agents 500 -Preset 8 -MovementPreset 14 -NoBuild -Output <path>
+./scripts/benchmark.ps1 -Agents 1000 -Preset 8 -MovementPreset 14 -NoBuild -Output <path>
+./scripts/benchmark.ps1 -Agents 2000 -Preset 8 -MovementPreset 14 -NoBuild -Output <path>
+```
+
+| Agents | Measured ticks | Outcome | p50 ms | p95 ms | p99 ms | Max ms | Core allocated bytes | State hash | Event hash |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 200 | 1,568 | Faction1Victory | 0.09 | 0.91 | 1.25 | 23.29 | 154,896 | `7A1838EB4D835A45` | (gate 8/14 workload) |
+| 500 | 1,921 | Faction1Victory | 0.34 | 1.90 | 3.09 | 27.19 | 338,656 | `14FF11B059C528CB` | |
+| 1,000 | 3,628 | Faction1Victory | 1.17 | 4.35 | 5.75 | 27.59 | 712,224 | `23C1E15282187F73` | `4D27E2506BF94FFD` |
+| 2,000 | 10,000 | Draw | 5.41 | 17.34 | 20.32 | 50.13 | 1,492,176 | `DE740A4F81B7BDCD` | |
+
+The 200-agent state hash equals the gate's recorded 8/14 workload, which
+confirms the benchmark ran the shipped pair. The 2,000-agent battle still ends
+in a draw at the tick cap.
+
+### Where the tick goes at 1,000 agents
+
+Attributed with an external sampling trace, with no instrumentation added to
+`Hukbo.Core`:
+
+```powershell
+dotnet-trace collect --format speedscope -o trace-1000.nettrace -- `
+  src/Hukbo.Headless/bin/Release/net10.0/Hukbo.Headless.exe `
+  --agents 1000 --ticks 10000 --seed 1 --log-level off --preset 8 --movement-preset 14
+```
+
+Inclusive share of `BattleSimulation.AdvanceOneTick` samples on the simulation
+thread:
+
+| Stage | Share |
+| --- | --- |
+| `SelectTargetsAndIntents` | 44.7% |
+| `ResolveCollisions` | 31.2% |
+| `MeasureCollision` | 13.6% |
+| `GatherMovementProposals` | 4.7% |
+| `GatherAndCommitAttacks` | 1.7% |
+| `ResolveContingentStates` | 1.3% |
+| `CommitMovement` | 1.0% |
+| `UpdateViews` | 1.0% |
+| `FindNearestMeleeThreatPosition` | 0.5% |
+| `ResolveOutcome` | 0.1% |
+
+Target selection is the largest single cost, which is what the ring-search
+design targets. `FindNearestMeleeThreatPosition` is under the 5% threshold, so
+the plan's conditional task RS-5 does not start on this evidence.
+
+`MeasureCollision` is worth noting for later. It rebuilds a uniform grid every
+tick only to produce derived contact metrics that no rule reads, and it costs
+13.6% of the tick. It is not part of this plan.
