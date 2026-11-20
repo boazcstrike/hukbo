@@ -104,14 +104,16 @@ public sealed class RingSearchTargetingTests
     [Fact]
     public void WarmTicksAtOneThousandAgentsAllocateNothing()
     {
-        var scenario = Scenario.CreateDefault(seed: 1, totalAgents: AllocationAgents) with
+        // The first melee attack in a process (tick 76 here) allocates 792
+        // bytes once inside GatherAndCommitAttacks, so a throwaway run primes
+        // the process and the measured run does not depend on test order.
+        var primer = CreateAllocationSimulation();
+        for (var tick = 0; tick < AllocationWarmUpTicks + AllocationMeasuredTicks; tick++)
         {
-            TickLimit = AllocationWarmUpTicks + AllocationMeasuredTicks + 100,
-            CombatPreset = CombatPresetId.PrecolonialPhilippinesV8,
-            MovementPreset = MovementPresetId.EvasiveFootworkV14,
-        };
-        scenario.Validate();
-        var simulation = BattleSimulation.Create(scenario);
+            primer.AdvanceOneTick();
+        }
+
+        var simulation = CreateAllocationSimulation();
 
         for (var tick = 0; tick < AllocationWarmUpTicks; tick++)
         {
@@ -132,5 +134,17 @@ public sealed class RingSearchTargetingTests
             allocatedBytes == 0,
             $"{AllocationMeasuredTicks} warm ticks at {AllocationAgents} agents " +
             $"allocated {allocatedBytes:N0} bytes; expected none.");
+    }
+
+    private static BattleSimulation CreateAllocationSimulation()
+    {
+        var scenario = Scenario.CreateDefault(seed: 1, totalAgents: AllocationAgents) with
+        {
+            TickLimit = AllocationWarmUpTicks + AllocationMeasuredTicks + 100,
+            CombatPreset = CombatPresetId.PrecolonialPhilippinesV8,
+            MovementPreset = MovementPresetId.EvasiveFootworkV14,
+        };
+        scenario.Validate();
+        return BattleSimulation.Create(scenario);
     }
 }
