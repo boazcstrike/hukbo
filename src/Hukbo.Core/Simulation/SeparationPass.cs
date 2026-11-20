@@ -28,6 +28,14 @@ internal readonly record struct SeparationParameters(
 {
     internal const int BasisPointScale = 10_000;
 
+    /// <summary>
+    /// Largest accepted body radius. A diameter of at most 2^29 keeps every
+    /// squared centre distance the pass forms, including both axes of a
+    /// neighbour up to two cells away, below 2^61, so no <see cref="long"/>
+    /// product overflows.
+    /// </summary>
+    internal const int MaximumBodyRadiusRaw = 1 << 28;
+
     /// <summary>Contact distance <c>2R</c>.</summary>
     internal long DiameterRaw => 2L * BodyRadiusRaw;
 
@@ -38,6 +46,9 @@ internal readonly record struct SeparationParameters(
     /// <summary>The longest push one body may take in one pass, <c>c * R</c>, rounded down.</summary>
     internal long PushCapRaw =>
         (long)BodyRadiusRaw * PushCapRadiusBasisPoints / BasisPointScale;
+
+    /// <summary>The guaranteed pair distance <c>B = floor - 2 * cap</c>.</summary>
+    internal long BoundRaw => FloorRaw - (2 * PushCapRaw);
 
     internal void Validate()
     {
@@ -51,6 +62,24 @@ internal readonly record struct SeparationParameters(
         ThrowIfOutsideBasisPoints(
             PushCapRadiusBasisPoints,
             nameof(PushCapRadiusBasisPoints));
+
+        if (BodyRadiusRaw > MaximumBodyRadiusRaw)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(BodyRadiusRaw),
+                BodyRadiusRaw,
+                $"Must be at most {MaximumBodyRadiusRaw}.");
+        }
+
+        var bound = BoundRaw;
+        if (bound < 1 || bound + SeparationPass.ShrinkMarginRaw > DiameterRaw)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(PushCapRadiusBasisPoints),
+                PushCapRadiusBasisPoints,
+                $"The bound floor - 2 * cap is {bound}; it must be at least 1 and, with the "
+                + $"shrink margin, at most the diameter {DiameterRaw}.");
+        }
     }
 
     private static void ThrowIfOutsideBasisPoints(int value, string name)
@@ -71,7 +100,7 @@ internal readonly record struct SeparationParameters(
 /// <remarks>
 /// <para>
 /// Idea reference only: the push structure follows <c>SeparationJob</c> of
-/// We March as One (decompiled source, <c>SeparationJob.cs</c> lines 251-650),
+/// We March as One (decompiled source, <c>SeparationJob.cs</c> lines 251-647),
 /// which is floating point. Nothing here is copied; every operation is integer.
 /// </para>
 /// <para>
@@ -85,10 +114,12 @@ internal readonly record struct SeparationParameters(
 /// Rounding rules. The centre distance is the floor of the exact integer
 /// square root of the squared raw distance (not <see cref="FixedPoint.Sqrt"/>,
 /// whose Q22.10 pre-multiplication does not apply to a squared raw distance).
-/// Every other division truncates toward zero, and each push component is
-/// divided exactly once from an unrounded numerator, the averaged push in one
-/// step. A push longer than the cap is scaled by <c>cap / ceil(length)</c>,
-/// so the capped length never exceeds the cap.
+/// Every other division truncates toward zero. Each contact's push components
+/// are divided once from an unrounded numerator and the per-contact results
+/// are summed; the sum is then multiplied by the stiffness and divided by the
+/// contact count and the basis-point scale. A push longer than the cap is
+/// scaled by <c>cap / ceil(length)</c>, so the capped length never exceeds the
+/// cap.
 /// </para>
 /// <para>
 /// Inward-motion limit. After the push is capped and clamped to the arena, each
@@ -98,22 +129,48 @@ internal readonly record struct SeparationParameters(
 /// cref="SeparationParameters.PushCapRaw"/>). For a neighbour at centre vector
 /// <c>v</c> and floored distance <c>s</c>, the body may move toward it by a dot
 /// product of at most <c>(s - B - m) * s / 2</c>, or not at all when
-/// <c>s &lt; B + m</c>, where <c>m</c> is <see cref="ShrinkMarginRaw"/>. The
-/// pair distance falls by at most the sum of the two toward-components over
-/// <c>d</c>, which is at most <c>d - B - m</c> plus under three raw units of
-/// truncation, so it stays at least <c>B</c> exactly. Pairs already at least a
-/// diameter apart cannot fall below <c>2R - 2 * cap</c>, which is at least
-/// <c>B</c>. The limit reads only the snapshot and the body's own displacement,
-/// and takes a minimum over neighbours, so it is order-independent; it is the
-/// step that makes the bound inductive across ticks when the resolver already
-/// guarantees that no pair ends closer than the smaller of the floor and its
-/// start distance.
+/// <c>s &lt; B + m</c>, where <c>m</c> is <see cref="ShrinkMarginRaw"/>.
 /// </para>
 /// <para>
-/// Preconditions, not checked per pair: entity ids are unique, and living
-/// bodies start inside the arena. A start position outside the arena is
-/// clamped into an edge grid cell, which is memory-safe but may miss contacts.
-/// Weights are within 1..<see cref="MaximumWeight"/> for living bodies.
+/// Why the bound holds. Let <c>v</c> be the centre vector of a pair, <c>d</c>
+/// its exact length, <c>s = floor(d)</c>, and <c>D_i</c>, <c>D_j</c> the final
+/// displacements. Since <c>|v + w| * |v| &gt;= v . (v + w)</c>, the new
+/// distance is at least <c>d - t_i - t_j</c>, where <c>t_i = D_i . v / d</c>
+/// and <c>t_j = -D_j . v / d</c> are the components toward each other. Scaling
+/// truncates each component toward zero, so a scaled displacement is
+/// <c>f * D - e</c> with <c>0 &lt;= f &lt;= 1</c> and <c>|e| &lt; sqrt(2)</c>.
+/// Hence <c>D' . v</c> is at most <c>f * max(D . v, 0) + sqrt(2) * d</c>, and
+/// <c>f * D . v</c> never exceeds <c>allow</c>.
+/// </para>
+/// <list type="bullet">
+/// <item>For <c>s &gt;= B + m</c>: <c>t &lt;= (s - B - m) / 2 + sqrt(2)</c> for
+/// each body, so the new distance is at least <c>B + m - 2 * sqrt(2)</c>, which
+/// is more than <c>B</c> because <c>m = 4</c> exceeds 2.83.</item>
+/// <item>For <c>s &lt; B + m</c>: truncation can turn a displacement that was
+/// not toward the neighbour, and so was skipped when the scale was chosen, into
+/// a tiny displacement toward it. After scaling, a body with any such
+/// neighbour is therefore stopped dead (<c>D' = 0</c>). Both bodies of the pair
+/// then have <c>t &lt;= 0</c>, so the pair cannot get closer at all.</item>
+/// <item>For <c>d &gt;= 2R</c>, which the limit never looks at: each
+/// displacement is at most <c>cap</c> long (the arena clamp only shortens it
+/// while the centre starts within <c>[R, W - R]</c>, and scaling shortens it
+/// further), so the pair stays at least <c>2R - 2 * cap</c>, which is at least
+/// <c>B</c>.</item>
+/// </list>
+/// <para>
+/// Every step reads only the snapshot and the body's own displacement and takes
+/// a minimum, so it is order-independent. Together with a resolver that never
+/// ends a pair closer than the smaller of the floor and its start distance, it
+/// makes the bound hold by induction across ticks.
+/// </para>
+/// <para>
+/// Preconditions, not checked per pair: living bodies start with their centres
+/// within <c>[R, W - R]</c> on each axis, the range the arena clamp keeps them
+/// in. A start position outside it is clamped into an edge grid cell, which is
+/// memory-safe but may miss contacts and voids the inward-motion proof. Entity
+/// ids are unique; two bodies sharing an id at the same position throw
+/// <see cref="InvalidOperationException"/>. Weights are within
+/// 1..<see cref="MaximumWeight"/> for living bodies.
 /// </para>
 /// <para>
 /// All storage is grow-only, so a warm pass allocates nothing. The grid
@@ -170,6 +227,12 @@ internal sealed class SeparationPass
 
     internal ReadOnlySpan<int> OutY => _outY.AsSpan(0, _count);
 
+    /// <summary>How many bodies the inward-motion limit scaled or stopped in the last pass.</summary>
+    internal int LimitedBodyCount { get; private set; }
+
+    /// <summary>True when no grid cell still points at a body. Holds between passes, including after a failed one.</summary>
+    internal bool GridIsClear => _cellHead.AsSpan().IndexOfAnyExcept(NoBody) < 0;
+
     /// <summary>The capped push before the arena clamp and the inward-motion limit. Zero for a dead body.</summary>
     internal ReadOnlySpan<int> PushX => _pushX.AsSpan(0, _count);
 
@@ -199,12 +262,23 @@ internal sealed class SeparationPass
         }
 
         _count = count;
+        LimitedBodyCount = 0;
         EnsureBodyCapacity(count);
         Snapshot(xRaw, yRaw, isAlive, weight, isCommitted, entityId, parameters);
-        BuildGrid(parameters);
-        ComputePushes(parameters);
-        ApplyPushes(parameters);
-        ClearGrid();
+        SizeGrid(parameters);
+
+        // Writing NoBody into any in-range cell is always safe, so the clear
+        // runs even when a later step throws and leaves the grid half linked.
+        try
+        {
+            LinkBodies();
+            ComputePushes(parameters);
+            ApplyPushes(parameters);
+        }
+        finally
+        {
+            ClearGrid();
+        }
     }
 
     private void EnsureBodyCapacity(int count)
@@ -264,7 +338,7 @@ internal sealed class SeparationPass
         }
     }
 
-    private void BuildGrid(in SeparationParameters parameters)
+    private void SizeGrid(in SeparationParameters parameters)
     {
         _cellSize = parameters.DiameterRaw;
         _cellsX = checked((int)(parameters.ArenaWidthRaw / _cellSize) + 1);
@@ -275,7 +349,10 @@ internal sealed class SeparationPass
             _cellHead = new int[cellCount];
             Array.Fill(_cellHead, NoBody);
         }
+    }
 
+    private void LinkBodies()
+    {
         for (var i = 0; i < _count; i++)
         {
             if (!_alive[i])
@@ -293,6 +370,7 @@ internal sealed class SeparationPass
     }
 
     // Restores the all-NoBody invariant by touching only the cells this pass used.
+    // A body a failed pass never linked holds a stale but in-range cell index.
     private void ClearGrid()
     {
         for (var i = 0; i < _count; i++)
@@ -427,6 +505,12 @@ internal sealed class SeparationPass
     // fixed vectors picked by the top four bits of FNV-1a over (low id, high id).
     private static (long X, long Y) CoincidentDirection(ulong selfId, ulong otherId)
     {
+        if (selfId == otherId)
+        {
+            throw new InvalidOperationException(
+                $"Two living bodies share entity id {selfId} at the same position; ids must be unique.");
+        }
+
         var hash = Fnv1a.OffsetBasis;
         Fnv1a.Add(ref hash, Math.Min(selfId, otherId));
         Fnv1a.Add(ref hash, Math.Max(selfId, otherId));
@@ -472,7 +556,7 @@ internal sealed class SeparationPass
 
     private void ApplyPushes(in SeparationParameters parameters)
     {
-        var bound = parameters.FloorRaw - (2 * parameters.PushCapRaw);
+        var bound = parameters.BoundRaw;
         for (var i = 0; i < _count; i++)
         {
             if (!_alive[i])
@@ -539,11 +623,63 @@ internal sealed class SeparationPass
             }
         }
 
-        if (numerator < denominator)
+        if (numerator >= denominator)
         {
-            deltaX = deltaX * numerator / denominator;
-            deltaY = deltaY * numerator / denominator;
+            return;
         }
+
+        deltaX = deltaX * numerator / denominator;
+        deltaY = deltaY * numerator / denominator;
+        LimitedBodyCount++;
+
+        if (MovesTowardTightNeighbour(self, bound, parameters, deltaX, deltaY))
+        {
+            deltaX = 0;
+            deltaY = 0;
+        }
+    }
+
+    // Truncating the scaled displacement can leave a component toward a
+    // neighbour closer than B + m that the original displacement was not moving
+    // toward, and so was skipped. Such a neighbour allows no inward motion.
+    private bool MovesTowardTightNeighbour(
+        int self,
+        long bound,
+        in SeparationParameters parameters,
+        long deltaX,
+        long deltaY)
+    {
+        var diameter = parameters.DiameterRaw;
+        var cellX = _cellOf[self] % _cellsX;
+        var cellY = _cellOf[self] / _cellsX;
+        var lastCellY = Math.Min(cellY + 1, _cellsY - 1);
+        var lastCellX = Math.Min(cellX + 1, _cellsX - 1);
+
+        for (var y = Math.Max(cellY - 1, 0); y <= lastCellY; y++)
+        {
+            for (var x = Math.Max(cellX - 1, 0); x <= lastCellX; x++)
+            {
+                for (var other = _cellHead[(y * _cellsX) + x]; other != NoBody; other = _next[other])
+                {
+                    var toOtherX = (long)_x[other] - _x[self];
+                    var toOtherY = (long)_y[other] - _y[self];
+                    var distanceSquared = (toOtherX * toOtherX) + (toOtherY * toOtherY);
+                    if (other == self
+                        || distanceSquared >= diameter * diameter
+                        || (deltaX * toOtherX) + (deltaY * toOtherY) <= 0)
+                    {
+                        continue;
+                    }
+
+                    if (FixedPoint.IntegerSquareRoot(distanceSquared) < bound + ShrinkMarginRaw)
+                    {
+                        return true;
+                    }
+                }
+            }
+        }
+
+        return false;
     }
 
     private void TightenScale(

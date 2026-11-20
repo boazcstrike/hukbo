@@ -24,13 +24,15 @@ public sealed class SeparationPassTests
         bool IsCommitted = false,
         bool IsAlive = true);
 
-    // Stiffness 100% and a cap of one radius, with no sideways push, so the
-    // expected integers are the bare weight share.
+    // Stiffness 100% and a cap of 60% of a radius (2,764 raw, above every
+    // push the fixtures below expect, so none is capped), with no sideways push,
+    // so the expected integers are the bare weight share. The bound
+    // floor - 2 * cap is 2,305, which Validate requires to be positive.
     private static SeparationParameters Plain() =>
         new(
             BodyRadiusRaw: Radius,
             SoftBandBasisPoints: 1_500,
-            PushCapRadiusBasisPoints: 10_000,
+            PushCapRadiusBasisPoints: 6_000,
             StiffnessBasisPoints: 10_000,
             CommittedWeightMultiplier: 3,
             SidewaysBasisPoints: 0,
@@ -344,41 +346,6 @@ public sealed class SeparationPassTests
         Assert.True(bodies.Count(b => result[b.Id] != (b.X, b.Y)) > 100);
     }
 
-    [Fact]
-    public void PairsAtOrAboveTheFloorStayAboveTheFloorMinusTwoCaps()
-    {
-        var parameters = Plain() with
-        {
-            SidewaysBasisPoints = 3_000,
-            PushCapRadiusBasisPoints = 500,
-        };
-        var floor = parameters.FloorRaw;
-        var bound = floor - (2 * parameters.PushCapRaw);
-        var pass = new SeparationPass();
-        var movedTotal = 0;
-
-        for (ulong seed = 1; seed <= 20; seed++)
-        {
-            var bodies = BuildPackedCloud(seed, floor);
-            var result = RunPass(pass, bodies, parameters);
-
-            for (var a = 0; a < bodies.Count; a++)
-            {
-                movedTotal += result[bodies[a].Id] != (bodies[a].X, bodies[a].Y) ? 1 : 0;
-                for (var b = a + 1; b < bodies.Count; b++)
-                {
-                    var dx = (long)result[bodies[a].Id].X - result[bodies[b].Id].X;
-                    var dy = (long)result[bodies[a].Id].Y - result[bodies[b].Id].Y;
-                    Assert.True(
-                        (dx * dx) + (dy * dy) >= bound * bound,
-                        $"seed {seed}: bodies {bodies[a].Id} and {bodies[b].Id} closer than {bound}.");
-                }
-            }
-        }
-
-        Assert.True(movedTotal > 0, "The packed clouds never exercised the pass.");
-    }
-
     // A realistic cap, so the bound B = floor - 2 * cap is positive and the
     // inward-motion limit is live.
     private static SeparationParameters Capped() =>
@@ -443,23 +410,84 @@ public sealed class SeparationPassTests
     [Fact]
     public void AnInwardPushAboveTheAllowanceIsScaledNotDropped()
     {
+        // R = 4608, cap = 230, B = 7373, m = 4. Body 2 averages a 2,108 push from
+        // body 1 and a 858 push the other way into 625, which the cap cuts to 230
+        // toward body 3 at d = 7,500. Then
+        //   allow  = (7500 - 7373 - 4) * 7500 / 2 = 461,250
+        //   toward = 230 * 7500                   = 1,725,000
+        //   delta  = 230 * 461,250 / 1,725,000    = 61.5, truncated to 61.
         var parameters = Capped();
-        const int distance = 7_500;
-        var bound = Bound(parameters);
-        var cap = parameters.PushCapRaw;
-        var allow = (distance - bound - SeparationPass.ShrinkMarginRaw) * distance / 2;
-        var toward = cap * distance;
-        Assert.True(toward > allow && allow > 0, "The fixture must need scaling.");
+        Assert.Equal(230, parameters.PushCapRaw);
+        Assert.Equal(7_373, Bound(parameters));
 
         var result = RunPass(
             [
                 new Body(1, Centre - 5_000, Centre),
                 new Body(2, Centre, Centre),
-                new Body(3, Centre + distance, Centre),
+                new Body(3, Centre + 7_500, Centre),
             ],
             parameters);
 
-        Assert.Equal((int)(Centre + (cap * allow / toward)), result[2].X);
+        Assert.Equal((Centre + 61, Centre), result[2]);
+    }
+
+    // Found by a bounded scan over weight-1 triples against the pass before the
+    // post-scale check existed, then pinned. Body 2 sits in the arena corner, so
+    // the clamp holds it still. Body 1 starts 7,373.004 from it (B = 7,373,
+    // squared distance B^2 + 60). Bodies 2 and 3 push body 1 to (-11, 5), which
+    // is not toward body 2, so body 2 is skipped when the scale is chosen. Body 3
+    // at 7,378 forces a scale far below one, and truncating (-11, 5) * f gave
+    // (-4, 1), which is toward body 2 and closed the pair to 7,372.80.
+    [Fact]
+    public void TruncatingTheScaleCannotPushAPairBelowTheBound()
+    {
+        var parameters = Capped();
+        var bound = Bound(parameters);
+        Assert.Equal(7_373, bound);
+
+        var pass = new SeparationPass();
+        var bodies = new List<Body>
+        {
+            new(1, Radius + 2_142, Radius + 7_055),
+            new(2, Radius, Radius),
+            new(3, Radius + 2_142 + 2_336, Radius + 7_055 + 6_999),
+        };
+        Assert.Equal(
+            (bound * bound) + 60,
+            Squared(bodies[0].X - bodies[1].X, bodies[0].Y - bodies[1].Y));
+
+        var result = RunPass(pass, bodies, parameters);
+
+        AssertEveryPairAtLeast(bodies, result, bound, seed: 0);
+        Assert.Equal((Radius + 2_142, Radius + 7_055), result[1]);
+        Assert.Equal((Radius, Radius), result[2]);
+        Assert.True(pass.LimitedBodyCount > 0, "The inward-motion limit never engaged.");
+    }
+
+    // Body 1 starts 100 raw inside the left edge and is pushed to (-217, 73)
+    // (length 229, under the cap of 230). The clamp cuts that to (-100, 73),
+    // and body 3 at d = 7,500 then scales it:
+    //   allow  = (7500 - 7373 - 4) * 7500 / 2     = 461,250
+    //   toward = (-100 * -100) + (73 * 7500)      = 557,500
+    //   delta  = (-100, 73) * 461,250 / 557,500   = (-82.7, 60.4) -> (-82, 60).
+    // Limiting before the clamp, or never clamping, would scale (-217, 73) and
+    // land on (-175, 59) instead.
+    [Fact]
+    public void TheArenaClampRunsBeforeTheInwardLimit()
+    {
+        var pass = new SeparationPass();
+        var bodies = new List<Body>
+        {
+            new(1, Radius + 100, Centre, Weight: 100),
+            new(2, Radius + 100 + 5_500, Centre - 5_800, Weight: 100),
+            new(3, Radius, Centre + 7_500, Weight: 1),
+        };
+
+        var result = RunPass(pass, bodies, Capped());
+
+        Assert.Equal((-217, 73), (pass.PushX[0], pass.PushY[0]));
+        Assert.Equal((Radius + 100 - 82, Centre + 60), result[1]);
+        Assert.Equal(1, pass.LimitedBodyCount);
     }
 
     [Fact]
@@ -509,7 +537,9 @@ public sealed class SeparationPassTests
     {
         var parameters = Capped();
         var bodies = BuildPackedCloud(seed: 5, Bound(parameters), Centre - (60 * 1_024 / 2));
-        var expected = RunPass(bodies, parameters);
+        var pass = new SeparationPass();
+        var expected = RunPass(pass, bodies, parameters);
+        Assert.True(pass.LimitedBodyCount > 0, "The inward-motion limit never engaged.");
         var shuffler = new SplitMix64(123);
 
         for (var round = 0; round < 8; round++)
@@ -594,6 +624,91 @@ public sealed class SeparationPassTests
                 Plain() with { StiffnessBasisPoints = 10_001 }));
     }
 
+    [Theory]
+    [InlineData(10_000, 1_500)]
+    [InlineData(0, 0)]
+    [InlineData(4, 0)]
+    public void ValidateRejectsAnUnusableBound(int capBasisPoints, int softBandBasisPoints)
+    {
+        var parameters = Plain() with
+        {
+            PushCapRadiusBasisPoints = capBasisPoints,
+            SoftBandBasisPoints = softBandBasisPoints,
+        };
+
+        // Either the bound is below one, or bound + margin exceeds the diameter.
+        Assert.True(
+            parameters.BoundRaw < 1
+            || parameters.BoundRaw + SeparationPass.ShrinkMarginRaw > parameters.DiameterRaw);
+        Assert.Throws<ArgumentOutOfRangeException>(parameters.Validate);
+    }
+
+    [Fact]
+    public void ValidateAcceptsTheEdgeOfTheUsableBound()
+    {
+        // No soft band and a cap of 2 raw units give B = 2R - 4, so B + 4 = 2R.
+        var widest = Plain() with { SoftBandBasisPoints = 0, PushCapRadiusBasisPoints = 5 };
+        Assert.Equal(2, widest.PushCapRaw);
+        Assert.Equal(Diameter - 4, widest.BoundRaw);
+
+        widest.Validate();
+        Plain().Validate();
+    }
+
+    [Fact]
+    public void ValidateRejectsARadiusWhoseSquaresCouldOverflow()
+    {
+        var parameters = Plain() with
+        {
+            BodyRadiusRaw = SeparationParameters.MaximumBodyRadiusRaw + 1,
+        };
+
+        Assert.Throws<ArgumentOutOfRangeException>(parameters.Validate);
+        (Plain() with { BodyRadiusRaw = SeparationParameters.MaximumBodyRadiusRaw }).Validate();
+    }
+
+    [Fact]
+    public void ValidateAcceptsTheProductionValues()
+    {
+        var parameters = new SeparationParameters(
+            BodyRadiusRaw: 4_352,
+            SoftBandBasisPoints: 1_500,
+            PushCapRadiusBasisPoints: 500,
+            StiffnessBasisPoints: 5_000,
+            CommittedWeightMultiplier: 3,
+            SidewaysBasisPoints: 2_500,
+            ArenaWidthRaw: Arena,
+            ArenaHeightRaw: Arena);
+
+        parameters.Validate();
+
+        Assert.Equal(7_398, parameters.FloorRaw);
+        Assert.Equal(217, parameters.PushCapRaw);
+        Assert.Equal(6_964, parameters.BoundRaw);
+    }
+
+    [Fact]
+    public void TwoBodiesSharingAnIdAtOnePositionAreRejectedAndLeaveTheGridClear()
+    {
+        var pass = new SeparationPass();
+        var twins = new List<Body>
+        {
+            new(7, Centre, Centre),
+            new(7, Centre, Centre),
+        };
+
+        Assert.Throws<InvalidOperationException>(() => RunPass(pass, twins, Plain()));
+        Assert.True(pass.GridIsClear, "A failed pass left grid cells linked.");
+
+        // The same instance must still give a fresh instance's answer.
+        List<Body> pair =
+        [
+            new(1, Centre, Centre),
+            new(2, Centre + Overlap1216Distance, Centre),
+        ];
+        Assert.Equal(RunPass(pair, Plain()), RunPass(pass, pair, Plain()));
+    }
+
     // ----- Helpers -----
 
     private static List<Body> BuildCloud(ulong seed, int count, bool withCoincidentPairs)
@@ -622,9 +737,6 @@ public sealed class SeparationPassTests
 
         return bodies;
     }
-
-    private static List<Body> BuildPackedCloud(ulong seed, long floor) =>
-        BuildPackedCloud(seed, floor, Centre - (60 * 1_024 / 2));
 
     private static List<Body> BuildPackedCloud(ulong seed, long floor, int origin)
     {
