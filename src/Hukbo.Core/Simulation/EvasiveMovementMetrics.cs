@@ -36,8 +36,9 @@ namespace Hukbo.Core.Simulation;
 /// Two same-seed runs of the same build must produce identical values in every
 /// field. Every one of the five <see cref="EvasiveAction"/> fields is identically
 /// zero under any movement preset other than
-/// <see cref="MovementPresetId.EvasiveFootworkV14"/>, which is the only preset
-/// that ever resolves an action other than <see cref="EvasiveAction.None"/>. The
+/// <see cref="MovementPresetId.EvasiveFootworkV14"/> and
+/// <see cref="MovementPresetId.SeparatingContactV17"/>, the only presets that
+/// ever resolve an action other than <see cref="EvasiveAction.None"/>. The
 /// six movement fields are nonzero under every preset, because every battle
 /// moves somebody.
 /// </para>

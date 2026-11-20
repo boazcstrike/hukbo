@@ -182,12 +182,17 @@ public sealed class CollisionResolverTests
     public void Resolve_WithAnOddHardFloorRoundsTheEffectiveFloorUpNeverDown()
     {
         const int oddFloorRaw = (DiameterRaw * 85 / 100) | 1;
+        const int oneBelowTheFloorRaw = oddFloorRaw - 1;
         var resolver = new CollisionResolver(
             BodyRadiusRaw,
             MapDimensionRaw,
             MapDimensionRaw,
             oddFloorRaw);
 
+        // The proposal sits one raw unit under the odd floor, which is exactly
+        // the effective floor if the odd value were rounded down. Rounded up it
+        // is refused, so this fails for a round-down and passes only for the
+        // never-below-the-request rule.
         resolver.Resolve(
         [
             Stationary(1UL, 50_000, 50_000),
@@ -195,7 +200,7 @@ public sealed class CollisionResolverTests
                 2UL,
                 50_000 + DiameterRaw,
                 50_000,
-                50_000 + oddFloorRaw,
+                50_000 + oneBelowTheFloorRaw,
                 50_000),
         ]);
 

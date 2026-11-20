@@ -241,7 +241,8 @@ internal sealed class AgentState
 
     /// <summary>
     /// This warrior's resolved in-fight evasive movement for the tick just
-    /// gathered, under <see cref="MovementPresetId.EvasiveFootworkV14"/>.
+    /// gathered, under <see cref="MovementPresetId.EvasiveFootworkV14"/> and
+    /// <see cref="MovementPresetId.SeparatingContactV17"/>.
     /// <see cref="EvasiveAction.None"/> forever under every other preset, and
     /// cleared by death cleanup so a corpse cannot carry a stale action into
     /// the state hash.

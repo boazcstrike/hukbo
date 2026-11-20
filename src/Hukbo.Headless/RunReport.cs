@@ -85,7 +85,8 @@ public sealed record RunReport(
     // living agent-ticks, rooted agent-ticks, travel, retention, net drift --
     // is meaningful under all fourteen movement presets. Only the five
     // EvasiveAction counters are preset-specific, and those are legitimately
-    // all-zero under every preset except EvasiveFootworkV14. Wholly derived
+    // all-zero under every preset except EvasiveFootworkV14 and
+    // SeparatingContactV17. Wholly derived
     // observability: reconstructed outside the simulation from consecutive
     // AgentView snapshots, never hashed, never snapshotted.
     EvasiveMovementMetrics EvasionMetrics = default);

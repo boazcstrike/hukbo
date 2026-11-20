@@ -94,7 +94,10 @@ internal sealed class CollisionScratch
         // A solid resolver guarantees every living pair ends the tick at or
         // beyond the contact distance, so "touching" would mean a squared
         // distance of exactly (2R)^2 — a Pythagorean coincidence on an integer
-        // lattice, and unreachable in practice. Contact is therefore counted
+        // lattice, and unreachable in practice. That holds for a preset with no
+        // hard floor; a preset that applies separating contact lets pairs sit
+        // closer than 2R, down to its floor less the pass's push cap, and
+        // counts them as in contact like any other. Contact is therefore counted
         // over a band: bodies within one movement step of touching are pressed
         // together as far as a spectator is concerned.
         ContactBandRadiusRaw = checked(
