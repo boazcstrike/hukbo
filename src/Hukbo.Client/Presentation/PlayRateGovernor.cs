@@ -73,11 +73,27 @@ internal sealed class PlayRateGovernor
     /// <see cref="IsGoverned"/> turns on when the effective speed is more than 5%
     /// below the requested speed (design section 3.5).
     /// </summary>
-    internal const double GovernedThreshold = 0.95d;
+    internal const double GovernedOnThreshold = 0.95d;
+
+    /// <summary>
+    /// <see cref="IsGoverned"/> turns back off only once the effective speed is
+    /// within 2% of the requested speed. The gap between the two thresholds keeps
+    /// a sustainable speed hovering near 5% below the request from flipping the
+    /// status text and the governed log line every few frames. Provisional.
+    /// </summary>
+    internal const double GovernedOffThreshold = 0.98d;
+
+    /// <summary>
+    /// The longest wall-time span a single fold may blend over, in seconds, so
+    /// one hitch frame cannot replace the smoothed state: at the cost time
+    /// constant it caps one fold's weight near one third. Provisional.
+    /// </summary>
+    internal const double MaximumBlendSeconds = 0.1d;
 
     private double _smoothedCostSecondsPerTick;
     private bool _hasCost;
     private double _governedSpeed = MaximumSpeed;
+    private double _unfoldedSeconds;
 
     /// <summary>
     /// The speed to play at: the lesser of the requested speed as of the last
@@ -88,7 +104,8 @@ internal sealed class PlayRateGovernor
 
     /// <summary>
     /// Whether the effective speed is more than 5% below the requested speed, as
-    /// of the last <see cref="Update"/>.
+    /// of the last <see cref="Update"/>. Latched: it stays on until the effective
+    /// speed is back within 2% of the request.
     /// </summary>
     public bool IsGoverned { get; private set; }
 
@@ -112,7 +129,11 @@ internal sealed class PlayRateGovernor
     /// <remarks>
     /// A frame that ran no ticks measures nothing, so it leaves the smoothed
     /// cost and the governed speed unchanged; only the clamp to the requested
-    /// speed is reapplied. A paused battle does not drift the governor.
+    /// speed is reapplied. A paused battle does not drift the governor. Its wall
+    /// time is not lost: it is held and credited to the next frame that ran a
+    /// tick, so the time constants mean wall-clock seconds even when ticks land
+    /// on one frame in three. <c>Update(0, 0, 0, requested, tickRate)</c> is the
+    /// way to re-clamp to a changed request without a sample.
     /// </remarks>
     public double Update(
         double frameSeconds,
@@ -127,24 +148,37 @@ internal sealed class PlayRateGovernor
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(requestedSpeed);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(tickRate);
 
-        if (ticksRun > 0 && frameSeconds > 0d)
+        var elapsedSeconds = _unfoldedSeconds + frameSeconds;
+        if (ticksRun > 0 && elapsedSeconds > 0d)
         {
-            FoldFrame(frameSeconds, simulationWorkSeconds / ticksRun, tickRate);
+            FoldFrame(
+                Math.Min(elapsedSeconds, MaximumBlendSeconds),
+                simulationWorkSeconds / ticksRun,
+                tickRate);
+            _unfoldedSeconds = 0d;
+        }
+        else
+        {
+            _unfoldedSeconds = Math.Min(elapsedSeconds, MaximumBlendSeconds);
         }
 
         EffectiveSpeed = Math.Min(requestedSpeed, _governedSpeed);
-        IsGoverned = EffectiveSpeed < requestedSpeed * GovernedThreshold;
+        IsGoverned = IsGoverned
+            ? EffectiveSpeed < requestedSpeed * GovernedOffThreshold
+            : EffectiveSpeed < requestedSpeed * GovernedOnThreshold;
         return EffectiveSpeed;
     }
 
     /// <summary>
-    /// Forgets all history, as after a battle reset: no cost, ungoverned.
+    /// Forgets all history, as after a battle reset: no cost, ungoverned. Not for
+    /// a changed request, which <see cref="Update"/> re-clamps without a sample.
     /// </summary>
     public void Reset()
     {
         _smoothedCostSecondsPerTick = 0d;
         _hasCost = false;
         _governedSpeed = MaximumSpeed;
+        _unfoldedSeconds = 0d;
         EffectiveSpeed = 1d;
         IsGoverned = false;
     }
