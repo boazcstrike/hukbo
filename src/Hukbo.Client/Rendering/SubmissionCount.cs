@@ -91,6 +91,13 @@ internal static class PawnQuadCount
     private const int LeaderMarkQuadCount = 3;
 
     /// <summary>
+    /// <c>PawnRenderer.DrawSpotlightMark</c> (weapon damage tally design,
+    /// section 2): a closed ring of four edge quads, charged once per
+    /// spotlit pawn.
+    /// </summary>
+    private const int SpotlightMarkQuadCount = 4;
+
+    /// <summary>
     /// The quad count <c>PawnRenderer.Draw</c> emits for one composed pawn
     /// under these exact inputs, walked in the renderer's own documented
     /// layer order (integration design section 5). A quad here is one
@@ -120,13 +127,21 @@ internal static class PawnQuadCount
     /// so every call site written before this setting existed keeps its
     /// current meaning without edits.
     /// </param>
+    /// <param name="isSpotlit">
+    /// Mirrors whether <c>PawnRenderer.Draw</c> is given a non-null
+    /// <c>spotlightColor</c> (the damage tally's hover spotlight): whether
+    /// <c>DrawSpotlightMark</c> fires this frame, adding
+    /// <see cref="SpotlightMarkQuadCount"/> quads, independent of every other
+    /// mark. Trailing optional, defaulting to <c>false</c>.
+    /// </param>
     public static int Count(
         PawnLayout layout,
         PawnAppearance appearance,
         PawnVisualState state,
         VisualFallbackStep torsoResolutionStep = VisualFallbackStep.ModelCategoryDefault,
         bool isLeader = false,
-        WeaponVisualStyle weaponVisualStyle = WeaponVisualStyle.Procedural)
+        WeaponVisualStyle weaponVisualStyle = WeaponVisualStyle.Procedural,
+        bool isSpotlit = false)
     {
         var total = 0;
 
@@ -156,6 +171,11 @@ internal static class PawnQuadCount
         if (isLeader)
         {
             total += LeaderMarkQuadCount;
+        }
+
+        if (isSpotlit)
+        {
+            total += SpotlightMarkQuadCount;
         }
 
         return total;
