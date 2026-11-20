@@ -70,4 +70,15 @@ internal enum ClientCommand
     // key on both branches -- section 12 of that design records the full
     // search.
     ToggleWeaponSprites,
+
+    // Appended, never inserted, for the same reason: no existing member's
+    // ordinal moves.
+    //
+    // Switches render interpolation off and on (the 2026-11-21 play-rate
+    // governor design, section 4.4) so a person at the desktop can judge
+    // whether event effects drawn on tick positions look wrong beside pawns
+    // drawn up to one tick behind. Bound to I, which was free. Not persisted:
+    // it is a comparison aid, and if the smoke rows prefer it off the default
+    // flips instead.
+    ToggleInterpolation,
 }

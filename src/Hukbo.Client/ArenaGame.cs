@@ -102,6 +102,7 @@ public sealed partial class ArenaGame : Game
         Scenario.MaximumMapDimension * FixedPoint.Scale;
     private const ulong DefaultSeed = 1;
     private const double MaximumAccumulatedSeconds = 0.5;
+    private const double MicrosecondsPerSecond = 1_000_000d;
     private const string CompositionStagedNotice =
         "Army composition staged — takes effect on next Full Reset";
 
@@ -239,6 +240,20 @@ public sealed partial class ArenaGame : Game
     private bool _exitRequested;
     private int _speedMultiplier = 1;
     private double _simulationAccumulator;
+
+    // The requested speed is _speedMultiplier, the integer the keys set. The
+    // governor turns it into the speed the machine can sustain, and every
+    // consumer of "how fast is the battle playing" reads that instead (play-rate
+    // governor design, section 3.4).
+    private readonly PlayRateGovernor _playRateGovernor = new();
+    private bool _wasPlayRateGoverned;
+
+    // Pawns are drawn between their last two tick positions. _renderAlpha is
+    // the fraction of a tick left in the accumulator after the frame's tick
+    // loop; it stays where it was while paused so pawns hold still.
+    private readonly RenderPositionInterpolator _renderPositions = new();
+    private bool _isInterpolationEnabled = true;
+    private double _renderAlpha;
 
     // The frame's own measurements, written by Update and AdvanceSimulation
     // and read at the end of Update. Fields rather than arguments because the
@@ -423,6 +438,7 @@ public sealed partial class ArenaGame : Game
                 _activeArmorComposition,
                 _activeMovementPreset);
         _simulation = BattleSimulation.Create(_scenario);
+        _renderPositions.Reset(_simulation.Agents);
         _camera = new SpectatorCamera(_scenario.MapWidth, _scenario.MapHeight);
         _plainsDecals = PlainsBackdropGeometry.GenerateDecals(
             _scenario.Seed,
@@ -1140,7 +1156,7 @@ public sealed partial class ArenaGame : Game
 
         _presentation.AdvanceEffects(
             (float)gameTime.ElapsedGameTime.TotalSeconds,
-            _speedMultiplier,
+            (float)_playRateGovernor.EffectiveSpeed,
             advanceContacts: _presentation.Playback.IsPlaying);
         AdvanceSimulation(gameTime.ElapsedGameTime.TotalSeconds);
         _presentation.ReleaseAttackContactsForDraw(
@@ -1356,6 +1372,11 @@ public sealed partial class ArenaGame : Game
             return LogKeyCommand("V", ClientCommand.ToggleWeaponSprites);
         }
 
+        if (_input.WasPressed(Keys.I))
+        {
+            return LogKeyCommand("I", ClientCommand.ToggleInterpolation);
+        }
+
         return ClientCommand.None;
     }
 
@@ -1395,6 +1416,10 @@ public sealed partial class ArenaGame : Game
 
         if (_speedMultiplier != previous)
         {
+            // A speed key takes effect at once: re-clamp the effective speed to
+            // the new request now, even while paused, so the status line never
+            // shows a stale "holding" for a speed nobody asked for.
+            UpdatePlayRateGovernor(0d, 0d, 0);
             _log.Write(
                 LogLevel.Information,
                 LogChannel.Simulation,
@@ -1482,6 +1507,9 @@ public sealed partial class ArenaGame : Game
                 return;
             case ClientCommand.ToggleWeaponSprites:
                 ToggleWeaponSpriteStyle();
+                return;
+            case ClientCommand.ToggleInterpolation:
+                _isInterpolationEnabled = !_isInterpolationEnabled;
                 return;
             case ClientCommand.Minimize:
                 SDL_MinimizeWindow(Window.Handle);
@@ -2177,8 +2205,12 @@ public sealed partial class ArenaGame : Game
         }
 
         var secondsPerTick = 1d / _scenario.TickRate;
+
+        // The effective speed as it stood at the start of the frame: this
+        // frame's cost is measured below and only changes the next frame's.
         var requestedSeconds =
-            _simulationAccumulator + (elapsedSeconds * _speedMultiplier);
+            _simulationAccumulator +
+            (elapsedSeconds * _playRateGovernor.EffectiveSpeed);
         _simulationAccumulator = Math.Min(
             requestedSeconds,
             MaximumAccumulatedSeconds);
@@ -2190,10 +2222,14 @@ public sealed partial class ArenaGame : Game
         // frame look identical and only the log can tell them apart.
         _frameSimulationStarved = requestedSeconds > MaximumAccumulatedSeconds;
 
+        var ticksRun = 0;
+        var simulationWorkTimestamps = 0L;
         while (_simulationAccumulator >= secondsPerTick &&
                _simulation.Outcome == BattleOutcome.Ongoing)
         {
+            var tickStartTimestamp = Stopwatch.GetTimestamp();
             _simulation.AdvanceOneTick();
+            ticksRun++;
             _frameSimulationTicks++;
             _log.SetTick(_simulation.Tick);
             _presentation.IngestTick(
@@ -2212,10 +2248,72 @@ public sealed partial class ArenaGame : Game
             _soundDirector.IngestImmediate(
                 _simulation.LastEvents,
                 _simulation.Agents);
+            simulationWorkTimestamps +=
+                Stopwatch.GetTimestamp() - tickStartTimestamp;
+
+            // After the tick's own work and outside its timing: a pawn is
+            // drawn between this tick and the one before it.
+            _renderPositions.Capture(_simulation.Agents);
             LogTick();
             _simulationAccumulator -= secondsPerTick;
         }
+
+        // A decided battle has no next tick to move toward, so its pawns are
+        // drawn exactly where they stand.
+        _renderAlpha = _simulation.Outcome == BattleOutcome.Ongoing
+            ? _simulationAccumulator / secondsPerTick
+            : 1d;
+        UpdatePlayRateGovernor(
+            elapsedSeconds,
+            (double)simulationWorkTimestamps / Stopwatch.Frequency,
+            ticksRun);
     }
+
+    /// <summary>
+    /// Folds one frame into the play-rate governor and logs a transition into
+    /// or out of the governed state, never a frame that stayed in one.
+    /// </summary>
+    private void UpdatePlayRateGovernor(
+        double frameSeconds,
+        double simulationWorkSeconds,
+        int ticksRun)
+    {
+        _playRateGovernor.Update(
+            frameSeconds,
+            simulationWorkSeconds,
+            ticksRun,
+            _speedMultiplier,
+            _scenario.TickRate);
+
+        if (_playRateGovernor.IsGoverned == _wasPlayRateGoverned)
+        {
+            return;
+        }
+
+        _wasPlayRateGoverned = _playRateGovernor.IsGoverned;
+        _log.Write(
+            LogLevel.Debug,
+            LogChannel.Render,
+            LogEvents.RenderPlayRateGoverned,
+            "requested",
+            _speedMultiplier,
+            "effective",
+            _playRateGovernor.EffectiveSpeed,
+            "costPerTickMicroseconds",
+            _playRateGovernor.SmoothedCostSecondsPerTick * MicrosecondsPerSecond);
+    }
+
+    /// <summary>
+    /// The raw position to draw agent <paramref name="ordinal"/> at: between its
+    /// last two tick positions while interpolation is on, its authoritative
+    /// tick position while it is off.
+    /// </summary>
+    private (int XRaw, int YRaw) ResolveDrawnPosition(
+        int ordinal,
+        AgentView agent) =>
+        _isInterpolationEnabled
+            ? _renderPositions.Resolve(ordinal, _renderAlpha)
+            : (agent.XRaw, agent.YRaw);
 
     /// <summary>
     /// Emits one observation of the tick that just advanced. Sampled ticks go
@@ -2534,6 +2632,13 @@ public sealed partial class ArenaGame : Game
                 _scenario.MapHeight);
             _camera.Fit(GetLayout(GraphicsDevice.Viewport.Bounds).ArenaBounds);
         }
+
+        // After the FullReset branch, which may change the requested speed.
+        _renderPositions.Reset(_simulation.Agents);
+        _renderAlpha = 0d;
+        _playRateGovernor.Reset();
+        _wasPlayRateGoverned = false;
+        _playRateGovernor.Update(0d, 0d, 0, _speedMultiplier, _scenario.TickRate);
     }
 
     private void UpdateHoverSelection(Rectangle arenaBounds)
@@ -2571,15 +2676,23 @@ public sealed partial class ArenaGame : Game
             _simulation.Agents,
             pointerXRaw,
             pointerYRaw,
-            maximumDistanceSquared);
+            maximumDistanceSquared,
+            _isInterpolationEnabled ? _renderPositions : null,
+            _renderAlpha);
     }
+
+    private string BuildSpeedText() =>
+        PlaybackSpeedText.Format(
+            _speedMultiplier,
+            _playRateGovernor.EffectiveSpeed,
+            _playRateGovernor.IsGoverned);
 
     private void UpdateWindowTitle()
     {
         Window.Title =
             $"Hukbo — A {_matchSeries.TeamAWins} : {_matchSeries.TeamBWins} B — " +
             $"Seed {_matchSeries.CurrentSeed} — Tick {_simulation.Tick:N0} — " +
-            $"{_speedMultiplier}x — " +
+            $"{BuildSpeedText()} — " +
             $"{(_presentation.Playback.IsPlaying ? "Playing" : "Paused")} — " +
             _simulation.Outcome;
     }

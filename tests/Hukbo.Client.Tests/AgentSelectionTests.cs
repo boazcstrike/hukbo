@@ -96,6 +96,57 @@ public sealed class AgentSelectionTests
     }
 
     [Fact]
+    public void SelectNearest_MeasuresADrawnPawnWhereItIsDrawn()
+    {
+        var selection = new AgentSelection();
+        var interpolator = new RenderPositionInterpolator();
+        interpolator.Reset([CreateAgent(1, xRaw: 0, yRaw: 0)]);
+        AgentView[] agents = [CreateAgent(1, xRaw: 100, yRaw: 0)];
+        interpolator.Capture(agents);
+
+        selection.SelectNearest(
+            agents,
+            pointerXRaw: 50,
+            pointerYRaw: 0,
+            maximumDistanceSquared: 4,
+            interpolator,
+            alpha: 0.5d);
+
+        Assert.Equal(1UL, selection.SelectedEntityId);
+    }
+
+    [Fact]
+    public void SelectNearest_IgnoresTheTickPositionOfADrawnPawn()
+    {
+        var selection = new AgentSelection();
+        var interpolator = new RenderPositionInterpolator();
+        interpolator.Reset([CreateAgent(1, xRaw: 0, yRaw: 0)]);
+        AgentView[] agents = [CreateAgent(1, xRaw: 100, yRaw: 0)];
+        interpolator.Capture(agents);
+
+        selection.SelectNearest(
+            agents,
+            pointerXRaw: 100,
+            pointerYRaw: 0,
+            maximumDistanceSquared: 4,
+            interpolator,
+            alpha: 0.5d);
+
+        Assert.Null(selection.SelectedEntityId);
+    }
+
+    [Fact]
+    public void SelectNearest_UsesTickPositionsWhenGivenNoInterpolator()
+    {
+        var selection = new AgentSelection();
+        AgentView[] agents = [CreateAgent(1, xRaw: 100, yRaw: 0)];
+
+        selection.SelectNearest(agents, 100, 0, maximumDistanceSquared: 4);
+
+        Assert.Equal(1UL, selection.SelectedEntityId);
+    }
+
+    [Fact]
     public void Clear_RemovesSelection()
     {
         var selection = new AgentSelection();

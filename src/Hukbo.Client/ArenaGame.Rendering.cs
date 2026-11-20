@@ -453,9 +453,12 @@ public sealed partial class ArenaGame
                 _presentation.DefenderReactions.IsLethalHoldActive(
                     agent.EntityId);
 
+            // The same drawn position the draw path uses, so the probe culls
+            // and counts the pawns the renderer draws.
+            var (drawnXRaw, drawnYRaw) = ResolveDrawnPosition(ordinal, agent);
             var worldPosition = new Vector2(
-                agent.XRaw / (float)FixedPoint.Scale,
-                agent.YRaw / (float)FixedPoint.Scale);
+                drawnXRaw / (float)FixedPoint.Scale,
+                drawnYRaw / (float)FixedPoint.Scale);
             var footAnchor = _camera.WorldToScreen(
                 worldPosition,
                 arenaBounds);
@@ -1230,9 +1233,13 @@ public sealed partial class ArenaGame
                 continue;
             }
 
+            // Drawing only: attached marks (selection, hover, leader, health)
+            // are laid out from this same foot anchor, while gait, effects, and
+            // projectiles read the authoritative tick position.
+            var (drawnXRaw, drawnYRaw) = ResolveDrawnPosition(ordinal, agent);
             var worldPosition = new Vector2(
-                agent.XRaw / (float)FixedPoint.Scale,
-                agent.YRaw / (float)FixedPoint.Scale);
+                drawnXRaw / (float)FixedPoint.Scale,
+                drawnYRaw / (float)FixedPoint.Scale);
             var footAnchor = _camera.WorldToScreen(
                 worldPosition,
                 arenaBounds);
@@ -1531,7 +1538,7 @@ public sealed partial class ArenaGame
             ? $"  |  {CompositionStagedNotice}"
             : string.Empty;
         return
-            $"{state}  |  Tick {_simulation.Tick:N0}  |  {_speedMultiplier}x  |  " +
+            $"{state}  |  Tick {_simulation.Tick:N0}  |  {BuildSpeedText()}  |  " +
             $"Team A (Blue) {_matchSeries.TeamAWins}W/{factionZeroAlive} alive  |  " +
             $"Team B (Red) {_matchSeries.TeamBWins}W/{factionOneAlive} alive  |  " +
             $"{_simulation.Outcome}" +
