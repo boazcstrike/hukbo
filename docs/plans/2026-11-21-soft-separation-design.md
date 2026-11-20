@@ -266,6 +266,26 @@ All measurements compare the new preset against movement V14 with combat V8.
 | Sandata | The three about-face acceptance tests pass |
 | Spectator | Smoke rows judge whether a packed front still reads as a line rather than a blob |
 
+### 5.1 Measured results — 2026-11-21
+
+Movement V17 was built for Hukbo only and measured against V14 with combat V8.
+The full figures are in `docs/development/measurement-history.md`, under
+"Separating contact (movement V17) against V14".
+
+| Measure | Result |
+| --- | --- |
+| Overlap invariant | **Pass.** The deepest penetration over 41 runs is 1,737 raw units against a proved floor of 1,740 |
+| Decision rate | **Pass.** 20 of 20 seeds decided inside 5,000 ticks at 200 agents, and 20 of 20 at 500 |
+| 2,000-agent battle | **Pass.** Faction 0 wins at tick 6,455, where V14 draws at the cap |
+| Blocked agent-ticks at 500 agents | **Pass.** Lower on all 20 seeds, by a factor of 8 to 44 |
+| Tick cost | **Fail at 500 agents**, where p95 is 34% above V14; pass at 1,000, where it is 8% above. p50 is lower at both |
+| Sandata | **Not applicable.** Sandata separating contact was not approved and was not built |
+| Spectator | **Pending.** The SEP smoke rows have not been run |
+
+V17 stays opt-in and the default stays V14. Making V17 the default would need
+the tick cost at 500 agents brought inside the bar and the spectator rows
+passed.
+
 ## 6. Alternatives
 
 - **Option 6.5, slide along the obstruction** (`docs/plans/TODO.md:80-93`).

@@ -132,7 +132,9 @@ legitimately.
   shows that query has no locality to exploit under the shipped scenario.
   **Correction, 2026-11-21:** that reasoning holds for radius pruning but not for
   an exact nearest-neighbour ring search. That search is planned separately in
-  `docs/plans/2026-11-21-wmao-optimizations.md`, phase 1.
+  `docs/plans/2026-11-21-wmao-optimizations.md`, phase 1. It shipped
+  hash-neutral and cut tick p95 by 41% at 1,000 agents and 54% at 2,000; see
+  `docs/development/measurement-history.md`.
 - It does not build an instanced rendering backend. The verdict that closed that
   question is recorded in the design's section 2.4, and TU-4 re-runs its trigger
   as a measurement rather than reopening it.

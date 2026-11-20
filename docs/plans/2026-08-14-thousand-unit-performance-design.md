@@ -159,7 +159,11 @@ job in the plan, and no task may assume the attribution before it is taken.
 > it keeps the lower-`EntityId` tie-break and selects the identical target, so
 > it is hash-neutral. See `docs/plans/2026-11-21-ring-search-targeting-design.md`.
 > The V6 local-context accumulator in the same loop does observe every enemy,
-> and that part of the argument still stands. The text below is kept as it was
+> and that part of the argument still stands. Measured on 2026-11-21 under
+> combat V8 and movement V14, the ring search cut target selection from 44.7% to
+> 11.8% of the 1,000-agent tick, and tick p95 fell 41% at 1,000 agents and 54%
+> at 2,000 with every hash unchanged. The figures are in
+> `docs/development/measurement-history.md`. The text below is kept as it was
 > written.
 
 `BattleSimulation.SelectTargetsAndIntents` walks every agent (line 1277) and, for

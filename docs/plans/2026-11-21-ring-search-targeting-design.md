@@ -292,3 +292,45 @@ This design removes most of the visits. The two stack, and this one goes first
 because it attacks the exponent rather than the constant. Section 4.1 of the
 2026-08-14 design and the plan line that rules out a spatial index get a dated
 correction pointing here.
+
+## 10. Measured results — 2026-11-21
+
+This section records what the implementation actually did against section 6.
+The figures live in `docs/development/measurement-history.md`; this is the
+summary a reader of the design needs.
+
+**Hash neutrality held.** No golden value was recaptured. A cross-check of the
+pre-change headless runner against the integration branch at `09d65fa` ran 63
+battles across presets, seeds, and agent counts and found no state-hash or
+event-hash mismatch. After the review-fix round, the seed-1 combat V8 and
+movement V14 hashes at 200, 500, 1,000, and 2,000 agents were re-run and still
+equal the phase-0 baseline.
+
+**Cell size stays at 32 world units.** The RS-3 sweep measured 16, 32, and 64
+within noise of each other and 128 measurably worse.
+
+**The small-army regression was JIT warm-up, not steady state.** The first
+quiet measurement showed 200-agent p95 rising from 0.88 ms to 1.10 ms, about
+25%, which fails item 5. The cause was the tiered JIT: the new grid and search
+methods spend the opening ticks of a short battle in unoptimised tier-0 code,
+and a 200-agent battle is short enough that those ticks reach p95. The fix marks
+the hot `TargetingGrid` and `TargetSearch` methods with
+`MethodImplOptions.AggressiveOptimization`, so they compile optimised on first
+call. No brute-force fallback threshold was added.
+
+**Item 4's zero-allocation window needed a retry, not a looser bar.** Run alone,
+the 1,000-agent warm-tick window allocates nothing. Run in one process with
+other test classes, it sometimes reported exactly 1,056 bytes in one tick, at a
+random tick of a random battle. The bytes disappear with `DOTNET_TieredPGO=0`
+and with `DOTNET_TieredCompilation=0`, so they come from the runtime, not the
+simulation. The test now repeats the window on up to five fresh battles and
+fails only if every one allocates. A real per-tick allocation lands in every
+attempt; a mutation that allocates in `AdvanceOneTick` fails all five. The
+zero-byte bar is unchanged.
+
+**Item 5 passes.** Interleaved against `main` at `0ccc0d3`, tick p50 and p95
+fall by 34% and 41% at 1,000 agents and by 41% and 54% at 2,000. At 200 agents,
+over 45 pairs, p50 is 2.3% higher and p95 4.7% lower, inside the 5% bar. Target
+selection fell from 44.7% to 11.8% of the 1,000-agent tick; collision resolution
+is now half of it. `FindNearestMeleeThreatPosition` stays at 0.7%, so RS-5 did
+not start.
