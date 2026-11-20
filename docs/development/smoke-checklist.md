@@ -15,15 +15,25 @@ The gate, the current gate results, and the recorded baselines live in
 `docs/development/testing.md`. Superseded measurement runs live in
 `docs/development/measurement-history.md`.
 
-## Where the checklist stands, 2026-08-19
+## Where the checklist stands, 2026-11-21
 
-**33 rows in 5 subsections, every one `PENDING`.** Counted from the status
-column on 2026-08-19, not carried forward from any previous figure. Twelve are
+**66 table rows in 9 subsections, every one `PENDING`, plus the nine `SPB` rows
+described below.** Counted from the status column on 2026-11-21, not carried
+forward from any previous figure. Thirty-three of the table rows were added on
+2026-11-21 by the We March as One optimizations package: six are `GOV-1`
+through `GOV-6` for the play-rate governor, eight are `INT-1` through `INT-8`
+for render interpolation, eleven are `TAL-1` through `TAL-11` for the weapon
+damage tally, and eight are `SEP-1` through `SEP-8` for the opt-in movement
+preset V17. Of the thirty-three older table rows, twelve are
 `WS-1` through `WS-12` from the weapon and shield sprite atlas package; `CC-1`
 came from the contingent cohesion package, for the opt-in movement preset V15;
 five are `HEL-1` through `HEL-5` from the hide-event-log change; eight are
 `SB-1` through `SB-8` from the shield size against projectile size package; and
 seven are `AR-1` through `AR-7` from the armor identity package.
+
+Nine more rows, `SPB-1` through `SPB-9`, are stored as a single-line JSON array
+in the shield size section rather than as a table, so a count of table rows
+misses them. All nine are `PENDING`, which makes the true total 75.
 
 `GR-5` closed `PASS` on 2026-08-16 and took the last of the GPU render smoke
 family with it, so that section is gone from this file and its archive record
@@ -82,11 +92,15 @@ pauses; `1`, `2`, and `4` set playback speed; `R` starts the next round and
 `Shift+R` is a full reset; `W`/`A`/`S`/`D` or the arrow keys pan; the mouse
 wheel zooms; a left click selects a warrior and opens the agent inspector; `F8`
 toggles the battle event log, which is hidden on launch; `F9` toggles the sound
-log; `B` switches sprite bodies on and off.
+log; `B` switches sprite bodies on and off; `I` switches render interpolation
+on and off, and it comes back on at every launch; `T` shows and hides the
+damage tally card, which is hidden on launch. While the machine cannot hold the
+speed you asked for, the status line shows both, for example
+`4x (holding 2.6x)`.
 
 **A row that names no preset is read against the shipped default.** That default
 is `ClientSettingsStore.DefaultMovementPreset`, currently
-`MovementPresetId.CohortLateralSpreadV13`. A preset chosen in the Army
+`MovementPresetId.EvasiveFootworkV14`. A preset chosen in the Army
 Composition panel is staged for the next Full Reset rather than applied to the
 battle in progress.
 
@@ -251,3 +265,136 @@ not. Leave a row `PENDING` if untouched; report `BLOCKED` honestly.
 | AR-5 | Open the Army Composition panel, change the armor composition away from its default, press `Shift+R` for a full reset, and inspect several agents on each side | The fielded mix of armor identities visibly follows the setting, and both factions field the same composition as each other. A visible asymmetry between the two sides is a defect: mirroring is what makes an outcome difference attributable to the simulation rather than to the draw | | PENDING |
 | AR-6 | Compare the movement of a warrior showing `Armor: Rigid Cuirass` against one showing `Armor: None`, both advancing across open ground | The rigid-armored warrior moves slightly slower. The modelled difference is six per cent, which is deliberately small, so **record honestly whether it is perceptible at all**. "Cannot tell them apart" is a legitimate and expected result here and should be written in the Actual column rather than treated as a failed test | | PENDING |
 | AR-7 | Compare the drawn pawn of a warrior showing `Armor: Rigid Cuirass` against one showing `Armor: None` | Expected today: **no visible difference**, because the renderer ignores armor entirely. Record what is actually seen. If the two do differ, the renderer has changed since this row was written and the row needs rewriting. If they do not, this row documents the known gap and stays open until a separate package wires the armor width factor and material tone through to `PawnRenderer.Draw` | | PENDING |
+
+## Play-rate governor (the 2026-11-21 play-rate-governor design)
+
+The client now measures what a simulation tick costs and, when the machine
+cannot run the requested speed inside half a frame, plays at the fastest speed
+it can hold instead of stalling and bursting. The held speed is clamped between
+0.25x and 4x and never exceeds the speed that was asked for. The status line
+and the window title show both figures while the governor is holding, for
+example `4x (holding 2.6x)`. The governor is presentation only: it decides how
+many ticks a frame runs and never changes what a tick computes.
+
+Every threshold in the governor is provisional tuning, chosen on one machine.
+Whether a 1,000-unit battle holds at all depends on the machine, which is why
+`GOV-1` asks for the machine to be written down.
+
+Log evidence. Run `./scripts/run.ps1 -Configuration Debug -LogLevel dbg
+-LogChannels render,input`. The event `render.playRateGoverned` is written on
+a transition only, never once per frame, with the fields `requested`,
+`effective`, and `costPerTickMicroseconds`.
+
+Only a human running `./scripts/run.ps1` on an interactive Windows desktop may
+flip any row below. Compilation, unit tests, and a window-opening probe run do
+not. Leave a row `PENDING` if untouched; report `BLOCKED` honestly.
+
+| # | Step | Expected | Actual | Status |
+| --- | --- | --- | --- | --- |
+| GOV-1 | Press `Esc`, open `Army Composition`, raise both teams to the 500-unit maximum, press `Shift+R` for a full reset, press `Space` to play, then press `4` and watch the status line for about ten seconds | Either the status line stays `4x` because the machine holds it, or it reads `4x (holding N.Nx)` with a number between 0.25 and 4. Record which one, the number it settles on, and the machine. While it is holding, pawns move at a steady slower pace with no stutter, no jumping forward, and no burst followed by a stall | | PENDING |
+| GOV-2 | On a 1,000-unit battle that showed `holding` in `GOV-1`, press `1`, then `2`, then `4` again, watching the status line on each press | The line changes on the very frame of the key press. `1x` and `2x` show no `holding` suffix if the machine can sustain them, and `4x` returns to its own value. The window title carries the same text as the status line | | PENDING |
+| GOV-3 | Press `Shift+R` after setting both teams back to the default composition (use `Reset to Default` in the panel), play, and press `2`, then `1` | A cheap battle shows plain `2x` and plain `1x`, never `holding`. If `2x` shows `holding` on a default-size battle, record the number, because that means the half-frame budget is too tight | | PENDING |
+| GOV-4 | On a battle that is holding, press `Space` to pause, then press `1` while still paused | The status line drops the stale `holding` suffix immediately, without waiting for play to resume. A paused battle does not change its held speed by itself | | PENDING |
+| GOV-5 | On a battle that was holding at `4x`, press `Shift+R` and play the new battle at `4x`. Then press `R` for the next round | After the full reset the status line shows no leftover `holding` value at the first frame. It re-measures and settles. After `R` the held speed carries over, with no stutter at the round start. In the log, `render.playRateGoverned` appears once per transition and never once per frame | | PENDING |
+| GOV-6 | Let a battle that is holding at `4x` run to its end | Once the battle is decided the status line shows plain `4x`, with no `holding` suffix | | PENDING |
+
+## Render interpolation (the 2026-11-21 play-rate-governor design, section 4)
+
+Pawns are now drawn between their previous and current tick positions, so
+motion is smooth on every frame rather than stepping twenty times a second.
+The `I` key switches interpolation on and off live. The choice is not
+persisted, so every launch starts with it on. Interpolation is presentation
+only and reads positions the simulation already produced.
+
+Several rows below ask for a judgement rather than a confirmation. A small
+backward step at unpause, a slight jitter against a moving camera, and blood
+that appears up to one step ahead of the pawn are known consequences recorded
+in the design, and the rows exist to decide whether each is acceptable.
+
+Log evidence. A key press is written as `input.key` with `key` equal to `I`
+and the command `ToggleInterpolation`. No log line records whether
+interpolation is on, so the screen is the only evidence of the mode.
+
+Only a human running `./scripts/run.ps1` on an interactive Windows desktop may
+flip any row below. Compilation, unit tests, and a window-opening probe run do
+not. Leave a row `PENDING` if untouched; report `BLOCKED` honestly.
+
+| # | Step | Expected | Actual | Status |
+| --- | --- | --- | --- | --- |
+| INT-1 | Play at `1` with `I` on, zoom in on an advancing line, then press `I` and compare the same line for a few seconds, then press `I` again | With interpolation on, each pawn glides on every frame. With it off, pawns advance in visible small steps. The difference is discernible without being told which mode is running. Record whether it is | | PENDING |
+| INT-2 | Press `I` ten times quickly while watching a battle | The mode flips on every press with no stall, no flicker, and no restart or pause of the battle. The pawns never jump to a wrong place when the mode flips | | PENDING |
+| INT-3 | Press `I` to turn interpolation off, quit the game, relaunch, and start a battle | The game comes back with interpolation on, because the choice is not persisted | | PENDING |
+| INT-4 | Zoom in on a moving pawn at `1`, then press `Space` and `Space` again about six times, one second apart | Judge whether a single small step backward is visible at each unpause. It may be one third of a tick of motion. Record "not noticeable", "noticeable but harmless", or "distracting". This is a known consequence of the design, so the row decides whether it is acceptable | | PENDING |
+| INT-5 | Set `AUTO CAMERA` to `Follow` in the menu settings, play at `1`, let the camera follow a fight, and watch the pawns at the screen edges. Then set it to `Assisted` and repeat | Judge whether the pawns visibly shake against the screen edge as the camera moves. The camera follows tick positions, so a slight jitter is possible. Record whether it appears, in which mode, and whether pressing `I` removes it | | PENDING |
+| INT-6 | Press `Space` to pause in the middle of an advance, click on a moving pawn at the centre of the screen, then do the same with the game playing at `1` | The inspector opens on the pawn that was under the pointer, and the selection mark sits on that pawn. A click lands on the pawn the spectator sees, not on the position it held one tick earlier | | PENDING |
+| INT-7 | Press `Shift+R` and press `R` with interpolation on, and watch the first second of each new battle | No pawn slides in from the corner of the arena or from its last battle's position. Pawns appear at their starting places and move from there | | PENDING |
+| INT-8 | Watch a melee exchange at `1`, first with interpolation on and then with it off, looking at where the blood appears relative to the pawn that is struck | Judge whether blood that appears up to one step ahead of the pawn with interpolation on reads as wrong compared with interpolation off. This is the cost recorded in design section 4.4. Record the preference, because it decides the default | | PENDING |
+
+## Weapon damage tally (the 2026-11-21 weapon-damage-tally design)
+
+A card titled `DAMAGE TALLY` lists, for each faction, every fielded weapon row
+with the damage it has dealt, its share of the faction's total, the blows it
+has landed, and how many of its warriors are alive. A section header reads, for
+example, `Blue — 1,240 dealt`; the columns are `DAMAGE`, `SHARE`, `BLOWS`,
+and `ALIVE`, the last written as `12 / 40`; and the footer reads
+`Damage after armour, includes overkill.` The `T` key shows and hides the
+card, which is hidden on launch and whose state is not persisted. Hovering a
+row rings every living warrior of that faction and weapon in the arena.
+
+The card is built from events and state the simulation already publishes. It
+adds nothing to the simulation and decides no outcome.
+
+Log evidence. A key press is written as `input.key` with `key` equal to `T`
+and the command `ToggleDamageTally`. No log line records whether the card is
+shown or which row is hovered.
+
+Only a human running `./scripts/run.ps1` on an interactive Windows desktop may
+flip any row below. Compilation, unit tests, and a window-opening probe run do
+not. Leave a row `PENDING` if untouched; report `BLOCKED` honestly.
+
+| # | Step | Expected | Actual | Status |
+| --- | --- | --- | --- | --- |
+| TAL-1 | Launch the client and look at the arena before pressing anything, then press `T`, then press `T` again | No card is drawn on launch. After the first press a card titled `DAMAGE TALLY` appears at the top-right of the arena with a Blue section and a Red section. The second press hides it. The arena does not resize either way | | PENDING |
+| TAL-2 | Press `T` to show the card, quit the game, and relaunch | The card is hidden again, because the choice is not persisted | | PENDING |
+| TAL-3 | With the card shown, play at `2` for about a minute and watch the order of the rows in each section | Rows are sorted by damage dealt, highest first, and reorder as the battle unfolds. Two rows with equal damage keep a steady order rather than swapping every refresh. Numbers update about four times a second and stay readable at `4` | | PENDING |
+| TAL-4 | Read every row label in both sections, and find a shielded variant | Every label is a Filipino name, an em dash, and a plain English descriptor, such as `Kampilan — Great Blade`. None is a bare name or a raw enum spelling such as `ArquebusRanged`. A shielded variant has its own row, labelled by the same wording the event log uses | | PENDING |
+| TAL-5 | Hover each row in turn and look at the arena, zoomed out far enough to see the whole faction | A ring is drawn around every living agent of that faction and weapon and around no other. The number of rings matches the first number of that row's `ALIVE` column, for example `12` of `12 / 40`. Dead warriors are not ringed. The ring colour reads clearly against both team colours | | PENDING |
+| TAL-6 | Hover a row so rings show, then move the pointer off the card. Hover again and press `T`. Hover again and press `Esc` to open the menu. Hover again and slide the pointer straight onto the inspector | The rings and the row's hover fill vanish together on the same frame in all four cases. No ring and no highlighted row is left behind | | PENDING |
+| TAL-7 | With the card shown, click a pawn in the arena well clear of the card. Then click inside the card, on a row and on its empty margin. Then scroll the mouse wheel over the card | A click outside the card selects the pawn and opens the inspector as usual. A click inside the card does not select the pawn behind it. The wheel over the card does not zoom the arena. The arena keeps responding everywhere outside the card's rectangle | | PENDING |
+| TAL-8 | Let damage accumulate, press `R` for the next round, then press `Shift+R` for a full reset, with the card shown each time | Every `DAMAGE`, `SHARE`, and `BLOWS` value returns to zero and every `ALIVE` reads full strength, such as `40 / 40`, after each reset. Section totals read `0 dealt` | | PENDING |
+| TAL-9 | Launch and press `T` before pressing `Space`. Then let a battle run for ten seconds with the card hidden and press `T` | Before the first tick the card already lists each faction's weapon rows at zero damage and full strength. On a later show the numbers are current on the first frame, not blank and not ten seconds old | | PENDING |
+| TAL-10 | Resize the window to a small size, then enlarge it, with the card shown | The card stays inside the arena at every size, stays anchored at the top-right, and no row text overlaps another. Long labels end in `...` rather than spilling out of the card. In a very short window the card drops its footer, then its headers, then its title, rather than drawing past its border | | PENDING |
+| TAL-11 | With the card shown and a battle playing, rest the pointer on the inspector, then on the event log (`F8`), for several seconds each | The card's numbers keep refreshing while another panel holds the pointer | | PENDING |
+
+## Separating contact (movement preset V17)
+
+`MovementPresetId.SeparatingContactV17` is registered, selectable, and **not**
+the shipped default. `ClientSettingsStore.DefaultMovementPreset` stays
+`EvasiveFootworkV14`, so a tester has to choose V17 deliberately from the
+movement preset selector in the Army Composition panel, where it is labelled
+`V17 Separating Contact`, and then press `Shift+R`, because a preset chosen in
+the panel is staged for the next Full Reset.
+
+V17 is V14 plus soft separation and nothing else. Bodies may press into each
+other slightly and a separation pass pushes them apart again, with one hard
+guarantee: a living pair is never closer than 1.6 body radii. Every number
+behind that behaviour is provisional gameplay tuning and none is a historical
+or physical measurement.
+
+The log does not record the active movement preset, so the selector in the
+panel is the only evidence of which preset a battle is running.
+
+Only a human running `./scripts/run.ps1` on an interactive Windows desktop may
+flip any row below. Compilation, unit tests, and a window-opening probe run do
+not. Leave a row `PENDING` if untouched; report `BLOCKED` honestly.
+
+| # | Step | Expected | Actual | Status |
+| --- | --- | --- | --- | --- |
+| SEP-1 | Press `Esc`, open `Army Composition`, open the movement preset selector, and look at the last entry | `V17 Separating Contact` is present, directly after `V16 Shield Encumbrance`. Select it and the staged-composition notice appears. Pressing `Shift+R` applies it | | PENDING |
+| SEP-2 | With V17 running, set both teams to the 500-unit maximum, play at `1`, and watch two armies meet from the default camera station. Then do the same with `V14 Evasive Footwork` and compare the packed front | Under V17 the packed front still reads as a line of individual warriors with irregular gaps, not as one dense blob of overlapping discs. Record whether the two presets are tellable apart at all. A front that reads as a single smear under V17 fails the design's own acceptance | | PENDING |
+| SEP-3 | Under V17, zoom in on a warrior standing still in a dense press, then watch at `1` and again at `4` for ten seconds | A warrior that is not moving does not vibrate, shimmer, or crawl. Positions settle. Record any visible buzzing and whether pressing `I` to turn interpolation off removes it, since that separates a render cause from a simulation cause | | PENDING |
+| SEP-4 | Under V17, zoom all the way in on the densest contact and look at neighbouring warriors | Bodies may touch and overlap slightly, by up to a fifth of a diameter, but two bodies never sit on top of each other and one never hides another completely | | PENDING |
+| SEP-5 | Under V17, zoom in on the legs of warriors being pressed by neighbours in a crowd | The legs animate smoothly. A warrior shoved sideways does not twitch its feet, flicker between walking and standing, or flip a foot from frame to frame. A slow steady shuffle is acceptable and a rapid flicker is not | | PENDING |
+| SEP-6 | Under V17, watch a melee pair at the front while others crowd in behind them | A warrior locked in a melee stays in contact with its opponent and is not shoved apart by bystanders | | PENDING |
+| SEP-7 | Under V17, find two warriors that meet head-on on a narrow gap and watch for a few seconds | They pass or settle around each other. Two bodies do not press forever with no progress. Record whether any pair stays frozen | | PENDING |
+| SEP-8 | Move `%LOCALAPPDATA%\Hukbo\settings.json` aside (rename it, do not delete it), launch the client, open `Army Composition`, and look at the selected movement preset. Then put the file back | A launch with no settings file shows `V14 Evasive Footwork` selected, not V17. V17 is opt-in | | PENDING |
