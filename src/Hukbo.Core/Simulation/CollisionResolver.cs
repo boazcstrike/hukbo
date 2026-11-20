@@ -53,7 +53,9 @@ internal readonly record struct CollisionMoveResult(
 /// <summary>
 /// The <see cref="CollisionPolicy.Solid"/> movement resolver. It takes one
 /// movement proposal per living agent and returns one committed position per
-/// agent such that no two committed bodies strictly overlap.
+/// agent such that every pair ends at least as far apart as the smaller of its
+/// start distance and the effective floor: the full diameter <c>2R</c> unless
+/// a hard floor was given, in which case that floor.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -63,14 +65,18 @@ internal readonly record struct CollisionMoveResult(
 /// filtered out before they reach this stage rather than being skipped here.
 /// </para>
 /// <para>
-/// <b>Precondition.</b> No two request start positions may strictly overlap.
-/// Spawn resolution guarantees this on the first tick and the resolver's own
-/// output invariant carries it forward on every later tick. The one exception the
-/// resolver repairs is an exact co-location, which can only arise from a test
-/// constructor or an unresolved spawn. Two bodies that merely overlap without
-/// sharing a centre are deliberately left exactly where they are: inventing a
-/// repair for an input state that spawn validation already forbids would add an
-/// untestable code path and a second, weaker notion of a legal position.
+/// <b>Precondition.</b> No pair of request start positions may sit below the
+/// effective floor, except as the separation pass leaves them. Spawn resolution
+/// guarantees full-diameter spacing on the first tick, and the resolver's own
+/// output invariant carries it forward on every later tick. Under a preset that
+/// applies separating contact the pass can leave a pair inside the soft band
+/// between the floor and <c>2R</c>; such a pair is not repaired here and may not
+/// close further. The one exception the resolver repairs is an exact
+/// co-location, which can only arise from a test constructor or an unresolved
+/// spawn. Two bodies that merely start below the floor without sharing a centre
+/// are deliberately left exactly where they are: inventing a repair for them
+/// would add an untestable code path and a second, weaker notion of a legal
+/// position.
 /// </para>
 /// <para>
 /// <b>Order.</b> Stationary bodies are committed first, in ascending entity ID,

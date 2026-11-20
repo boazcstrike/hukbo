@@ -86,15 +86,17 @@ internal static class AgentInspectorContent
     /// <see langword="null"/> (pressure-interrupt design, section 3,
     /// question 8, channel 3).
     /// The evasion row (in-fight evasion design, section 6, question 8) is
-    /// present only under <see cref="MovementPresetId.EvasiveFootworkV14"/>,
-    /// the one preset that resolves a non-<see cref="EvasiveAction.None"/>
-    /// action; under every preset from V1 to V13
+    /// present only under <see cref="MovementPresetId.EvasiveFootworkV14"/> and
+    /// <see cref="MovementPresetId.SeparatingContactV17"/>, the only presets that
+    /// resolve a non-<see cref="EvasiveAction.None"/> action; under every
+    /// preset from V1 to V13
     /// <see cref="FormatEvasiveActionLine"/> returns <see langword="null"/>,
     /// which is why that row did not move this constant. It cannot deepen the
     /// worst case either: V14 registers neither equipment-relative footwork
-    /// nor the pressure interrupt, so the four movement rows and the pressure
-    /// row are all absent wherever the evasion row is present, and a V14 panel
-    /// is strictly shallower than the pre-V14 deepest panel this constant is
+    /// nor the pressure interrupt, and V17 registers the same, so the four movement
+    /// rows and the pressure row are all absent wherever the evasion row is
+    /// present, and a V14 or V17 panel is strictly shallower than the pre-V14
+    /// deepest panel this constant is
     /// sized for.
     /// A real panel therefore draws this many or fewer raw rows before
     /// wrapping — the panel is sized for the maximum so the taller case
@@ -360,9 +362,10 @@ internal static class AgentInspectorContent
         // The evasion row (in-fight evasion design, section 6, question 8),
         // immediately after the pace row: both describe how this warrior is
         // moving right now, and a spectator reading the two together sees the
-        // pace and the reason for it. EvasiveFootworkV14 is the only preset
-        // that ever resolves a non-None action, and it registers neither
-        // equipment-relative footwork nor the pressure interrupt, so this row
+        // pace and the reason for it. EvasiveFootworkV14 and
+        // SeparatingContactV17 are the only presets that ever resolve a non-None
+        // action, and they register neither equipment-relative footwork nor the
+        // pressure interrupt, so this row
         // and the four rows above it are mutually exclusive in practice.
         if (FormatEvasiveActionLine(agent.EvasiveAction) is { } evasionLine)
         {

@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text.Json;
 using Hukbo.Core.Combat;
+using Hukbo.Core.Mathematics;
 using Hukbo.Core.Movement;
 using Hukbo.Core.Simulation;
 using Hukbo.Headless;
@@ -31,19 +32,37 @@ public sealed class SeparatingContactTests
 {
     private const int FiveHundredAgents = 500;
 
-    /// <summary>A 500-agent battle is long; the bound is checked over its engagement.</summary>
-    private const int FiveHundredAgentTickCap = 1_500;
+    private const int ThousandAgents = 1_000;
 
     /// <summary>The gate workload recorded in <c>docs/development/measurement-history.md</c>.</summary>
-    private const int GateAgents = 1_000;
+    private const int GateAgents = ThousandAgents;
 
     private const int AllocationWarmUpTicks = 300;
 
     private const int AllocationMeasuredTicks = 100;
 
-    private const string GateStateHashV14 = "23C1E15282187F73";
+    /// <summary>
+    /// The production body radius <c>R</c> in raw units. Pinned so the literal
+    /// bound below cannot rot silently if the default radius moves.
+    /// </summary>
+    private const int ProductionBodyRadiusRaw = 4_352;
 
-    private const string GateEventHashV14 = "4D27E2506BF94FFD";
+    /// <summary>
+    /// The bounded-overlap floor <c>2R(1 - f) - 2c</c> for the production radius
+    /// under V17: <c>7,398 - 2 * 217</c>, with <c>f = 0.15</c> and
+    /// <c>c = 0.05R</c>. A literal, so a tuning change that moves the bound is a
+    /// deliberate edit here and not a test that follows the ruleset.
+    /// </summary>
+    private const long BoundedOverlapFloorRaw = 6_964;
+
+    /// <summary>The 200-agent combat-8 movement-14 workload of <c>docs/development/testing.md</c>, "The seven Hukbo workloads".</summary>
+    private const int WorkloadAgents = 200;
+
+    private const int WorkloadTicks = 10_000;
+
+    private const string WorkloadStateHashV14 = "7A1838EB4D835A45";
+
+    private const string WorkloadEventHashV14 = "447727A6E82FB9FD";
 
     private static readonly MovementRuleset V17Rules =
         MovementPresetRegistry.Get(MovementPresetId.SeparatingContactV17);
@@ -53,24 +72,25 @@ public sealed class SeparatingContactTests
     [InlineData(2UL, 200)]
     [InlineData(3UL, 200)]
     [InlineData(1UL, FiveHundredAgents)]
+    [InlineData(1UL, ThousandAgents)]
     public void EveryLivingPairStaysWithinTheBoundedOverlapAfterEveryTick(
         ulong seed,
         int totalAgents)
     {
         var scenario = BuildScenario(seed, totalAgents, MovementPresetId.SeparatingContactV17);
-        var simulation = BattleSimulation.Create(scenario);
-        var tickCap = totalAgents == FiveHundredAgents
-            ? FiveHundredAgentTickCap
-            : scenario.TickLimit;
-        var minimumDistanceRaw =
+        Assert.Equal(ProductionBodyRadiusRaw, scenario.BodyRadiusRaw);
+        Assert.Equal(
+            BoundedOverlapFloorRaw,
             V17Rules.SeparationFloorRaw(scenario.BodyRadiusRaw) -
-            (2L * V17Rules.SeparationPushCapRaw(scenario.BodyRadiusRaw));
+            (2L * V17Rules.SeparationPushCapRaw(scenario.BodyRadiusRaw)));
 
-        AssertNoPairCloserThan(simulation, minimumDistanceRaw, seed);
-        while (simulation.Outcome == BattleOutcome.Ongoing && simulation.Tick < tickCap)
+        var simulation = BattleSimulation.Create(scenario);
+
+        AssertNoPairCloserThan(simulation, BoundedOverlapFloorRaw, seed);
+        while (simulation.Outcome == BattleOutcome.Ongoing)
         {
             simulation.AdvanceOneTick();
-            AssertNoPairCloserThan(simulation, minimumDistanceRaw, seed);
+            AssertNoPairCloserThan(simulation, BoundedOverlapFloorRaw, seed);
         }
     }
 
@@ -106,18 +126,138 @@ public sealed class SeparatingContactTests
     }
 
     /// <summary>
-    /// The V14 gate hashes recorded in <c>docs/development/measurement-history.md</c>
-    /// must not move: wiring V17 into the tick is gated and may not touch any
-    /// other preset.
+    /// The V14 workload hashes recorded in <c>docs/development/testing.md</c>
+    /// ("The seven Hukbo workloads", combat 8 movement 14) must not move: wiring
+    /// V17 into the tick is gated and may not touch any other preset.
     /// </summary>
     [Fact]
-    public void V14GateWorkloadHashesAreUnchanged()
+    public void V14WorkloadHashesAreUnchanged()
     {
-        var report = RunHeadless(GateAgents, 10_000, 1UL, MovementPresetId.EvasiveFootworkV14);
+        var report = RunHeadless(
+            WorkloadAgents,
+            WorkloadTicks,
+            1UL,
+            MovementPresetId.EvasiveFootworkV14);
 
-        Assert.Equal(GateStateHashV14, report.StateHash);
-        Assert.Equal(GateEventHashV14, report.EventHash);
+        Assert.Equal(WorkloadStateHashV14, report.StateHash);
+        Assert.Equal(WorkloadEventHashV14, report.EventHash);
         Assert.Equal(0L, report.MaximumPenetrationRaw);
+    }
+
+    /// <summary>
+    /// V17 is V14 plus the separation pass and nothing else. V17 can only differ
+    /// from V14 on a tick where V14's resolver refused or bent a proposal (a
+    /// lower floor accepts what V14 refused, and the pass acts only on a pair
+    /// inside <c>2R</c>). So every tick before V14's first such intervention
+    /// must leave every agent view identical, which fails if any of V17's
+    /// preset-identity gates drifts from V14's. State hashes are not compared:
+    /// the preset id is folded into them.
+    /// </summary>
+    /// <remarks>
+    /// A crowded battle collides within a few ticks, so its shared prefix is
+    /// short; the small battles are what carry the footwork gates through a long
+    /// approach. The minimum is the measured prefix pinned a little below.
+    /// </remarks>
+    [Theory]
+    [InlineData(1UL, 200, 1)]
+    [InlineData(1UL, 2, 95)]
+    [InlineData(4UL, 2, 100)]
+    [InlineData(2UL, 4, 96)]
+    [InlineData(1UL, 20, 19)]
+    public void V17IsLockstepIdenticalToV14UntilTheFirstCollisionIntervention(
+        ulong seed,
+        int totalAgents,
+        int minimumComparedTicks)
+    {
+        var v14 = BattleSimulation.Create(
+            BuildScenario(seed, totalAgents, MovementPresetId.EvasiveFootworkV14));
+        var v17 = BattleSimulation.Create(
+            BuildScenario(seed, totalAgents, MovementPresetId.SeparatingContactV17));
+        var comparedTicks = 0;
+        var interventionTick = -1L;
+
+        while (v14.Outcome == BattleOutcome.Ongoing)
+        {
+            v14.AdvanceOneTick();
+            v17.AdvanceOneTick();
+
+            if (v14.Agents.Any(agent => agent.MovementResolution
+                is MovementResolution.Truncated
+                or MovementResolution.Slid
+                or MovementResolution.Blocked
+                or MovementResolution.Separated))
+            {
+                interventionTick = v14.Tick;
+                break;
+            }
+
+            AssertViewsIdentical(v14, v17);
+            comparedTicks++;
+        }
+
+        Assert.True(interventionTick > 0, "V14's resolver never intervened to end the lockstep.");
+        Assert.True(
+            comparedTicks >= minimumComparedTicks,
+            $"Seed {seed}, {totalAgents} agents: only {comparedTicks} ticks were compared " +
+            $"before V14's first collision intervention at tick {interventionTick}.");
+    }
+
+    /// <summary>
+    /// Proves the pass is wired into the tick and its result written back: the
+    /// resolver's floor alone leaves a pair that starts inside the soft band
+    /// exactly where it is.
+    /// </summary>
+    [Fact]
+    public void ThePassPushesAStandingPairInsideTheSoftBandApartUnderV17()
+    {
+        var scenario = BuildIdlePairScenario(MovementPresetId.SeparatingContactV17);
+        var floorRaw = V17Rules.SeparationFloorRaw(scenario.BodyRadiusRaw);
+        var startRaw = (floorRaw + (2L * scenario.BodyRadiusRaw)) / 2;
+        Assert.InRange(startRaw, floorRaw + 1L, (2L * scenario.BodyRadiusRaw) - 1L);
+
+        var simulation = BuildIdlePair(scenario, (int)startRaw);
+        simulation.AdvanceOneTick();
+
+        Assert.True(
+            DistanceRaw(simulation.Agents[0], simulation.Agents[1]) > startRaw,
+            "The separation pass did not push a pair inside the soft band apart.");
+    }
+
+    [Fact]
+    public void AStandingPairAtContactDistanceDoesNotMoveUnderV14()
+    {
+        var scenario = BuildIdlePairScenario(MovementPresetId.EvasiveFootworkV14);
+        var contactRaw = (int)(2L * scenario.BodyRadiusRaw);
+
+        var simulation = BuildIdlePair(scenario, contactRaw);
+        simulation.AdvanceOneTick();
+
+        Assert.Equal(contactRaw, DistanceRaw(simulation.Agents[0], simulation.Agents[1]));
+    }
+
+    /// <summary>
+    /// The floor and push cap are written twice, once on the ruleset the
+    /// resolver is built from and once on the pass's parameters. They must agree
+    /// for every radius, or the resolver and the pass disagree on the band.
+    /// </summary>
+    [Theory]
+    [InlineData(ProductionBodyRadiusRaw)]
+    [InlineData(1_001)]
+    [InlineData(512)]
+    public void TheRulesetAndThePassParametersAgreeOnTheFloorAndThePushCap(int bodyRadiusRaw)
+    {
+        var parameters = new SeparationParameters(
+            bodyRadiusRaw,
+            V17Rules.SeparationSoftBandBasisPoints,
+            V17Rules.SeparationPushCapRadiusBasisPoints,
+            V17Rules.SeparationStiffnessBasisPoints,
+            V17Rules.SeparationCommittedWeightMultiplier,
+            V17Rules.SeparationSidewaysBasisPoints,
+            ArenaWidthRaw: 1_000_000,
+            ArenaHeightRaw: 1_000_000);
+
+        Assert.Equal(V17Rules.SeparationFloorRaw(bodyRadiusRaw), parameters.FloorRaw);
+        Assert.Equal(V17Rules.SeparationPushCapRaw(bodyRadiusRaw), parameters.PushCapRaw);
     }
 
     /// <summary>
@@ -172,6 +312,70 @@ public sealed class SeparatingContactTests
         };
         scenario.Validate();
         return scenario;
+    }
+
+    /// <summary>
+    /// A scenario whose two factions are far beyond perception range of each
+    /// other, so a same-faction pair stands still: nothing targets, nothing
+    /// attacks, and any movement is the separation pass.
+    /// </summary>
+    private static Scenario BuildIdlePairScenario(MovementPresetId movementPreset) =>
+        BuildScenario(1UL, 2, movementPreset) with
+        {
+            PerceptionRangeRaw = 100 * FixedPoint.Scale,
+        };
+
+    private static BattleSimulation BuildIdlePair(Scenario scenario, int pairDistanceRaw)
+    {
+        const int pairXRaw = 200 * FixedPoint.Scale;
+        const int pairYRaw = 100 * FixedPoint.Scale;
+        const int enemyXRaw = 1_100 * FixedPoint.Scale;
+        const int enemyYRaw = 650 * FixedPoint.Scale;
+        var loadout = new CombatLoadout(
+            WeaponId.Kampilan,
+            ArmorId.LightOrganic,
+            ShieldId.None);
+
+        AgentState Agent(ulong entityId, int factionId, int xRaw, int yRaw) =>
+            new(
+                entityId,
+                factionId,
+                xRaw,
+                yRaw,
+                scenario.MaximumHitPoints,
+                scenario.MovementSpeedRaw,
+                scenario.PerceptionRangeRaw,
+                scenario.AttackRangeRaw,
+                scenario.DamagePerAttack,
+                scenario.AttackCooldownTicks,
+                loadout);
+
+        return BattleSimulation.CreateForTesting(
+            scenario,
+            Agent(1UL, 0, pairXRaw, pairYRaw),
+            Agent(2UL, 0, pairXRaw + pairDistanceRaw, pairYRaw),
+            Agent(3UL, 1, enemyXRaw, enemyYRaw));
+    }
+
+    private static long DistanceRaw(AgentView left, AgentView right)
+    {
+        var deltaX = (long)right.XRaw - left.XRaw;
+        var deltaY = (long)right.YRaw - left.YRaw;
+        return (long)Math.Floor(Math.Sqrt((deltaX * deltaX) + (deltaY * deltaY)));
+    }
+
+    private static void AssertViewsIdentical(BattleSimulation expected, BattleSimulation actual)
+    {
+        Assert.Equal(expected.Tick, actual.Tick);
+        Assert.Equal(expected.Agents.Count, actual.Agents.Count);
+        for (var index = 0; index < expected.Agents.Count; index++)
+        {
+            var left = expected.Agents[index];
+            var right = actual.Agents[index];
+            Assert.True(
+                left == right,
+                $"Tick {expected.Tick}, entity {left.EntityId}: V14 {left} differs from V17 {right}.");
+        }
     }
 
     private static long DeepestOverlapRaw(MovementPresetId movementPreset)
