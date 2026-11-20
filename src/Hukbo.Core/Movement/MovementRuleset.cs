@@ -109,6 +109,27 @@ public sealed class MovementRuleset
     /// </summary>
     public const int FullShieldPaceBasisPoints = 10_000;
 
+    /// <summary>
+    /// One whole unit in the basis-point space every separating-contact
+    /// tunable is expressed in, and the ceiling of
+    /// <see cref="SeparationStiffnessBasisPoints"/> and
+    /// <see cref="SeparationSidewaysBasisPoints"/>.
+    /// </summary>
+    public const int SeparationBasisPointsUnit = 10_000;
+
+    /// <summary>
+    /// The ceiling of <see cref="SeparationSoftBandBasisPoints"/>: half a body
+    /// diameter, so the hard floor never falls below one body radius. A
+    /// game-design choice, not a measurement.
+    /// </summary>
+    public const int MaximumSeparationSoftBandBasisPoints = 5_000;
+
+    /// <summary>
+    /// The ceiling of <see cref="SeparationPushCapRadiusBasisPoints"/>: half a
+    /// body radius per tick. A game-design choice, not a measurement.
+    /// </summary>
+    public const int MaximumSeparationPushCapRadiusBasisPoints = 5_000;
+
     public MovementRuleset(
         MovementPresetId id,
         int version,
@@ -141,7 +162,13 @@ public sealed class MovementRuleset
         int shieldBlockRecoveryPaceCeilingBasisPoints = 0,
         bool appliesShieldEncumbrance = false,
         int narrowBreastHighShieldPaceBasisPoints = 0,
-        int tallHardwoodShieldPaceBasisPoints = 0)
+        int tallHardwoodShieldPaceBasisPoints = 0,
+        bool appliesSeparatingContact = false,
+        int separationSoftBandBasisPoints = 0,
+        int separationPushCapRadiusBasisPoints = 0,
+        int separationStiffnessBasisPoints = 0,
+        int separationCommittedWeightMultiplier = 0,
+        int separationSidewaysBasisPoints = 0)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(version, 1);
         ValidateEquipmentRelativeFootworkCoupling(
@@ -167,6 +194,13 @@ public sealed class MovementRuleset
             appliesShieldEncumbrance,
             narrowBreastHighShieldPaceBasisPoints,
             tallHardwoodShieldPaceBasisPoints);
+        ValidateSeparatingContactCoupling(
+            appliesSeparatingContact,
+            separationSoftBandBasisPoints,
+            separationPushCapRadiusBasisPoints,
+            separationStiffnessBasisPoints,
+            separationCommittedWeightMultiplier,
+            separationSidewaysBasisPoints);
 
         Id = id;
         Version = version;
@@ -196,6 +230,13 @@ public sealed class MovementRuleset
         NarrowBreastHighShieldPaceBasisPoints =
             narrowBreastHighShieldPaceBasisPoints;
         TallHardwoodShieldPaceBasisPoints = tallHardwoodShieldPaceBasisPoints;
+        AppliesSeparatingContact = appliesSeparatingContact;
+        SeparationSoftBandBasisPoints = separationSoftBandBasisPoints;
+        SeparationPushCapRadiusBasisPoints = separationPushCapRadiusBasisPoints;
+        SeparationStiffnessBasisPoints = separationStiffnessBasisPoints;
+        SeparationCommittedWeightMultiplier =
+            separationCommittedWeightMultiplier;
+        SeparationSidewaysBasisPoints = separationSidewaysBasisPoints;
         ImmediateRadiusBodyDiametersBasisPoints =
             immediateRadiusBodyDiametersBasisPoints;
         SupportRadiusBodyDiametersBasisPoints =
@@ -469,6 +510,93 @@ public sealed class MovementRuleset
     /// no historical measurement.
     /// </summary>
     public int TallHardwoodShieldPaceBasisPoints { get; }
+
+    /// <summary>
+    /// Whether this preset applies separating contact — the 2026-11-21
+    /// soft-separation design, section 3. Under it the collision resolver
+    /// keeps a hard floor of <see cref="SeparationFloorRaw"/> instead of a
+    /// full body diameter, and one order-independent separation pass per
+    /// tick pushes overlapping living bodies apart. Registered
+    /// <see langword="false"/> with five zero tunables for every preset up to
+    /// and including <see cref="MovementPresetId.ShieldEncumbranceV16"/>, so
+    /// introducing this field moves no existing preset's behaviour or
+    /// <see cref="ContentHash"/>; only
+    /// <see cref="MovementPresetId.SeparatingContactV17"/> registers it
+    /// <see langword="true"/>. A game-design choice, not a measurement.
+    /// </summary>
+    public bool AppliesSeparatingContact { get; }
+
+    /// <summary>
+    /// The soft-band fraction <c>f</c>, in basis points of a body diameter
+    /// (<c>2R</c>): the resolver's hard floor is <c>2R × (1 − f)</c> and the
+    /// band between that floor and <c>2R</c> is where yielding happens. Zero
+    /// for every preset whose <see cref="AppliesSeparatingContact"/> is
+    /// <see langword="false"/>; otherwise in
+    /// 1..<see cref="MaximumSeparationSoftBandBasisPoints"/>. Provisional:
+    /// gameplay tuning, to be settled by measurement.
+    /// </summary>
+    public int SeparationSoftBandBasisPoints { get; }
+
+    /// <summary>
+    /// The per-tick push cap <c>c</c>, in basis points of the body radius
+    /// <c>R</c>. Zero for every preset whose
+    /// <see cref="AppliesSeparatingContact"/> is <see langword="false"/>;
+    /// otherwise in 1..<see cref="MaximumSeparationPushCapRadiusBasisPoints"/>.
+    /// With <see cref="SeparationSoftBandBasisPoints"/> it fixes the
+    /// invariant <c>d ≥ 2R(1 − f) − 2c</c>. Provisional: gameplay tuning, to
+    /// be settled by measurement.
+    /// </summary>
+    public int SeparationPushCapRadiusBasisPoints { get; }
+
+    /// <summary>
+    /// The share, in basis points, of the averaged overlap push a body
+    /// actually takes. Zero for every preset whose
+    /// <see cref="AppliesSeparatingContact"/> is <see langword="false"/>;
+    /// otherwise in 1..<see cref="SeparationBasisPointsUnit"/>. Provisional:
+    /// gameplay tuning, to be settled by measurement.
+    /// </summary>
+    public int SeparationStiffnessBasisPoints { get; }
+
+    /// <summary>
+    /// The factor by which a body committed to a fight weighs more than an
+    /// uncommitted one when the push is shared out, so the less-committed
+    /// body gives way. An integer multiplier, not basis points. Zero for
+    /// every preset whose <see cref="AppliesSeparatingContact"/> is
+    /// <see langword="false"/>; otherwise at least one. Provisional: gameplay
+    /// tuning, to be settled by measurement.
+    /// </summary>
+    public int SeparationCommittedWeightMultiplier { get; }
+
+    /// <summary>
+    /// The share, in basis points, of the push inside the soft band that is
+    /// directed sideways, perpendicular to the line between centres, so a
+    /// symmetric head-on pair slides past instead of pressing forever. Zero
+    /// for every preset whose <see cref="AppliesSeparatingContact"/> is
+    /// <see langword="false"/>; otherwise in
+    /// 0..<see cref="SeparationBasisPointsUnit"/>. Provisional: gameplay
+    /// tuning, to be settled by measurement.
+    /// </summary>
+    public int SeparationSidewaysBasisPoints { get; }
+
+    /// <summary>
+    /// The resolver's hard floor, <c>2R × (1 − f)</c>, for a body radius of
+    /// <paramref name="bodyRadiusRaw"/> raw fixed-point units. A preset that
+    /// does not apply separating contact has <c>f = 0</c>, so this is exactly
+    /// the full diameter <c>2R</c> it always used.
+    /// </summary>
+    public int SeparationFloorRaw(int bodyRadiusRaw) =>
+        checked((int)(2L * bodyRadiusRaw *
+            (SeparationBasisPointsUnit - SeparationSoftBandBasisPoints) /
+            SeparationBasisPointsUnit));
+
+    /// <summary>
+    /// The per-tick push cap <c>c</c> for a body radius of
+    /// <paramref name="bodyRadiusRaw"/> raw fixed-point units, truncated
+    /// toward zero. Zero for a preset that does not apply separating contact.
+    /// </summary>
+    public int SeparationPushCapRaw(int bodyRadiusRaw) =>
+        checked((int)((long)bodyRadiusRaw *
+            SeparationPushCapRadiusBasisPoints / SeparationBasisPointsUnit));
 
     /// <summary>
     /// Basis points of body diameter giving the immediate local-context
@@ -1186,6 +1314,77 @@ public sealed class MovementRuleset
         }
     }
 
+    /// <summary>
+    /// The separating-contact half of the coupled validation, per the
+    /// 2026-11-21 soft-separation design, section 3. A preset that does not
+    /// apply separating contact must register five zero tunables, so its
+    /// <see cref="ContentHash"/> fold stays exactly what it is today. A preset
+    /// that does apply it must keep each tunable inside its documented range.
+    /// </summary>
+    private static void ValidateSeparatingContactCoupling(
+        bool appliesSeparatingContact,
+        int softBandBasisPoints,
+        int pushCapRadiusBasisPoints,
+        int stiffnessBasisPoints,
+        int committedWeightMultiplier,
+        int sidewaysBasisPoints)
+    {
+        if (!appliesSeparatingContact)
+        {
+            RequireSeparationValue(softBandBasisPoints, 0, 0, nameof(softBandBasisPoints));
+            RequireSeparationValue(pushCapRadiusBasisPoints, 0, 0, nameof(pushCapRadiusBasisPoints));
+            RequireSeparationValue(stiffnessBasisPoints, 0, 0, nameof(stiffnessBasisPoints));
+            RequireSeparationValue(committedWeightMultiplier, 0, 0, nameof(committedWeightMultiplier));
+            RequireSeparationValue(sidewaysBasisPoints, 0, 0, nameof(sidewaysBasisPoints));
+            return;
+        }
+
+        RequireSeparationValue(
+            softBandBasisPoints,
+            1,
+            MaximumSeparationSoftBandBasisPoints,
+            nameof(softBandBasisPoints));
+        RequireSeparationValue(
+            pushCapRadiusBasisPoints,
+            1,
+            MaximumSeparationPushCapRadiusBasisPoints,
+            nameof(pushCapRadiusBasisPoints));
+        RequireSeparationValue(
+            stiffnessBasisPoints,
+            1,
+            SeparationBasisPointsUnit,
+            nameof(stiffnessBasisPoints));
+        RequireSeparationValue(
+            committedWeightMultiplier,
+            1,
+            int.MaxValue,
+            nameof(committedWeightMultiplier));
+        RequireSeparationValue(
+            sidewaysBasisPoints,
+            0,
+            SeparationBasisPointsUnit,
+            nameof(sidewaysBasisPoints));
+    }
+
+    private static void RequireSeparationValue(
+        int value,
+        int minimum,
+        int maximum,
+        string name)
+    {
+        if (value >= minimum && value <= maximum)
+        {
+            return;
+        }
+
+        throw new ArgumentOutOfRangeException(
+            name,
+            value,
+            $"A separating-contact tunable must be in {minimum}..{maximum}; " +
+            "a preset that does not apply separating contact must register " +
+            "zero.");
+    }
+
     private ulong ComputeContentHash()
     {
         var hash = Fnv1a.OffsetBasis;
@@ -1326,6 +1525,23 @@ public sealed class MovementRuleset
             Fnv1a.Add(ref hash, (ulong)CohesionBandNumerator);
             Fnv1a.Add(ref hash, (ulong)CohesionBandDenominator);
             Fnv1a.Add(ref hash, (ulong)CohesionSquareMarginBasisPoints);
+        }
+
+        if (AppliesSeparatingContact)
+        {
+            // 2026-11-21 soft-separation design, section 3: the same version
+            // gate as every fold above. Every preset that does not apply
+            // separating contact writes nothing here at all, so V1 through
+            // V16 keep the exact byte sequence they fold today, and their
+            // pinned ContentHash literals and frozen trajectory digests do not
+            // move. The flag itself is never folded: inside this branch it is
+            // always true, so the branch is what records it. The five values
+            // fold here in declaration order.
+            Fnv1a.Add(ref hash, (ulong)SeparationSoftBandBasisPoints);
+            Fnv1a.Add(ref hash, (ulong)SeparationPushCapRadiusBasisPoints);
+            Fnv1a.Add(ref hash, (ulong)SeparationStiffnessBasisPoints);
+            Fnv1a.Add(ref hash, (ulong)SeparationCommittedWeightMultiplier);
+            Fnv1a.Add(ref hash, (ulong)SeparationSidewaysBasisPoints);
         }
 
         return hash;
