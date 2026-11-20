@@ -21,6 +21,15 @@ public sealed class PlaybackSpeedTextTests
             PlaybackSpeedText.Format(requested, effective, isGoverned: false));
 
     [Theory]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(4)]
+    public void AnUngovernedSpeedReturnsTheSameStringEveryCall(int requested) =>
+        Assert.Same(
+            PlaybackSpeedText.Format(requested, requested, isGoverned: false),
+            PlaybackSpeedText.Format(requested, requested, isGoverned: false));
+
+    [Theory]
     [InlineData(4, 2.6d, "4x (holding 2.6x)")]
     [InlineData(2, 0.26d, "2x (holding 0.3x)")]
     [InlineData(4, 3.04d, "4x (holding 3.0x)")]
