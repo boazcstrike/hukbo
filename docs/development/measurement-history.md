@@ -3927,3 +3927,81 @@ within run-to-run noise of each other, and no candidate wins at every agent
 count. Only 128 is distinguishably worse, on p95 at every count. With no
 measured reason to move it, the constant keeps the value the design chose. Two
 repeats cannot rank 16 against 32, and this record does not claim they do.
+
+## Separating contact (movement V17) against V14 — 2026-11-21
+
+Task SS-4 of `docs/plans/2026-11-21-wmao-optimizations.md`, judged against the
+table in section 5 of `docs/plans/2026-11-21-soft-separation-design.md`. Every
+run uses combat V8. The headless runner was built from branch
+`wmao-optimizations` at `1a055d8`, which has the separation bound fix
+(`cd6e805`) merged. The ring-search warm-up change merged afterwards
+(`a5e3b93`) does not move any hash: the 1,000-agent seed-1 pairs for V14 and
+V17 were re-checked on it and are unchanged.
+
+```powershell
+<dir>/Hukbo.Headless.exe --agents <N> --ticks 10000 --seed <S> --log-level off `
+  --preset 8 --movement-preset <14 or 17>
+```
+
+Seeds 1 to 20 at 200 and at 500 agents, and seed 1 at 2,000 agents, each under
+both presets: 82 runs. Every run reported `deterministic: true`.
+
+### Decision rate and battle length
+
+| Agents | Preset | Decided inside 5,000 ticks | Shortest | Median | Longest |
+| --- | --- | --- | --- | --- | --- |
+| 200 | V14 | 20 of 20 | 1,568 | 2,060 | 3,025 |
+| 200 | V17 | 20 of 20 | 1,151 | 1,826 | 2,529 |
+| 500 | V14 | 20 of 20 | 1,921 | 2,544 | 3,707 |
+| 500 | V17 | 20 of 20 | 1,644 | 2,305 | 4,214 |
+
+The lengths are measured ticks to a decision. V17 is not uniformly faster: at
+500 agents its longest battle, seed 20, runs 4,214 ticks against 2,372 for V14
+on the same seed.
+
+### Blocked agent-ticks at 500 agents, per seed
+
+`blockedAgentTicks` is the collision metric that counts one unit for each agent
+on each tick whose movement resolved to `MovementResolution.Blocked`. `maximumPenetrationRaw` is the
+deepest overlap of any living pair over the whole battle, in raw units; under
+V14 it is zero on every run.
+
+| Seed | V14 blocked | V17 blocked | V14 ticks | V17 ticks | V17 maximum penetration |
+| --- | --- | --- | --- | --- | --- |
+| 1 | 39,774 | 4,072 | 1,921 | 1,877 | 1,737 |
+| 2 | 73,218 | 2,470 | 2,495 | 2,053 | 1,736 |
+| 3 | 67,790 | 8,238 | 2,271 | 2,270 | 1,737 |
+| 4 | 87,730 | 4,715 | 2,557 | 2,477 | 1,736 |
+| 5 | 62,294 | 1,765 | 1,992 | 2,592 | 1,737 |
+| 6 | 75,185 | 6,057 | 2,839 | 2,305 | 1,737 |
+| 7 | 73,928 | 6,742 | 2,420 | 3,371 | 1,737 |
+| 8 | 80,812 | 7,473 | 2,161 | 2,002 | 1,737 |
+| 9 | 96,316 | 2,189 | 2,910 | 3,173 | 1,736 |
+| 10 | 57,613 | 4,438 | 3,707 | 1,644 | 1,737 |
+| 11 | 70,767 | 6,308 | 2,544 | 2,218 | 1,737 |
+| 12 | 75,124 | 4,072 | 2,557 | 2,313 | 1,737 |
+| 13 | 79,892 | 4,564 | 2,480 | 2,034 | 1,737 |
+| 14 | 93,809 | 2,667 | 2,910 | 3,200 | 1,737 |
+| 15 | 85,331 | 2,243 | 2,294 | 2,308 | 1,737 |
+| 16 | 79,724 | 3,871 | 3,041 | 1,943 | 1,736 |
+| 17 | 80,633 | 3,743 | 2,983 | 2,494 | 1,737 |
+| 18 | 96,304 | 5,706 | 2,700 | 1,793 | 1,737 |
+| 19 | 98,637 | 4,652 | 2,119 | 2,013 | 1,737 |
+| 20 | 58,530 | 3,576 | 2,372 | 4,214 | 1,737 |
+
+V17 is lower on all 20 seeds, by a factor of between 8 and 44. At 200 agents it
+is also lower on all 20 seeds, with a median of 546 against 16,056.
+
+The deepest penetration over all 41 V17 runs is 1,737 raw units. The bound is
+`2R - B = 8,704 - 6,964 = 1,740`, so the closest pair ever observed sat 3 raw
+units above the proved floor.
+
+### The 2,000-agent battle, seed 1
+
+| Preset | Outcome | Measured ticks | Blocked agent-ticks | Maximum penetration | State hash | Event hash |
+| --- | --- | --- | --- | --- | --- | --- |
+| V14 | Draw | 10,000 | 3,630,642 | 0 | `DE740A4F81B7BDCD` | `11FE0D668B6A8C0C` |
+| V17 | Faction0Victory | 6,455 | 1,013,727 | 1,737 | `3EA3AC4DBC89E168` | `0480F5B11F10A9F7` |
+
+V14 still ends in a draw at the tick cap, as it does in the baseline above. V17
+reaches a decision at tick 6,455.
