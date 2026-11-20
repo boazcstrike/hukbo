@@ -63,6 +63,145 @@ public sealed class CollisionResolverTests
         Assert.Empty(resolver.Results);
     }
 
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    [InlineData(DiameterRaw + 1)]
+    public void Constructor_RejectsAHardFloorOutsideOneToTheDiameter(int hardFloorRaw)
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => new CollisionResolver(
+                BodyRadiusRaw,
+                MapDimensionRaw,
+                MapDimensionRaw,
+                hardFloorRaw));
+    }
+
+    /// <summary>
+    /// A hard floor below the diameter lets a mover into the soft band, and
+    /// still refuses it below the floor itself. The floor is 85 per cent of the
+    /// diameter, as the separating-contact preset registers it.
+    /// </summary>
+    [Fact]
+    public void Resolve_WithAHardFloorAcceptsTheSoftBandAndRefusesBelowTheFloor()
+    {
+        const int floorRaw = DiameterRaw * 85 / 100;
+        const int startRaw = 50_000 + DiameterRaw + MovementSpeedRaw;
+        var resolver = new CollisionResolver(
+            BodyRadiusRaw,
+            MapDimensionRaw,
+            MapDimensionRaw,
+            floorRaw);
+
+        resolver.Resolve(
+        [
+            Stationary(1UL, 50_000, 50_000),
+            Mover(2UL, startRaw, 50_000, 50_000 + floorRaw, 50_000),
+            Stationary(3UL, 50_000, 50_000 + (3 * DiameterRaw)),
+            Mover(
+                4UL,
+                50_000 + DiameterRaw + MovementSpeedRaw,
+                50_000 + (3 * DiameterRaw),
+                50_000 + floorRaw - 1,
+                50_000 + (3 * DiameterRaw)),
+        ]);
+
+        AssertResult(resolver, 2UL, 50_000 + floorRaw, 50_000, MovementResolution.Moved);
+        Assert.NotEqual(MovementResolution.Moved, resolver.Results[3].Resolution);
+        Assert.True(resolver.Results[3].XRaw >= 50_000 + floorRaw);
+    }
+
+    /// <summary>
+    /// The separating-contact bound is inductive only if the resolver never
+    /// closes a pair that already starts inside the floor: every pair must end
+    /// at least as far apart as the smaller of its start distance and the floor.
+    /// A packed crowd spaced inside the floor, with random proposals, checks
+    /// every pair by brute force.
+    /// </summary>
+    [Theory]
+    [InlineData(1UL)]
+    [InlineData(2UL)]
+    [InlineData(3UL)]
+    public void Resolve_WithAHardFloorNeverClosesAPairThatStartsInsideTheFloor(ulong seed)
+    {
+        const int floorRaw = DiameterRaw * 85 / 100;
+        const int columns = 8;
+        const int spacingRaw = floorRaw - 600;
+        const int originRaw = 40_000;
+        var resolver = new CollisionResolver(
+            BodyRadiusRaw,
+            MapDimensionRaw,
+            MapDimensionRaw,
+            floorRaw);
+        var random = new SplitMix64(seed);
+        var requests = new CollisionMoveRequest[columns * columns];
+        for (var index = 0; index < requests.Length; index++)
+        {
+            var startXRaw = originRaw + ((index % columns) * spacingRaw);
+            var startYRaw = originRaw + ((index / columns) * spacingRaw);
+            var deltaXRaw = random.NextInt((2 * MovementSpeedRaw) + 1) - MovementSpeedRaw;
+            var deltaYRaw = random.NextInt((2 * MovementSpeedRaw) + 1) - MovementSpeedRaw;
+            requests[index] = random.NextInt(4) == 0
+                ? Stationary((ulong)index + 1, startXRaw, startYRaw)
+                : Mover(
+                    (ulong)index + 1,
+                    startXRaw,
+                    startYRaw,
+                    startXRaw + deltaXRaw,
+                    startYRaw + deltaYRaw,
+                    priorityKey: random.NextUInt64());
+        }
+
+        resolver.Resolve(requests);
+
+        for (var left = 0; left < requests.Length; left++)
+        {
+            for (var right = left + 1; right < requests.Length; right++)
+            {
+                var startSquared = CollisionGeometry.SquaredDistance(
+                    requests[left].StartXRaw,
+                    requests[left].StartYRaw,
+                    requests[right].StartXRaw,
+                    requests[right].StartYRaw);
+                var endSquared = CollisionGeometry.SquaredDistance(
+                    resolver.Results[left].XRaw,
+                    resolver.Results[left].YRaw,
+                    resolver.Results[right].XRaw,
+                    resolver.Results[right].YRaw);
+                var requiredSquared = Math.Min(startSquared, (long)floorRaw * floorRaw);
+
+                Assert.True(
+                    endSquared >= requiredSquared,
+                    $"Seed {seed}: entities {left + 1} and {right + 1} closed from " +
+                    $"{startSquared} to {endSquared} squared raw units.");
+            }
+        }
+    }
+
+    [Fact]
+    public void Resolve_WithAnOddHardFloorRoundsTheEffectiveFloorUpNeverDown()
+    {
+        const int oddFloorRaw = (DiameterRaw * 85 / 100) | 1;
+        var resolver = new CollisionResolver(
+            BodyRadiusRaw,
+            MapDimensionRaw,
+            MapDimensionRaw,
+            oddFloorRaw);
+
+        resolver.Resolve(
+        [
+            Stationary(1UL, 50_000, 50_000),
+            Mover(
+                2UL,
+                50_000 + DiameterRaw,
+                50_000,
+                50_000 + oddFloorRaw,
+                50_000),
+        ]);
+
+        Assert.True(resolver.Results[1].XRaw >= 50_000 + oddFloorRaw);
+    }
+
     [Fact]
     public void Resolve_RejectsANullRequestList()
     {

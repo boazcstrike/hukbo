@@ -1,5 +1,6 @@
 using Hukbo.Core.Combat;
 using Hukbo.Core.Mathematics;
+using Hukbo.Core.Movement;
 using Hukbo.Core.Simulation;
 
 namespace Hukbo.Core.Tests;
@@ -66,12 +67,37 @@ public sealed class CollisionRegressionTests
         var scenario = Scenario.CreateDefault(seed, totalAgents: 60);
         var simulation = BattleSimulation.Create(scenario);
 
-        FailOnLivingOverlap(simulation, scenario.BodyRadiusRaw, seed);
+        FailOnLivingOverlap(simulation, scenario, seed);
 
         while (simulation.Outcome == BattleOutcome.Ongoing)
         {
             simulation.AdvanceOneTick();
-            FailOnLivingOverlap(simulation, scenario.BodyRadiusRaw, seed);
+            FailOnLivingOverlap(simulation, scenario, seed);
+        }
+
+        Assert.NotEqual(BattleOutcome.Ongoing, simulation.Outcome);
+    }
+
+    /// <summary>
+    /// The separating-contact counterpart of the test above: the invariant is
+    /// the bounded overlap rather than zero overlap, and the helper reads it
+    /// from the preset, so the only thing that differs is the scenario.
+    /// </summary>
+    [Fact]
+    public void PostTickInvariant_SeparatingContactKeepsEveryLivingPairWithinTheBoundedOverlap()
+    {
+        var scenario = Scenario.CreateDefault(seed: 1, totalAgents: 60) with
+        {
+            MovementPreset = MovementPresetId.SeparatingContactV17,
+        };
+        var simulation = BattleSimulation.Create(scenario);
+
+        FailOnLivingOverlap(simulation, scenario, scenario.Seed);
+
+        while (simulation.Outcome == BattleOutcome.Ongoing)
+        {
+            simulation.AdvanceOneTick();
+            FailOnLivingOverlap(simulation, scenario, scenario.Seed);
         }
 
         Assert.NotEqual(BattleOutcome.Ongoing, simulation.Outcome);
@@ -196,7 +222,7 @@ public sealed class CollisionRegressionTests
                 }
             }
 
-            FailOnLivingOverlap(simulation, scenario.BodyRadiusRaw, scenario.Seed);
+            FailOnLivingOverlap(simulation, scenario, scenario.Seed);
         }
 
         Assert.Equal(rows * 2 * 5, matchedAttackers);
@@ -231,7 +257,7 @@ public sealed class CollisionRegressionTests
         for (var tick = 0; tick < 12; tick++)
         {
             simulation.AdvanceOneTick();
-            FailOnLivingOverlap(simulation, scenario.BodyRadiusRaw, scenario.Seed);
+            FailOnLivingOverlap(simulation, scenario, scenario.Seed);
 
             var dealtDamage = simulation.LastEvents.Any(
                 battleEvent => battleEvent.Kind == BattleEventKind.Damage);
@@ -275,7 +301,7 @@ public sealed class CollisionRegressionTests
         for (var tick = 0; tick < 40 && firstDamageTick == 0; tick++)
         {
             simulation.AdvanceOneTick();
-            FailOnLivingOverlap(simulation, scenario.BodyRadiusRaw, scenario.Seed);
+            FailOnLivingOverlap(simulation, scenario, scenario.Seed);
 
             if (simulation.LastEvents.Any(
                 battleEvent => battleEvent.Kind == BattleEventKind.Damage))
@@ -331,7 +357,7 @@ public sealed class CollisionRegressionTests
             Assert.DoesNotContain(
                 simulation.LastEvents,
                 battleEvent => battleEvent.SourceEntityId == 2);
-            FailOnLivingOverlap(simulation, scenario.BodyRadiusRaw, scenario.Seed);
+            FailOnLivingOverlap(simulation, scenario, scenario.Seed);
         }
 
         var mover = simulation.Agents.Single(agent => agent.EntityId == 1);
@@ -467,7 +493,7 @@ public sealed class CollisionRegressionTests
         var simulation = BattleSimulation.Create(scenario);
 
         Assert.Equal(0, simulation.Tick);
-        FailOnLivingOverlap(simulation, scenario.BodyRadiusRaw, seed);
+        FailOnLivingOverlap(simulation, scenario, seed);
         Assert.All(
             simulation.Agents,
             agent =>
@@ -495,7 +521,7 @@ public sealed class CollisionRegressionTests
             var scenario = Scenario.CreateDefault(seed, totalAgents: 200);
             var simulation = BattleSimulation.Create(scenario);
 
-            FailOnLivingOverlap(simulation, scenario.BodyRadiusRaw, seed);
+            FailOnLivingOverlap(simulation, scenario, seed);
         }
     }
 
@@ -562,18 +588,36 @@ public sealed class CollisionRegressionTests
     }
 
     /// <summary>
-    /// Fails the current test when any two living agents strictly overlap. Every
-    /// ordered pair is tested by brute force, in checked <see cref="long"/>
-    /// arithmetic, without consulting the uniform grid.
+    /// The closest two living bodies may legally be after a tick. For every
+    /// preset that does not apply separating contact this is the full diameter
+    /// <c>2R</c>, so no strict overlap. For one that does it is the bounded
+    /// overlap of <c>docs/decisions/2026-11-21-separating-contact.md</c> item 5,
+    /// <c>2R(1 - f) - 2c</c>, read from the preset's own ruleset.
+    /// </summary>
+    private static long RequiredSeparationRaw(Scenario scenario)
+    {
+        var rules = MovementPresetRegistry.Get(scenario.MovementPreset);
+        return rules.AppliesSeparatingContact
+            ? rules.SeparationFloorRaw(scenario.BodyRadiusRaw) -
+                (2L * rules.SeparationPushCapRaw(scenario.BodyRadiusRaw))
+            : checked(2L * scenario.BodyRadiusRaw);
+    }
+
+    /// <summary>
+    /// Fails the current test when any two living agents are closer than
+    /// <see cref="RequiredSeparationRaw"/>, which is strict non-overlap under
+    /// every preset except the separating-contact one. Every ordered pair is
+    /// tested by brute force, in checked <see cref="long"/> arithmetic, without
+    /// consulting the uniform grid.
     /// </summary>
     private static void FailOnLivingOverlap(
         BattleSimulation simulation,
-        int bodyRadiusRaw,
+        Scenario scenario,
         ulong seed)
     {
         var agents = simulation.Agents;
-        var diameterRaw = checked(2L * bodyRadiusRaw);
-        var contactSquared = checked(diameterRaw * diameterRaw);
+        var requiredRaw = RequiredSeparationRaw(scenario);
+        var contactSquared = checked(requiredRaw * requiredRaw);
 
         for (var left = 0; left < agents.Count; left++)
         {
@@ -603,7 +647,7 @@ public sealed class CollisionRegressionTests
                         $"{agents[left].YRaw}) and {agents[right].EntityId} at " +
                         $"({agents[right].XRaw}, {agents[right].YRaw}) are " +
                         $"{squared} squared raw units apart, inside the " +
-                        $"{contactSquared} required for solid bodies.");
+                        $"{contactSquared} required for the {scenario.MovementPreset} preset.");
                 }
             }
         }

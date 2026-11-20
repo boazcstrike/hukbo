@@ -380,9 +380,44 @@ public sealed class HeadlessRunnerTests
         Assert.True(metrics.GetProperty("maximumFrontDepthRaw").TryGetInt32(out var frontDepthRaw));
         Assert.True(frontDepthRaw >= 0);
 
-        // The approved policy is Solid, so any nonzero penetration is a
-        // contract violation rather than a tuning signal.
+        // The default preset applies no separating contact, so the approved
+        // Solid policy holds and any nonzero penetration is a contract
+        // violation rather than a tuning signal.
         Assert.Equal(0, metrics.GetProperty("maximumPenetrationRaw").GetInt32());
+    }
+
+    /// <summary>
+    /// Under the separating-contact preset, penetration is non-zero by design
+    /// and bounded by <c>2R - (2R(1 - f) - 2c)</c>, the invariant of
+    /// <c>docs/decisions/2026-11-21-separating-contact.md</c> item 5.
+    /// </summary>
+    [Fact]
+    public void Run_ReportsBoundedNonZeroPenetrationUnderSeparatingContact()
+    {
+        var output = new StringWriter();
+        var errorOutput = new StringWriter();
+
+        var exitCode = HeadlessRunner.Run(
+            [
+                "--agents", "200", "--ticks", "1500", "--seed", "1",
+                "--movement-preset", "17",
+            ],
+            output,
+            errorOutput);
+
+        Assert.Equal(0, exitCode);
+        using var report = JsonDocument.Parse(output.ToString());
+        var penetrationRaw = report.RootElement
+            .GetProperty("collisionMetrics")
+            .GetProperty("maximumPenetrationRaw")
+            .GetInt32();
+        var scenario = Scenario.CreateDefault(1UL, 200);
+        var rules = MovementPresetRegistry.Get(MovementPresetId.SeparatingContactV17);
+        var boundRaw = (2 * scenario.BodyRadiusRaw) -
+            (rules.SeparationFloorRaw(scenario.BodyRadiusRaw) -
+                (2 * rules.SeparationPushCapRaw(scenario.BodyRadiusRaw)));
+
+        Assert.InRange(penetrationRaw, 1, boundRaw);
     }
 
     [Fact]
