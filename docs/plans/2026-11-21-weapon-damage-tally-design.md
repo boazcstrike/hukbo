@@ -1,10 +1,10 @@
 # Weapon damage tally — design
 
-**Status: design.** The plan document `docs/plans/2026-11-21-wmao-optimizations.md`
+**Status: implemented 2026-11-21, see the dated notes.** The plan document `docs/plans/2026-11-21-wmao-optimizations.md`
 carries the ordered task list. The user authorized execution of this package on
 2026-11-21, after the documents are written.
 
-**Baseline: `main` at `0ccc0d3`, 2026-11-21.** Hukbo client only.
+**Baseline: `main` at `0ccc0d3`, 2026-11-21.** File and line references are to that baseline, the state before implementation; symbol names are the stable reference, and line numbers are not renumbered. Hukbo client only.
 
 ---
 
@@ -116,9 +116,17 @@ The tally follows the pure-helper pattern in `.claude/skills/hukbo-client-ui/SKI
 | `WeaponDamageTally` | `src/Hukbo.Client/Presentation/WeaponDamageTally.cs` | Pure accumulator, fed from `IngestTick`. Fixed arrays indexed by faction, weapon, and shield. No dictionary iteration decides any order. |
 | `DamageTallyLayout` | `src/Hukbo.Client/UI/DamageTallyLayout.cs` | Pure `Calculate` that returns row rectangles, modelled on `BattleReportLayout.Calculate` (`BattleReportLayout.cs:72`) |
 | `DamageTallyPanel` | `src/Hukbo.Client/UI/DamageTallyPanel.cs` | `Update` for hover and `Draw`, modelled on `BattleReportPanel` |
+| `DamageTallySpotlight` | `src/Hukbo.Client/UI/DamageTallySpotlight.cs` | Shared hover predicate, used by the draw path and the probe count |
 | Spotlight ring | `src/Hukbo.Client/Rendering/PawnRenderer.cs` | One new mark, adapted from `DrawSelectionMark` (`PawnRenderer.cs:494-512`). `Rendering/SubmissionCount.cs` gains its quad count. |
 | Command | `src/Hukbo.Client/Presentation/ClientCommand.cs` | Append `ToggleDamageTally`. The enum is append-only. |
 | Key | `ArenaGame.GetSpectatorKeyboardCommand` (`ArenaGame.cs:1319-1360`) | Map `T` |
+
+**Implementation notes, 2026-11-21.** The spotlight hover predicate lives in `DamageTallySpotlight`, so
+the draw path and the probe count read one rule. Neither `T` nor `I` appears in the shortcut hint line
+(`src/Hukbo.Client/ArenaGame.Rendering.cs`, `ShortcutHintLine`) or in the menu. The controls paragraph
+of the smoke checklist is therefore the only place a spectator finds `T`. This is a discoverability gap
+against `SIMULATION-GAME-STANDARDS.md` §10, which asks whether a spectator can discover an effect
+without reading the source.
 
 Rules the implementation must keep:
 

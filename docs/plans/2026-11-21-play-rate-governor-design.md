@@ -1,10 +1,10 @@
 # Play-rate governor and render interpolation — design
 
-**Status: design.** The plan document `docs/plans/2026-11-21-wmao-optimizations.md`
+**Status: implemented 2026-11-21, see the dated notes.** The plan document `docs/plans/2026-11-21-wmao-optimizations.md`
 carries the ordered task list. The user authorized execution of this package on
 2026-11-21, after the documents are written.
 
-**Baseline: `main` at `0ccc0d3`, 2026-11-21.** Hukbo only. Sandata's client is
+**Baseline: `main` at `0ccc0d3`, 2026-11-21.** File and line references are to that baseline, the state before implementation; symbol names are the stable reference, and line numbers are not renumbered. Hukbo only. Sandata's client is
 out of scope except where section 6 says otherwise.
 
 ---
@@ -111,7 +111,8 @@ The requested speed stays the integer the keys set. The effective speed is a
 `SIMULATION-GAME-STANDARDS.md` §10 asks whether a spectator can discover an
 effect without reading the source. A battle that quietly plays slower fails that
 test. While the effective speed is more than 5% below the requested speed, the
-status text shows both, for example `4× (holding 2.6×)`.
+status text shows both, for example `4x (holding 2.6x)`, using ASCII `x` to match the shipped text in
+`src/Hukbo.Client/Presentation/PlaybackSpeedText.cs`.
 
 ### 3.6 Logging
 
@@ -194,6 +195,12 @@ five small ways:
   `ResetSimulation`.
 - The status text uses an ASCII `x`, for example `4x (holding 2.6x)`, not `×`.
 - The shortcut hint line does not list `I`.
+
+**Discoverability gap, 2026-11-21.** Neither `I` nor `T` appears in the shortcut hint line
+(`src/Hukbo.Client/ArenaGame.Rendering.cs`, `ShortcutHintLine`) or in the menu. The controls paragraph
+of the smoke checklist is therefore the only place a spectator finds them. This is a gap against
+`SIMULATION-GAME-STANDARDS.md` §10, which asks whether a spectator can discover an effect without
+reading the source.
 
 Two behaviours need the smoke rows to judge them. After unpausing, alpha
 restarts near 0, so a pawn can step back by about a third of a tick once. The

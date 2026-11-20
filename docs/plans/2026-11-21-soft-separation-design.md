@@ -7,6 +7,9 @@ the "soft discs" row of `docs/decisions/2026-07-27-collision-policy.md` §12 for
 that preset only. The Sandata half (section 4) remains a proposal and needs a
 second decision after the Hukbo measurements.
 
+File and line references are to `main` at `0ccc0d3`, the state before implementation; symbol names are
+the stable reference, and line numbers are not renumbered.
+
 When this document was first written it asked to reverse a recorded decision.
 Section 13 of `SIMULATION-GAME-STANDARDS.md` said "adding a second policy value
 is a new decision record, not an implementation detail". Sandata's design
@@ -115,7 +118,7 @@ is where yielding happens.
 4. Apply all pushes, then clamp to the arena as `CollisionGeometry` already does.
 
 **Implementation notes, 2026-11-21.** The pure pass (SS-2) and the V17 ruleset
-(SS-1) differ from the list above in four ways:
+(SS-1) differ from the list above in five ways:
 
 - Distance uses `FixedPoint.IntegerSquareRoot`, not `FixedPoint.Sqrt`, because
   `Sqrt` rescales its result by the fixed-point scale and the pass works in raw
@@ -130,6 +133,8 @@ is where yielding happens.
   multiplier 3, and sideways 2,500 basis points. The first two follow section 2.
   The sideways value was chosen in implementation and is provisional, like the
   others.
+- The pass builds its own private neighbour grid, not `CollisionUniformGrid`
+  (`src/Hukbo.Core/Simulation/SeparationPass.cs`, `BuildGrid`).
 
 A crowd-pressure channel, like We March as One's, is deferred. The first preset
 keeps only the overlap push, so its effect can be measured alone.
@@ -200,8 +205,9 @@ objections are fair, and this proposal answers them directly.
   preset that does not.
 - Tests that assert zero overlap become preset-aware:
   - `CollisionRegressionTests` (`:64`, `:87`);
-  - `CollisionMetricsTests` (`:23`, `:131`);
   - `HeadlessRunnerTests` (`:437`).
+  - `CollisionMetricsTests` (`:23`, `:131`) were left unchanged. They are accumulator unit tests
+    with literal inputs, not preset-dependent.
 - The blocked streak still exists under `Solid`. Under `Separating` an agent is
   rarely refused, so the 192-tick stall escape (`FormationRules.cs:143`) should
   rarely fire. Tests that assert streak 0 keep passing.
