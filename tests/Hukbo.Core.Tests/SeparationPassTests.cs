@@ -379,6 +379,173 @@ public sealed class SeparationPassTests
         Assert.True(movedTotal > 0, "The packed clouds never exercised the pass.");
     }
 
+    // A realistic cap, so the bound B = floor - 2 * cap is positive and the
+    // inward-motion limit is live.
+    private static SeparationParameters Capped() =>
+        Plain() with { PushCapRadiusBasisPoints = 500, SidewaysBasisPoints = 2_500 };
+
+    private static long Bound(SeparationParameters parameters) =>
+        parameters.FloorRaw - (2 * parameters.PushCapRaw);
+
+    private static long DistanceOf(
+        Dictionary<ulong, (int X, int Y)> result,
+        ulong first,
+        ulong second) =>
+        FixedIntegerSquareRoot(Squared(
+            (long)result[first].X - result[second].X,
+            (long)result[first].Y - result[second].Y));
+
+    private static long FixedIntegerSquareRoot(long value) =>
+        (long)Math.Floor(Math.Sqrt(value));
+
+    [Fact]
+    public void APairAtTheBoundStaysAtTheBoundWhenThirdPartiesSqueezeFromBothSides()
+    {
+        var parameters = Capped();
+        var bound = (int)Bound(parameters);
+
+        // Each outer body overlaps its neighbour deeply and, averaged with the
+        // pair's own mild push, drives it toward the other half of the pair.
+        var result = RunPass(
+            [
+                new Body(1, Centre - 6_000, Centre),
+                new Body(2, Centre, Centre),
+                new Body(3, Centre + bound, Centre),
+                new Body(4, Centre + bound + 6_000, Centre),
+            ],
+            parameters);
+
+        Assert.True(DistanceOf(result, 2, 3) >= bound);
+        Assert.Equal((Centre, Centre), result[2]);
+        Assert.Equal((Centre + bound, Centre), result[3]);
+    }
+
+    [Fact]
+    public void NoInwardPushIsAppliedToAPairBelowTheBoundPlusTheMargin()
+    {
+        var parameters = Capped();
+        var bound = (int)Bound(parameters);
+        var start = bound + SeparationPass.ShrinkMarginRaw - 1;
+
+        var result = RunPass(
+            [
+                new Body(1, Centre - 6_000, Centre),
+                new Body(2, Centre, Centre),
+                new Body(3, Centre + start, Centre),
+            ],
+            parameters);
+
+        // Body 2 would be pushed toward body 3 by body 1; allow is zero, so it
+        // is held exactly, not merely slowed.
+        Assert.Equal((Centre, Centre), result[2]);
+    }
+
+    [Fact]
+    public void AnInwardPushAboveTheAllowanceIsScaledNotDropped()
+    {
+        var parameters = Capped();
+        const int distance = 7_500;
+        var bound = Bound(parameters);
+        var cap = parameters.PushCapRaw;
+        var allow = (distance - bound - SeparationPass.ShrinkMarginRaw) * distance / 2;
+        var toward = cap * distance;
+        Assert.True(toward > allow && allow > 0, "The fixture must need scaling.");
+
+        var result = RunPass(
+            [
+                new Body(1, Centre - 5_000, Centre),
+                new Body(2, Centre, Centre),
+                new Body(3, Centre + distance, Centre),
+            ],
+            parameters);
+
+        Assert.Equal((int)(Centre + (cap * allow / toward)), result[2].X);
+    }
+
+    [Fact]
+    public void ScaledPushesStayInsideTheArenaAndKeepTheBound()
+    {
+        var parameters = Capped();
+        var bound = Bound(parameters);
+        var pass = new SeparationPass();
+
+        for (ulong seed = 1; seed <= 20; seed++)
+        {
+            var bodies = BuildPackedCloud(seed, bound, Radius + 2_000);
+            var result = RunPass(pass, bodies, parameters);
+
+            foreach (var body in bodies)
+            {
+                Assert.InRange(result[body.Id].X, Radius, Arena - Radius);
+                Assert.InRange(result[body.Id].Y, Radius, Arena - Radius);
+            }
+
+            AssertEveryPairAtLeast(bodies, result, bound, seed);
+        }
+    }
+
+    [Fact]
+    public void PairsSpacedAtTheBoundStayAtTheBoundWithoutAnyHelp()
+    {
+        var parameters = Capped();
+        var bound = Bound(parameters);
+        var pass = new SeparationPass();
+        var movedTotal = 0;
+
+        for (ulong seed = 1; seed <= 20; seed++)
+        {
+            var bodies = BuildPackedCloud(seed, bound, Centre - (60 * 1_024 / 2));
+            var result = RunPass(pass, bodies, parameters);
+
+            movedTotal += bodies.Count(b => result[b.Id] != (b.X, b.Y));
+            AssertEveryPairAtLeast(bodies, result, bound, seed);
+        }
+
+        Assert.True(movedTotal > 0, "The packed clouds never exercised the pass.");
+    }
+
+    [Fact]
+    public void StorageOrderDoesNotChangeAnyResultWhileTheInwardLimitIsLive()
+    {
+        var parameters = Capped();
+        var bodies = BuildPackedCloud(seed: 5, Bound(parameters), Centre - (60 * 1_024 / 2));
+        var expected = RunPass(bodies, parameters);
+        var shuffler = new SplitMix64(123);
+
+        for (var round = 0; round < 8; round++)
+        {
+            var shuffled = bodies.ToArray();
+            for (var i = shuffled.Length - 1; i > 0; i--)
+            {
+                var j = shuffler.NextInt(i + 1);
+                (shuffled[i], shuffled[j]) = (shuffled[j], shuffled[i]);
+            }
+
+            Assert.Equal(expected, RunPass(shuffled, parameters));
+        }
+
+        Assert.True(bodies.Count(b => expected[b.Id] != (b.X, b.Y)) > 0);
+    }
+
+    private static void AssertEveryPairAtLeast(
+        List<Body> bodies,
+        Dictionary<ulong, (int X, int Y)> result,
+        long bound,
+        ulong seed)
+    {
+        for (var a = 0; a < bodies.Count; a++)
+        {
+            for (var b = a + 1; b < bodies.Count; b++)
+            {
+                var dx = (long)result[bodies[a].Id].X - result[bodies[b].Id].X;
+                var dy = (long)result[bodies[a].Id].Y - result[bodies[b].Id].Y;
+                Assert.True(
+                    (dx * dx) + (dy * dy) >= bound * bound,
+                    $"seed {seed}: bodies {bodies[a].Id} and {bodies[b].Id} closer than {bound}.");
+            }
+        }
+    }
+
     [Fact]
     public void WarmPassAllocatesNothing()
     {
@@ -456,12 +623,14 @@ public sealed class SeparationPassTests
         return bodies;
     }
 
-    private static List<Body> BuildPackedCloud(ulong seed, long floor)
+    private static List<Body> BuildPackedCloud(ulong seed, long floor) =>
+        BuildPackedCloud(seed, floor, Centre - (60 * 1_024 / 2));
+
+    private static List<Body> BuildPackedCloud(ulong seed, long floor, int origin)
     {
         var random = new SplitMix64(seed);
         var bodies = new List<Body>();
         var span = 60 * 1_024;
-        var origin = Centre - (span / 2);
         for (var attempt = 0; attempt < 4_000; attempt++)
         {
             var x = origin + random.NextInt(span);

@@ -292,7 +292,7 @@ public sealed class BattleSimulation
             : [];
         _agentViews = new AgentView[agents.Length];
         _agents = Array.AsReadOnly(_agentViews);
-        _collision = new CollisionScratch(scenario, agents.Length);
+        _collision = new CollisionScratch(scenario, agents.Length, _movementRules);
         _factionLivingCounts = new int[2];
         _factionRallyEntityIds = new ulong[2];
         _factionRallyEngaged = new bool[2];
@@ -307,6 +307,7 @@ public sealed class BattleSimulation
             : [];
         _evasiveActionScratch =
             scenario.MovementPreset is MovementPresetId.EvasiveFootworkV14
+                or MovementPresetId.SeparatingContactV17
                 ? new EvasiveAction[agents.Length]
                 : [];
         _factionSurvivingCompositions = new LoadoutCompositionCounts[2];
@@ -776,7 +777,8 @@ public sealed class BattleSimulation
             var spreadCohortsLaterally =
                 scenario.MovementPreset is MovementPresetId.CohortLateralSpreadV13
                     or MovementPresetId.EvasiveFootworkV14
-                    or MovementPresetId.ContingentCohesionBeforeContactV15;
+                    or MovementPresetId.ContingentCohesionBeforeContactV15
+                    or MovementPresetId.SeparatingContactV17;
             faction0Deployment = CohortDeploymentAssignment.AssignForFaction(
                 deployment, faction0Loadouts, rules, spreadCohortsLaterally);
             faction1Deployment = CohortDeploymentAssignment.AssignForFaction(
@@ -950,6 +952,11 @@ public sealed class BattleSimulation
 
         ResolveCollisions();
         CommitMovement(events);
+        if (_movementRules.AppliesSeparatingContact)
+        {
+            ApplySeparatingContact();
+        }
+
         MeasureCollision();
         GatherAndCommitAttacks(events);
         if (_movementRules.UsesEquipmentRelativeFootwork)
@@ -1027,10 +1034,11 @@ public sealed class BattleSimulation
             _hasRangedWeapon,
             new ReadOnlySpan<Projectile>(_projectiles, 0, _projectileLiveCount),
             // A third gate of its own, for the same reason the second is not
-            // folded inside the first. Only V14 registers this true, so every
-            // preset from V1 to V13 folds nothing here and keeps the hash it
-            // already has.
-            Scenario.MovementPreset is MovementPresetId.EvasiveFootworkV14);
+            // folded inside the first. Only V14, and V17 which is V14 plus
+            // separating contact, register this true, so every preset from V1
+            // to V13 folds nothing here and keeps the hash it already has.
+            Scenario.MovementPreset is MovementPresetId.EvasiveFootworkV14
+                or MovementPresetId.SeparatingContactV17);
 
     public BattleSnapshot CreateSnapshot()
     {
@@ -1771,7 +1779,8 @@ public sealed class BattleSimulation
             or MovementPresetId.ContingentShapeV12
             or MovementPresetId.CohortLateralSpreadV13
             or MovementPresetId.EvasiveFootworkV14
-            or MovementPresetId.ContingentCohesionBeforeContactV15;
+            or MovementPresetId.ContingentCohesionBeforeContactV15
+            or MovementPresetId.SeparatingContactV17;
 
     /// <summary>
     /// Derives <see cref="_factionRallyEngaged"/> for both factions: whether
@@ -2488,7 +2497,8 @@ public sealed class BattleSimulation
     /// </remarks>
     private void ApplyEvasiveFootwork()
     {
-        if (Scenario.MovementPreset is not MovementPresetId.EvasiveFootworkV14)
+        if (Scenario.MovementPreset is not (MovementPresetId.EvasiveFootworkV14
+            or MovementPresetId.SeparatingContactV17))
         {
             return;
         }
@@ -2586,7 +2596,8 @@ public sealed class BattleSimulation
     /// </remarks>
     private void ArmBreakOffIfIntercepted(AgentState target, AttackResolution resolution)
     {
-        if (Scenario.MovementPreset is not MovementPresetId.EvasiveFootworkV14)
+        if (Scenario.MovementPreset is not (MovementPresetId.EvasiveFootworkV14
+            or MovementPresetId.SeparatingContactV17))
         {
             return;
         }
@@ -5034,6 +5045,68 @@ public sealed class BattleSimulation
     }
 
     /// <summary>
+    /// The one separation pass of the tick, run only under a preset that applies
+    /// separating contact (<c>docs/decisions/2026-11-21-separating-contact.md</c>
+    /// item 4). It reads the positions <see cref="CommitMovement"/> just
+    /// committed and writes the pass's post-clamp positions back, so the state
+    /// hash and everything later in the tick see them. It emits no event: each
+    /// Move event keeps the distance <see cref="CommitMovement"/> moved the
+    /// agent, and the pass's displacement is not reported as movement.
+    /// </summary>
+    /// <remarks>
+    /// Weight is the armour weight class (<see cref="ArmorWeightClass"/>: light
+    /// 1, medium 2, rigid 3). A body counts as committed to a fight when its
+    /// <see cref="AgentIntent"/> is <see cref="AgentIntent.Attacking"/>, which
+    /// target selection assigns only to an agent already in body contact with
+    /// its target. That is the same hashed state the rest of the tick reads, so
+    /// the choice needs no extra query and cannot disagree with it.
+    /// </remarks>
+    private void ApplySeparatingContact()
+    {
+        var pass = _collision.Separation
+            ?? throw new InvalidOperationException(
+                "The separation pass is built whenever the gate is on.");
+        var xRaw = _collision.SeparationXRaw;
+        var yRaw = _collision.SeparationYRaw;
+
+        for (var index = 0; index < _agentStates.Length; index++)
+        {
+            var agent = _agentStates[index];
+            xRaw[index] = agent.XRaw;
+            yRaw[index] = agent.YRaw;
+            _collision.SeparationIsAlive[index] = agent.IsAlive;
+            _collision.SeparationEntityId[index] = agent.EntityId;
+            _collision.SeparationIsCommitted[index] =
+                agent.Intent == AgentIntent.Attacking;
+            _collision.SeparationWeight[index] =
+                (int)ArmorWeightClasses.Resolve(agent.Loadout.Armor);
+        }
+
+        pass.Run(
+            xRaw,
+            yRaw,
+            _collision.SeparationIsAlive,
+            _collision.SeparationWeight,
+            _collision.SeparationIsCommitted,
+            _collision.SeparationEntityId,
+            _collision.SeparationSettings);
+
+        var separatedX = pass.OutX;
+        var separatedY = pass.OutY;
+        for (var index = 0; index < _agentStates.Length; index++)
+        {
+            var agent = _agentStates[index];
+            if (!agent.IsAlive)
+            {
+                continue;
+            }
+
+            agent.XRaw = separatedX[index];
+            agent.YRaw = separatedY[index];
+        }
+    }
+
+    /// <summary>
     /// Derives this tick's collision counters from committed positions. Pure
     /// observation: nothing here writes agent state, and none of it is hashed.
     /// </summary>
@@ -6116,6 +6189,9 @@ public sealed class BattleSimulation
     /// of <see cref="MovementPresetId.CohortLateralSpreadV13"/>'s behaviour, so
     /// it inherits all three battlefield-realism behaviours unchanged before
     /// the contingent-cohesion gate of its own is layered on top.
+    /// <see cref="MovementPresetId.SeparatingContactV17"/> is admitted because
+    /// it is defined as V14 plus separating contact and nothing else, so it
+    /// inherits every V14 behaviour and the experiment changes one variable.
     /// </summary>
     private static bool UsesBattlefieldRealism(MovementPresetId preset) =>
         preset is MovementPresetId.BattlefieldRealismV10
@@ -6123,7 +6199,8 @@ public sealed class BattleSimulation
             or MovementPresetId.ContingentShapeV12
             or MovementPresetId.CohortLateralSpreadV13
             or MovementPresetId.EvasiveFootworkV14
-            or MovementPresetId.ContingentCohesionBeforeContactV15;
+            or MovementPresetId.ContingentCohesionBeforeContactV15
+            or MovementPresetId.SeparatingContactV17;
 
     /// <summary>
     /// The single approved reach test. Attack range is measured centre to

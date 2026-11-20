@@ -449,11 +449,57 @@ for every ordered pair of living agents (a, b) with a.EntityId < b.EntityId:
     (bx - ax)^2 + (by - ay)^2  >=  (2 * BodyRadiusRaw)^2
 ```
 
-Penetration is never permitted between two living agents, in any amount, at the end of any tick.
+Penetration is never permitted between two living agents, in any amount, at the end of any tick,
+under every movement preset except the one that applies separating contact, described next.
 Exactly one policy value exists, `CollisionPolicy.Solid`, and `Scenario.Validate` rejects any
-other. Soft compression and faction-dependent contact were considered and rejected; the resolver
-must not grow a code path, enum value, or configuration field that selects a different behaviour.
-Adding a second policy value is a new decision record, not an implementation detail.
+other. Faction-dependent contact was considered and rejected, and the resolver must not grow an
+enum value or a `Scenario` configuration field that selects a different collision policy. Adding a
+second policy value is a new decision record, not an implementation detail.
+
+#### Presets that apply separating contact
+
+One opt-in movement preset, `MovementPresetId.SeparatingContactV17`, replaces the zero-overlap rule
+with a bounded-overlap rule. The authority is the decision record
+[docs/decisions/2026-11-21-separating-contact.md](docs/decisions/2026-11-21-separating-contact.md),
+which supersedes the zero-overlap sentence above for that preset only; the design is
+[docs/plans/2026-11-21-soft-separation-design.md](docs/plans/2026-11-21-soft-separation-design.md).
+The behaviour is gated by `MovementRuleset.AppliesSeparatingContact`, not by `CollisionPolicy`, which
+still has the single value `Solid`. Under that preset `Solid` names the hard floor below rather than
+zero overlap. Every other preset keeps the rule above exactly, with the same distance, the same
+resolver, and the same recorded hashes.
+
+The rule has two parts. Both are integer arithmetic on raw fixed-point coordinates, and every
+constant is a provisional basis-point field on the movement ruleset, never a measurement.
+
+- **The resolver keeps a hard floor.** Its ladder, priority order, and strict comparison are
+  unchanged. Only the distance it tests against becomes `floor = 2R * (1 - f)`, where `f` is the
+  soft-band fraction, instead of `2R`. A mover may step into the band between `floor` and `2R`.
+  The resolver's overlap query takes a radius and tests against twice it, so an odd `floor` is
+  rounded up to the next even value; the effective floor is never below `floor`.
+- **One separation pass runs per tick**, after `CommitMovement` and before `MeasureCollision`. It is
+  a Jacobi pass: every body reads the same start-of-pass snapshot and writes only its own push, so
+  the result does not depend on processing order, and there is no convergence loop. Each body's
+  share of a push comes from its armour weight class and from whether it is committed to a fight,
+  which the implementation reads as `AgentIntent.Attacking`. The push is capped at `c` per body
+  per tick and the result is clamped to the arena. The pass has no velocity, no impulse, no
+  restitution, and no momentum carried between ticks, so a weight share on a positional correction
+  is not rigid-body physics under `CLAUDE.md` section 9. The pass emits no event; a `Move` event
+  keeps the distance `CommitMovement` moved the agent. The state hash sees the positions after the
+  pass.
+
+The invariant for the preset replaces the one above. For every pair of living agents at the end of
+every tick:
+
+```text
+(bx - ax)^2 + (by - ay)^2  >=  (2R(1 - f) - 2c)^2
+```
+
+where `c` is the per-tick push cap. The resolver leaves every pair at least `floor` apart, and the
+pass moves each body at most `c`, so no pair distance shrinks by more than `2c`. A regression test
+asserts the formula over seeded battles, and the penetration metric
+(`CollisionMetrics.MaximumPenetrationRaw`) can be non-zero under this preset by design, bounded by
+`2R - (2R(1 - f) - 2c)`. The tests that assert zero overlap for every other preset are preset-aware
+and assert exactly what they asserted before.
 
 `PawnRenderer` size stays cosmetic. Presentation may draw a pawn larger or smaller than four world
 units without affecting the simulation.
@@ -522,6 +568,7 @@ ResolveContingentStates      // no-op under IndependentPursuitV1
 GatherMovementProposals      // reads tick-start positions only
 ResolveCollisions            // rebuilds the grid, validates candidates
 CommitMovement               // single commit, emits Move events
+SeparatingContact            // only under a preset that applies separating contact
 MeasureCollision             // pure observation, writes no agent state
 GatherAndCommitAttacks       // reads resolved positions
 ResolveOutcome
@@ -545,7 +592,12 @@ the contingent's living members. The per-slot arrays are working buffers
 recomputed from scratch every tick; only the per-agent `ContingentState` write
 is authoritative state, and it is what `StateHasher.Compute` observes.
 
-`MeasureCollision` derives this tick's counters from committed positions. It writes no agent state
+`SeparatingContact` is the one separation pass described under the rule above. It does not run
+under any other preset, so their tick pipeline is unchanged in effect. It writes agent positions,
+which are hashed, and emits no event.
+
+`MeasureCollision` derives this tick's counters from committed positions, which under a preset that
+applies separating contact are the positions after the separation pass. It writes no agent state
 and nothing it produces is hashed.
 
 ### Priority and the candidate ladder
