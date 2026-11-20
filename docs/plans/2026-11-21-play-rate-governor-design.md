@@ -82,6 +82,30 @@ calls to `AdvanceOneTick`, `IngestTick`, and `IngestImmediate`, timed with
 - **No measurement, no change.** A frame that ran no ticks leaves the smoothed
   cost unchanged. A paused battle does not drift the governor.
 
+**Corrections from review, 2026-11-21.** The first implementation blended both
+smoothing steps over the current frame's duration only, and skipped a frame that
+ran no tick without crediting its wall time. Two things followed. At 1× a tick
+lands on about one frame in three, so the 0.4 s and 2.5 s time constants behaved
+like about 1.2 s and 7.5 s. A single 0.5 s hitch frame also took 86% of the
+smoothed cost and 71% of the governed speed, which is the opposite of what the
+smoothing is for. The governor now works as follows:
+
+- The wall time of frames that ran no tick is carried forward and credited to
+  the next frame that did, so the time constants mean what this section says.
+- One blend step uses at most 0.1 s of elapsed time
+  (`MaximumBlendSeconds`, provisional), so one hitch cannot replace the
+  smoothed state. Below about 0.5× effective speed the gap between ticks
+  exceeds that cap, and the governor then reacts more slowly than the stated
+  constants, never faster.
+- The governed state is a latch, not a single threshold. It turns on when the
+  effective speed falls below 95% of the requested speed and turns off at or
+  above 98% (`GovernedOnThreshold`, `GovernedOffThreshold`). A speed that
+  hovers at the edge no longer flips the status text and the log line every
+  few frames.
+- The cost history survives a next-round reset, because the machine and the
+  army size have not changed. Only a full reset clears it.
+- Once a battle is decided, the status text drops the `holding` suffix.
+
 The accumulator then grows by `elapsedSeconds * effectiveSpeed`. The 0.5 s
 clamp stays as a last-resort guard. With the governor in place it should fire
 only on a frame stall the governor could not see coming, such as a window drag.

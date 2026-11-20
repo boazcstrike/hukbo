@@ -128,6 +128,18 @@ of the smoke checklist is therefore the only place a spectator finds `T`. This i
 against `SIMULATION-GAME-STANDARDS.md` §10, which asks whether a spectator can discover an effect
 without reading the source.
 
+**Corrections from review, 2026-11-21.** The first wiring ran the panel's single `Update` as the last
+link of the pointer chain, so the card stopped refreshing whenever another panel held the pointer, and
+a row could keep its hover fill after the spotlight had cleared. The panel now has four entry points
+instead of one. `Tick` runs on every frame the card is visible and keeps the 0.25 s refresh clock
+running. `UpdatePointer` runs only when no earlier panel consumed the pointer. `ClearPointer` runs
+otherwise, so no hover survives. `Refresh` forces a new snapshot when the card is shown or the battle is
+reset. `WeaponDamageTally.SeedRoster` fills the roster before the first tick, so a paused battle shows
+its rows at zero damage instead of an empty card. Numbers are formatted with the invariant culture,
+because the interface font carries no glyph for the separators some cultures use. When the arena is
+shorter than the card's fixed parts, the layout drops the footer, then the headers, then the title,
+rather than drawing past the card.
+
 Rules the implementation must keep:
 
 - **Labels come from one helper.** Use `BattleEventFormatter.GetWeaponLabel`.
