@@ -88,6 +88,20 @@ real 500-agent battle under the shipped presets:
   exactly that way, and the mismatch is recorded in this document. The client
   never invents a mitigation rule of its own.
 
+**DT-1 result, 2026-11-21: the sums match on every tick, so the card shows
+damage after armour.** `WeaponDamageArmorEqualityTests` runs a real 500-agent
+`BattleSimulation` (250 per team, seed 1, the default army and armour
+compositions) under combat preset V8 and movement preset V14, the shipped
+presets. The battle ran to its end at tick 2,755. On every one of those ticks,
+for every target, the sum of `ApplyArmorMitigation(attack.Value, target armour,
+HitLocation)` over that tick's landed `Attack` events equalled the target's
+`Damage` event value, with 0 mismatching ticks. The run covered 4,571 landed
+blows, 752 of which met armour that reduced them, and 4,383 `Damage` events,
+so the check is not vacuous: a before-armour sum would have failed on those 752
+blows. The test also asserts at least 500 landed blows and at least one
+armour-reduced blow. `WeaponDamageTally` therefore applies
+`ApplyArmorMitigation` and the "before armour" fallback is not needed.
+
 Either way, damage includes overkill: the part of a blow beyond the target's
 remaining health. Removing it would need the target's health before each blow
 in tick order, which the event stream does not carry. The card says
