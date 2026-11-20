@@ -114,6 +114,16 @@ internal sealed class WeaponDamageTally
     }
 
     /// <summary>
+    /// Counts the roster and learns each warrior's armour without folding any
+    /// event, so the card lists every fielded row before the first tick. A new
+    /// battle opens paused and <see cref="Ingest"/> runs only once per tick,
+    /// so without this call a fresh or just-reset tally has no rows.
+    /// </summary>
+    /// <param name="agents">Every agent's view, living or dead.</param>
+    public void SeedRoster(IReadOnlyList<AgentView> agents) =>
+        RecountRoster(agents);
+
+    /// <summary>
     /// Clears every counter and the armour lookup, for a new battle.
     /// </summary>
     public void Reset()

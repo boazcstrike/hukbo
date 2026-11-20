@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
+using Hukbo.Client.Presentation;
 using Hukbo.Client.Settings;
 using Hukbo.Core.Combat;
 using Hukbo.Core.Movement;
@@ -39,6 +40,8 @@ public sealed class WeaponDamageArmorEqualityTests
             $"ticks={result.Ticks} landedBlows={result.LandedBlows} " +
             $"armourReducedBlows={result.ArmourReducedBlows} " +
             $"damageEvents={result.DamageEvents} " +
+            $"damageEventTotal={result.DamageEventTotal} " +
+            $"tallyTotal={result.TallyTotal} " +
             $"mismatchedTicks={result.MismatchedTicks.Count}");
 
         // Guard against a vacuous pass: a battle that never lands a blow, or
@@ -55,6 +58,12 @@ public sealed class WeaponDamageArmorEqualityTests
             "Per-target mitigated sums diverged from the Damage events on " +
             $"{result.MismatchedTicks.Count} tick(s); first: " +
             result.MismatchedTicks.FirstOrDefault());
+
+        // The same battle fed through the tally the damage card reads: its two
+        // factions' totals must add up to every Damage event of the battle,
+        // so what the card shows is the damage the simulation applied.
+        Assert.True(result.DamageEventTotal > 0, "No Damage event carried any damage.");
+        Assert.Equal(result.DamageEventTotal, result.TallyTotal);
     }
 
     private static Scenario BuildShippedScenario()
@@ -81,6 +90,8 @@ public sealed class WeaponDamageArmorEqualityTests
         var scenario = BuildShippedScenario();
         var rules = CombatPresetRegistry.Get(scenario.CombatPreset);
         var simulation = BattleSimulation.Create(scenario);
+        var tally = new WeaponDamageTally(rules);
+        tally.SeedRoster(simulation.Agents);
         var armourByEntity = simulation.Agents.ToDictionary(
             agent => agent.EntityId,
             agent => agent.Loadout.Armor);
@@ -89,6 +100,7 @@ public sealed class WeaponDamageArmorEqualityTests
         var landedBlows = 0;
         var armourReducedBlows = 0;
         var damageEvents = 0;
+        long damageEventTotal = 0;
         var mitigatedByTarget = new Dictionary<ulong, int>();
         var damageByTarget = new Dictionary<ulong, int>();
 
@@ -96,6 +108,7 @@ public sealed class WeaponDamageArmorEqualityTests
                simulation.Tick < MaximumTicks)
         {
             simulation.AdvanceOneTick();
+            tally.Ingest(simulation.LastEvents, simulation.Agents);
             mitigatedByTarget.Clear();
             damageByTarget.Clear();
 
@@ -104,6 +117,7 @@ public sealed class WeaponDamageArmorEqualityTests
                 if (battleEvent.Kind == BattleEventKind.Damage)
                 {
                     damageEvents++;
+                    damageEventTotal += battleEvent.Value;
                     damageByTarget[battleEvent.SourceEntityId] = battleEvent.Value;
                     continue;
                 }
@@ -144,6 +158,8 @@ public sealed class WeaponDamageArmorEqualityTests
             landedBlows,
             armourReducedBlows,
             damageEvents,
+            damageEventTotal,
+            tally.GetFactionDamage(0) + tally.GetFactionDamage(1),
             mismatches);
     }
 
@@ -173,5 +189,7 @@ public sealed class WeaponDamageArmorEqualityTests
         int LandedBlows,
         int ArmourReducedBlows,
         int DamageEvents,
+        long DamageEventTotal,
+        long TallyTotal,
         List<string> MismatchedTicks);
 }
