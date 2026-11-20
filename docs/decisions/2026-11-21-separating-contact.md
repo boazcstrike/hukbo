@@ -50,8 +50,11 @@ that applies everywhere.
    d  >=  2R(1 - f) - 2c
    ```
 
-   `c` is the per-tick push cap. The bound follows from item 3 and the cap, and
-   a regression test asserts it. Every constant is an integer basis-point field
+   `c` is the per-tick push cap. The bound is not a consequence of item 3 and the
+   cap alone: the resolver never closes a pair below its start distance or the floor, and the pass
+   limits each body's motion toward every close neighbour so that no pair crosses the bound. The
+   full mechanism and the constraint `B + 4 ≤ 2R` are in `docs/plans/2026-11-21-soft-separation-design.md`
+   §3.2. A regression test asserts the bound. Every constant is an integer basis-point field
    on the ruleset, labelled provisional in code and tests.
 6. **A weight share on a positional correction is not rigid-body physics** under
    `CLAUDE.md` §9. The pass has no velocity, no impulse, no restitution, and no

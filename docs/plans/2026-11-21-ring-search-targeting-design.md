@@ -1,10 +1,10 @@
 # Ring-search targeting — design
 
-**Status: design.** The plan document `docs/plans/2026-11-21-wmao-optimizations.md`
+**Status: implemented 2026-11-21, see the dated notes.** The plan document `docs/plans/2026-11-21-wmao-optimizations.md`
 carries the ordered task list. The user authorized execution of this package on
 2026-11-21, after the documents are written.
 
-**Baseline: `main` at `0ccc0d3`, 2026-11-21.**
+**Baseline: `main` at `0ccc0d3`, 2026-11-21.** File and line references are to that baseline, the state before implementation; symbol names are the stable reference, and line numbers are not renumbered.
 
 ---
 
@@ -98,7 +98,7 @@ treatment.
 | Output | Enabled by | Shipped (combat V8, movement V14) | Treatment |
 | --- | --- | --- | --- |
 | Target and `selectedDistance` (`:1536-1546`) | Always | On | Ring search |
-| `nearestMeleeThreatSquared` (`:1529-1534`) | `UsesBattlefieldRealism`, movement V10–V15, and only for a ranged actor (`:1448-1449`) | On for ranged actors | Second minimum in the same traversal, with its own `best` |
+| `nearestMeleeThreatSquared` (`:1529-1534`) | `UsesBattlefieldRealism`, movement V10–V15 and V17 (V16 is not admitted; see `docs/plans/TODO.md`), and only for a ranged actor (`:1448-1449`) | On for ranged actors | Second minimum in the same traversal, with its own `best` |
 | `ObserveEnemy` for every perceivable enemy (`:1514-1518`) | `UsesEquipmentRelativeFootwork`, movement V6, V7, V9 only | Off | Keep the brute-force scan |
 | `ObserveAlly` for every living ally (`:1462-1474`) | Same flag | Off | Keep the brute-force scan |
 

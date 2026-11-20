@@ -241,7 +241,8 @@ warriors from queueing single file into the same gap, and a faction reduced to
 six or fewer survivors falls into a last stand.
 
 **Collision.** A uniform grid produces candidate pairs, a fairness rule orders
-contested moves, and penetration is held at zero — the seed-1 run reports
+contested moves, and penetration is held at zero under every preset except the opt-in `SeparatingContactV17`, which
+allows bounded overlap — the seed-1 run reports
 98 076 candidate pairs, 6 020 contacts, 84 515 accepted moves, and a maximum
 penetration of 0. There is no rigid-body physics; distance checks and hitscan
 are the model.

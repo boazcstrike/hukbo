@@ -295,7 +295,8 @@ here.
   encumbrance and the block-recovery window are reachable only by selecting
   `V16 Shield Encumbrance` in the Army Composition panel. Three ways out are
   costed in the backlog: flip the default (one line, drops evasion), compose the
-  two into a V17 (needs a design and the evasion package's agreement), or leave
+  two into a V18 (needs a design and the evasion package's agreement; V17 is
+  now `SeparatingContactV17`), or leave
   it. Nothing is authorized yet.
 - **Naming the shield that blocked needs a new event field.** `BattleEvent`'s
   packed `Shield` is the *attacker's* shield, so the event log cannot say which
@@ -379,3 +380,16 @@ fourth was excluded by the design itself.
   already exists as a cosmetic entry and is deliberately unreachable from the
   authoritative armor mapping, so a future helmet identity does not inherit
   it by accident.
+
+## From the separating-contact review (2026-11-21)
+
+- **Movement preset V16 runs pre-V10 behaviour at three sites.**
+  `MovementPresetId.ShieldEncumbranceV16` is documented as a verbatim
+  restatement of `CohortLateralSpreadV13` (`src/Hukbo.Core/Movement/MovementPresetId.cs`,
+  about line 383), but three V13-lineage preset-identity sites in
+  `src/Hukbo.Core/Simulation/BattleSimulation.cs` omit it: lateral cohort spread
+  (about line 778), last-stand yield (about lines 1778-1783), and battlefield
+  realism (about lines 6197-6203). V16 therefore runs pre-V10 behaviour at those
+  sites. Fixing the sites in place would move V16 trajectories and
+  its pinned hashes, so the fix needs a new preset identifier. A table-driven
+  test of site membership is the minimal guard. Found in the V17 review.
