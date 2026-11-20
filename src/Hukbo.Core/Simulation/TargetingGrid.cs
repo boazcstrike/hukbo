@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using Hukbo.Core.Mathematics;
 
 namespace Hukbo.Core.Simulation;
@@ -24,10 +25,13 @@ internal interface ITargetingVisitor
     /// <remarks>
     /// <paramref name="lowerBoundSquared"/> is the squared lower bound of the
     /// next ring: every unvisited candidate is at least that far away. A
-    /// visitor that tracks a best squared distance must stop on a strict
-    /// <c>lowerBoundSquared &gt; best</c> and never on <c>&gt;=</c>: with
-    /// <c>&gt;=</c> the search could stop while an equally distant candidate
-    /// with a lower entity ID sits in that ring.
+    /// visitor that tracks a best squared distance stops on a strict
+    /// <c>lowerBoundSquared &gt; best</c>. Strict is a safety margin, not a
+    /// requirement: with integer coordinates and half-open cells, a candidate
+    /// in the next ring is strictly farther than the bound, so
+    /// <c>&gt;=</c> would select the same results. Strict keeps the stop
+    /// correct even if an equally distant candidate with a lower entity ID
+    /// were ever possible in that ring.
     /// </remarks>
     bool CanStopBefore(long lowerBoundSquared);
 }
@@ -50,13 +54,34 @@ internal interface ITargetingVisitor
 /// <c>k &gt;= 1</c> lies at least <c>(k - 1) * C</c> from the query point along
 /// the axis of that offset, so the search stops before ring <c>k</c> once the
 /// visitor reports that bound can no longer matter. The query cell is found
-/// with floor division, so a query point left of or above the grid, which has a
-/// negative offset, is still bounded correctly.
+/// with floor division, which gives the tightest bound for a query point left
+/// of or above the grid. Truncating division would put that cell closer to the
+/// grid and only loosen the bound, so the search would visit more rings and
+/// select the same result.
 /// </para>
 /// <para>
 /// Storage is compressed rows: a counting pass, a prefix sum, and a scatter
-/// pass that writes agent indexes. The arrays grow only when capacity is
-/// short, so a warm rebuild allocates nothing. No dictionary is used.
+/// pass that writes agent indexes. The cell-offset array is sized on the
+/// first rebuild for the extent the constructor was told to expect, which for
+/// a battle is the map, since agents are clamped to it. The two agent-sized
+/// arrays are sized by the first rebuild and grow only if a later rebuild needs
+/// more slots, which a battle never does because its agent array and living
+/// counts do not grow. A warm rebuild in a battle therefore allocates nothing.
+/// A box wider than expected, which only a test that places agents outside the
+/// map produces, grows the array by doubling. No dictionary is used.
+/// </para>
+/// <para>
+/// The rebuild and search methods are marked to skip tiered compilation. A
+/// short battle spends most of its ticks in the unoptimised first tier, and
+/// measured there the ring walk cost more than the scan it replaces; jitted
+/// optimised on first call it is faster from the first tick.
+/// </para>
+/// <para>
+/// A query coordinate far outside the grid is safe: the lower bound saturates
+/// instead of overflowing, and the query cell is computed in <c>long</c> then
+/// narrowed with a checked cast. That cast holds for any query coordinate when
+/// the cell side is at least 2 raw units, which the default side of
+/// <see cref="DefaultCellSizeRaw"/> satisfies by a wide margin.
 /// </para>
 /// </remarks>
 internal sealed class TargetingGrid
@@ -85,9 +110,11 @@ internal sealed class TargetingGrid
 
     private readonly int _baseCellSizeRaw;
 
+    private readonly int _expectedCellCount;
+
     private AgentState[] _agents = [];
 
-    private int[] _cellStart = new int[InitialCapacity];
+    private int[] _cellStart = [];
 
     private int[] _cellAgents = new int[InitialCapacity];
 
@@ -106,14 +133,26 @@ internal sealed class TargetingGrid
     /// <param name="cellSizeRaw">
     /// The starting cell side in raw fixed-point units.
     /// </param>
+    /// <param name="expectedExtentRaw">
+    /// The widest side of a faction's bounding box that a rebuild is expected
+    /// to see, in raw units. The first rebuild sizes the cell-offset array for
+    /// a box of that extent, so a later rebuild within it never allocates. A
+    /// wider box still works and grows the array.
+    /// </param>
     /// <exception cref="ArgumentOutOfRangeException">
-    /// <paramref name="cellSizeRaw"/> is zero or negative.
+    /// <paramref name="cellSizeRaw"/> is zero or negative, or
+    /// <paramref name="expectedExtentRaw"/> is negative.
     /// </exception>
-    internal TargetingGrid(int cellSizeRaw = DefaultCellSizeRaw)
+    internal TargetingGrid(int cellSizeRaw = DefaultCellSizeRaw, long expectedExtentRaw = 0)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(cellSizeRaw);
+        ArgumentOutOfRangeException.ThrowIfNegative(expectedExtentRaw);
 
         _baseCellSizeRaw = cellSizeRaw;
+        var expectedCellsPerAxis = Math.Min(
+            (expectedExtentRaw / cellSizeRaw) + 1,
+            MaximumCellsPerAxis);
+        _expectedCellCount = checked((int)(expectedCellsPerAxis * expectedCellsPerAxis));
     }
 
     /// <summary>The cell side used by the last <see cref="Rebuild"/>, in raw units.</summary>
@@ -127,6 +166,7 @@ internal sealed class TargetingGrid
     /// <paramref name="factionId"/>, reading the same <c>XRaw</c>, <c>YRaw</c>,
     /// and <c>IsAlive</c> values the brute-force scan reads.
     /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     internal void Rebuild(AgentState[] agents, int factionId)
     {
         _agents = agents;
@@ -174,6 +214,7 @@ internal sealed class TargetingGrid
     /// point, nearest ring first, until the visitor reports that no unvisited
     /// candidate can matter.
     /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     internal void Search<TVisitor>(int queryX, int queryY, ref TVisitor visitor)
         where TVisitor : struct, ITargetingVisitor
     {
@@ -219,7 +260,9 @@ internal sealed class TargetingGrid
 
         if (_cellStart.Length < cellCount + 1)
         {
-            _cellStart = new int[Math.Max(cellCount + 1, _cellStart.Length * 2)];
+            _cellStart = new int[Math.Max(
+                Math.Max(cellCount, _expectedCellCount) + 1,
+                _cellStart.Length * 2)];
         }
     }
 
@@ -228,6 +271,7 @@ internal sealed class TargetingGrid
     /// descending index and pre-decrements each cell's end offset, which leaves
     /// every cell's agents in ascending index and every start offset in place.
     /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     private void Scatter(AgentState[] agents, int factionId, int livingCount)
     {
         var cellCount = _cellsX * _cellsY;
@@ -269,6 +313,7 @@ internal sealed class TargetingGrid
         }
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     private void VisitRing<TVisitor>(
         int cellX,
         int cellY,
@@ -327,6 +372,7 @@ internal sealed class TargetingGrid
     }
 
     /// <summary>Visits every agent in the contiguous cell run, inclusive on both ends.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     private void VisitCells<TVisitor>(int firstCell, int lastCell, ref TVisitor visitor)
         where TVisitor : struct, ITargetingVisitor
     {
@@ -340,7 +386,8 @@ internal sealed class TargetingGrid
     /// <summary>
     /// Floor division for a positive divisor. C# integer division truncates
     /// toward zero, which would put a query point left of or above the grid one
-    /// cell too close and break the ring bound.
+    /// cell closer to it than it really is. That only loosens the ring bound
+    /// and costs extra rings; floor division is kept because it is tighter.
     /// </summary>
     private static int FloorDivide(long dividend, long divisor)
     {

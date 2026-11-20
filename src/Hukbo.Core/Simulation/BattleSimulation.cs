@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using System.Collections.ObjectModel;
+using System.Runtime.CompilerServices;
 using Hukbo.Core.Combat;
 using Hukbo.Core.Determinism;
 using Hukbo.Core.Mathematics;
@@ -153,13 +154,24 @@ public sealed class BattleSimulation
     /// or carried across ticks. See
     /// <c>docs/plans/2026-11-21-ring-search-targeting-design.md</c>.
     /// </summary>
-    private readonly TargetingGrid[] _targetingGrids = [new(), new()];
+    private readonly TargetingGrid[] _targetingGrids;
+
+    /// <summary>
+    /// The current actor's local-context accumulator, reused for each actor of
+    /// <see cref="SelectTargetsAndIntents"/> and re-seeded at the top of every
+    /// actor's turn. Held here rather than inside <see cref="TargetSearch"/> so
+    /// the ring search, which derives no local context, does not zero-fill and
+    /// copy the accumulator's large state for every actor of every tick. Read
+    /// only under a preset that derives local context.
+    /// </summary>
+    private MovementContextAccumulator _contextAccumulator;
 
     /// <summary>
     /// Per-agent scratch for the evasive-footwork post-pass. Zero-length under
-    /// every preset but <see cref="MovementPresetId.EvasiveFootworkV14"/>,
-    /// following the <see cref="_nearestMeleeThreatSquared"/> precedent. The
-    /// pass resolves into this array and commits it onto
+    /// every preset but <see cref="MovementPresetId.EvasiveFootworkV14"/> and
+    /// <see cref="MovementPresetId.SeparatingContactV17"/>, following the
+    /// <see cref="_nearestMeleeThreatSquared"/> precedent. The pass resolves
+    /// into this array and commits it onto
     /// <see cref="AgentState.EvasiveAction"/> only once the whole loop has
     /// finished, so no agent can read another agent's already-updated value.
     /// </summary>
@@ -293,6 +305,16 @@ public sealed class BattleSimulation
         _agentViews = new AgentView[agents.Length];
         _agents = Array.AsReadOnly(_agentViews);
         _collision = new CollisionScratch(scenario, agents.Length, _movementRules);
+        FillSeparationConstants();
+        // Agents are clamped to the map, so no faction's bounding box is wider
+        // than the longer map side and the grids never outgrow this size.
+        var mapExtentRaw =
+            (long)Math.Max(scenario.MapWidth, scenario.MapHeight) * FixedPoint.Scale;
+        _targetingGrids =
+        [
+            new(TargetingGrid.DefaultCellSizeRaw, mapExtentRaw),
+            new(TargetingGrid.DefaultCellSizeRaw, mapExtentRaw),
+        ];
         _factionLivingCounts = new int[2];
         _factionRallyEntityIds = new ulong[2];
         _factionRallyEngaged = new bool[2];
@@ -1459,12 +1481,10 @@ public sealed class BattleSimulation
                 continue;
             }
 
-            var contextAccumulator = derivesLocalContext
-                ? new MovementContextAccumulator(
-                    agent.Loadout, immediateRadiusSquared, supportRadiusSquared)
-                : default;
             if (derivesLocalContext)
             {
+                _contextAccumulator = new MovementContextAccumulator(
+                    agent.Loadout, immediateRadiusSquared, supportRadiusSquared);
                 _factionSurvivingCompositions[agent.FactionId] =
                     _factionSurvivingCompositions[agent.FactionId]
                         .Add(agent.Loadout);
@@ -1483,8 +1503,7 @@ public sealed class BattleSimulation
                 this,
                 agent,
                 actorObservesMeleeThreats,
-                derivesLocalContext,
-                contextAccumulator);
+                derivesLocalContext);
             if (usesRingSearch)
             {
                 // Ring-search targeting design: the enemy faction's grid
@@ -1513,7 +1532,7 @@ public sealed class BattleSimulation
                         {
                             var allyDeltaX = (long)candidate.XRaw - agent.XRaw;
                             var allyDeltaY = (long)candidate.YRaw - agent.YRaw;
-                            search.ContextAccumulator.ObserveAlly(
+                            _contextAccumulator.ObserveAlly(
                                 candidate.EntityId,
                                 candidate.Loadout,
                                 checked(
@@ -1536,7 +1555,7 @@ public sealed class BattleSimulation
             if (derivesLocalContext)
             {
                 _localMovementContexts[agentIndex] =
-                    search.ContextAccumulator.Complete(selectedTarget?.EntityId);
+                    _contextAccumulator.Complete(selectedTarget?.EntityId);
                 _localMovementContextDerivations = checked(
                     _localMovementContextDerivations + 1);
             }
@@ -1586,9 +1605,19 @@ public sealed class BattleSimulation
     /// comparison.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// A struct passed by <c>ref</c> to <see cref="TargetingGrid.Search"/>, so
     /// the search allocates nothing. <see cref="Consider"/> expects a living
     /// enemy of the actor.
+    /// </para>
+    /// <para>
+    /// The three search methods skip tiered compilation. A short battle runs
+    /// mostly in the unoptimised first tier, and measured at 200 agents the
+    /// ring search's extra calls there raised the tick p95 by about 6% over the
+    /// brute-force scan, while fully optimised it was about 15% faster. Jitting
+    /// them optimised on first call removes that cost; the work they do is
+    /// unchanged.
+    /// </para>
     /// </remarks>
     private struct TargetSearch : ITargetingVisitor
     {
@@ -1598,7 +1627,6 @@ public sealed class BattleSimulation
         private readonly bool _observesMeleeThreats;
         private readonly bool _derivesLocalContext;
 
-        internal MovementContextAccumulator ContextAccumulator;
         internal AgentState? SelectedTarget;
         internal long SelectedDistance;
         internal long NearestMeleeThreatSquared;
@@ -1607,8 +1635,7 @@ public sealed class BattleSimulation
             BattleSimulation simulation,
             AgentState actor,
             bool observesMeleeThreats,
-            bool derivesLocalContext,
-            MovementContextAccumulator contextAccumulator)
+            bool derivesLocalContext)
         {
             _simulation = simulation;
             _actor = actor;
@@ -1616,24 +1643,28 @@ public sealed class BattleSimulation
                 (long)actor.PerceptionRangeRaw * actor.PerceptionRangeRaw);
             _observesMeleeThreats = observesMeleeThreats;
             _derivesLocalContext = derivesLocalContext;
-            ContextAccumulator = contextAccumulator;
             SelectedTarget = null;
             SelectedDistance = long.MaxValue;
             NearestMeleeThreatSquared = long.MaxValue;
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveOptimization)]
         public void Visit(AgentState candidate) => Consider(candidate);
 
-        // Strict > throughout: an unvisited candidate at exactly the best
-        // distance with a lower EntityId would win the tie-break. The
-        // perception bound is strict for the same reason the perception test
-        // rejects only distance > perceptionSquared.
+        // Strict > throughout, as a safety margin. With integer coordinates
+        // and half-open cells every candidate in the next ring is strictly
+        // farther than lowerBoundSquared, so >= would stop in the same places;
+        // strict stays correct even against an equally distant candidate with
+        // a lower EntityId. The perception test rejects only
+        // distance > perceptionSquared, so the perception bound is strict too.
+        [MethodImpl(MethodImplOptions.AggressiveOptimization)]
         public readonly bool CanStopBefore(long lowerBoundSquared) =>
             lowerBoundSquared > _perceptionSquared ||
             (lowerBoundSquared > SelectedDistance &&
                 (!_observesMeleeThreats ||
                     lowerBoundSquared > NearestMeleeThreatSquared));
 
+        [MethodImpl(MethodImplOptions.AggressiveOptimization)]
         internal void Consider(AgentState candidate)
         {
             var agent = _actor;
@@ -1675,7 +1706,7 @@ public sealed class BattleSimulation
             // tie-breaking, and target selection stays byte-identical.
             if (_derivesLocalContext)
             {
-                ContextAccumulator.ObserveEnemy(
+                _simulation._contextAccumulator.ObserveEnemy(
                     candidate.EntityId, candidate.Loadout, distance);
             }
 
@@ -2455,7 +2486,8 @@ public sealed class BattleSimulation
     /// section 5. Runs at the tail of <see cref="GatherMovementProposals"/>,
     /// after every ordinary proposal exists and before anything is resolved or
     /// committed, and only under
-    /// <see cref="MovementPresetId.EvasiveFootworkV14"/>.
+    /// <see cref="MovementPresetId.EvasiveFootworkV14"/> and
+    /// <see cref="MovementPresetId.SeparatingContactV17"/>.
     /// </summary>
     /// <remarks>
     /// <para>
@@ -5045,6 +5077,49 @@ public sealed class BattleSimulation
     }
 
     /// <summary>
+    /// The separation pass's weight for one armour weight class. Explicit
+    /// literals rather than the enum's numeric value, so renumbering or
+    /// reordering <see cref="ArmorWeightClass"/> cannot silently change the
+    /// separation under the preset that applies it.
+    /// </summary>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="weightClass"/> is not a declared member.
+    /// </exception>
+    internal static int SeparationWeightFor(ArmorWeightClass weightClass) =>
+        weightClass switch
+        {
+            ArmorWeightClass.Light => 1,
+            ArmorWeightClass.Medium => 2,
+            ArmorWeightClass.Rigid => 3,
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(weightClass),
+                weightClass,
+                "Unknown armour weight class for the separation pass."),
+        };
+
+    /// <summary>
+    /// Writes the per-agent separation inputs that never change during a
+    /// battle, entity ID and weight, so <see cref="ApplySeparatingContact"/>
+    /// does not rewrite them every tick. Does nothing when the preset builds no
+    /// separation pass.
+    /// </summary>
+    private void FillSeparationConstants()
+    {
+        if (_collision.Separation is null)
+        {
+            return;
+        }
+
+        for (var index = 0; index < _agentStates.Length; index++)
+        {
+            var agent = _agentStates[index];
+            _collision.SeparationEntityId[index] = agent.EntityId;
+            _collision.SeparationWeight[index] = SeparationWeightFor(
+                ArmorWeightClasses.Resolve(agent.Loadout.Armor));
+        }
+    }
+
+    /// <summary>
     /// The one separation pass of the tick, run only under a preset that applies
     /// separating contact (<c>docs/decisions/2026-11-21-separating-contact.md</c>
     /// item 4). It reads the positions <see cref="CommitMovement"/> just
@@ -5054,8 +5129,10 @@ public sealed class BattleSimulation
     /// agent, and the pass's displacement is not reported as movement.
     /// </summary>
     /// <remarks>
-    /// Weight is the armour weight class (<see cref="ArmorWeightClass"/>: light
-    /// 1, medium 2, rigid 3). A body counts as committed to a fight when its
+    /// Weight is the armour weight class (<see cref="SeparationWeightFor"/>:
+    /// light 1, medium 2, rigid 3). Weight and entity ID are fixed for a whole
+    /// battle, so <see cref="FillSeparationConstants"/> writes them once at
+    /// construction. A body counts as committed to a fight when its
     /// <see cref="AgentIntent"/> is <see cref="AgentIntent.Attacking"/>, which
     /// target selection assigns only to an agent already in body contact with
     /// its target. That is the same hashed state the rest of the tick reads, so
@@ -5075,11 +5152,8 @@ public sealed class BattleSimulation
             xRaw[index] = agent.XRaw;
             yRaw[index] = agent.YRaw;
             _collision.SeparationIsAlive[index] = agent.IsAlive;
-            _collision.SeparationEntityId[index] = agent.EntityId;
             _collision.SeparationIsCommitted[index] =
                 agent.Intent == AgentIntent.Attacking;
-            _collision.SeparationWeight[index] =
-                (int)ArmorWeightClasses.Resolve(agent.Loadout.Armor);
         }
 
         pass.Run(
