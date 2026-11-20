@@ -3889,3 +3889,41 @@ the plan's conditional task RS-5 does not start on this evidence.
 `MeasureCollision` is worth noting for later. It rebuilds a uniform grid every
 tick only to produce derived contact metrics that no rule reads, and it costs
 13.6% of the tick. It is not part of this plan.
+
+## Ring-search cell-size sweep — 2026-11-21
+
+Task RS-3 of `docs/plans/2026-11-21-wmao-optimizations.md`. Four scratch builds
+of the headless runner, identical except for `TargetingGrid.DefaultCellSizeRaw`,
+were built with `dotnet build src/Hukbo.Headless -c Release -o <dir>` and never
+committed. The sweep ran on branch `wmao-optimizations` with the ring search
+merged and before the review-fix round; the exact commit was not written down
+at the time. Each run was:
+
+```powershell
+<dir>/Hukbo.Headless.exe --agents <N> --ticks 10000 --seed 1 --log-level off `
+  --preset 8 --movement-preset 14
+```
+
+The four binaries were run interleaved, one after another inside each repeat,
+so that a change in machine load falls on every candidate alike. There were two
+repeats, and both are shown rather than a median, because two values have no
+meaningful median. Figures are milliseconds per tick, written as p50 / p95.
+
+| Cell size | 500 agents, run 1 | 500 agents, run 2 | 1,000 agents, run 1 | 1,000 agents, run 2 | 2,000 agents, run 1 | 2,000 agents, run 2 |
+| --- | --- | --- | --- | --- | --- | --- |
+| 16 wu | 0.25 / 1.92 | 0.25 / 1.83 | 0.86 / 2.29 | 0.86 / 2.13 | 2.81 / 6.09 | 2.43 / 5.27 |
+| 32 wu | 0.24 / 1.99 | 0.24 / 1.88 | 0.75 / 2.19 | 0.65 / 2.13 | 2.69 / 6.30 | 2.99 / 5.79 |
+| 64 wu | 0.24 / 2.11 | 0.24 / 2.01 | 0.75 / 2.23 | 0.66 / 2.20 | 2.88 / 6.55 | 2.57 / 6.52 |
+| 128 wu | 0.23 / 2.30 | 0.23 / 2.54 | 0.81 / 2.45 | 0.66 / 2.40 | 2.95 / 6.75 | 4.32 / 8.67 |
+
+Every one of the 24 runs produced the recorded hashes for its agent count
+(`14FF11B059C528CB` / `EAE53E226A601B03` at 500, `23C1E15282187F73` /
+`4D27E2506BF94FFD` at 1,000, `DE740A4F81B7BDCD` / `11FE0D668B6A8C0C` at 2,000),
+which is the expected result: the cell size changes how the search walks, never
+which enemy it returns.
+
+**Decision: the cell size stays at 32 world units.** Sixteen, 32, and 64 are
+within run-to-run noise of each other, and no candidate wins at every agent
+count. Only 128 is distinguishably worse, on p95 at every count. With no
+measured reason to move it, the constant keeps the value the design chose. Two
+repeats cannot rank 16 against 32, and this record does not claim they do.

@@ -182,6 +182,20 @@ objections are fair, and this proposal answers them directly.
   seeded battles at 200, 500, and 1,000 agents. The closest pair observed after
   the fix is 6,967 raw units. Any future change to `f` or `c` must keep
   `B + 4 ≤ 2R`.
+- **Second correction, 2026-11-21, found in review.** The limit above had a
+  hole of its own. Scaling truncates each displacement component toward zero.
+  A neighbour closer than `B + 4` allows no inward motion at all, so when the
+  body was not moving toward that neighbour it was skipped while the scale was
+  chosen. Truncation could then turn the scaled displacement into one with a
+  small component toward it, and a pair that started between `B` and `B + 4`
+  could end up to about 2.8 raw units below the bound. The pass now checks
+  again after any scaling: a body whose scaled displacement still moves toward
+  a neighbour closer than `B + 4` is not moved at all on that tick. A unit test
+  pins a configuration, found by scan, that falls below the bound when the
+  second check is disabled. The hole was rare in practice. The 1,000-agent
+  seed-1 battle produces the same hashes and the same closest pair, 6,967 raw
+  units, with and without the fix. Parameter validation now also rejects any
+  `f` and `c` for which `B < 1` or `B + 4 > 2R`.
 - **The iteration count is fixed at one pass per tick.** There is no
   convergence loop to tune.
 - **The weaker invariant buys something measurable:** the defect table in
