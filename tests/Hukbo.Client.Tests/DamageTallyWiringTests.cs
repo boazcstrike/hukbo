@@ -28,15 +28,14 @@ public sealed class DamageTallyWiringTests
         WeaponId.Kampilan,
         ShieldId.TallHardwood);
 
+    // Literal ordinals, so inserting a command ahead of either one fails here.
+    // A command appended after ToggleDamageTally leaves both unchanged, which
+    // is the point: the pin is "nothing moved", not "this is the last member".
     [Fact]
-    public void ToggleDamageTallyIsAppendedAfterEveryExistingCommand()
+    public void ToggleDamageTallyKeepsItsAppendedOrdinal()
     {
-        Assert.Equal(
-            (int)ClientCommand.ToggleInterpolation + 1,
-            (int)ClientCommand.ToggleDamageTally);
-        Assert.Equal(
-            ClientCommand.ToggleDamageTally,
-            Enum.GetValues<ClientCommand>().Max());
+        Assert.Equal(16, (int)ClientCommand.ToggleInterpolation);
+        Assert.Equal(17, (int)ClientCommand.ToggleDamageTally);
     }
 
     [Fact]

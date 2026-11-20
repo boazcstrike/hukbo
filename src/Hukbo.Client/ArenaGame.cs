@@ -241,7 +241,7 @@ public sealed partial class ArenaGame : Game
     // _damageTallyHover is the row the pointer is over this frame, or null:
     // the draw pass and the render probe both ring agents from it, so it is
     // cleared at the top of every Update and set only while the card is
-    // visible and consumed the pointer.
+    // visible and no surface above it consumed the pointer.
     private bool _isDamageTallyVisible;
     private DamageTallyHover? _damageTallyHover;
     private bool _isArmyCompositionPanelVisible;
@@ -461,6 +461,7 @@ public sealed partial class ArenaGame : Game
             _scenario.MapWidth,
             _scenario.MapHeight);
         _presentation.EventFeed.SetScenarioSeed(_scenario.Seed);
+        _presentation.DamageTally.SeedRoster(_simulation.Agents);
 
         LogScenarioBuilt("startup");
     }
@@ -915,7 +916,18 @@ public sealed partial class ArenaGame : Game
         }
 
         var pointerConsumed = false;
+
+        // The card's refresh clock runs every frame it is visible, whoever owns
+        // the pointer; the pointer is cleared here and set again only if the
+        // chain below reaches the card, so no row keeps a stale hover fill.
         _damageTallyHover = null;
+        _damageTallyPanel.ClearPointer();
+        if (_isDamageTallyVisible)
+        {
+            _damageTallyPanel.Tick(
+                _presentation.DamageTally,
+                gameTime.ElapsedGameTime);
+        }
 
         // Which surface claimed the press. The priority chain below is
         // invisible from outside the debugger, and a click that "did nothing"
@@ -1144,11 +1156,9 @@ public sealed partial class ArenaGame : Game
 
             if (!pointerConsumed && _isDamageTallyVisible)
             {
-                interaction = _damageTallyPanel.Update(
+                interaction = _damageTallyPanel.UpdatePointer(
                     _input,
-                    _presentation.DamageTally,
-                    layout.ArenaBounds,
-                    gameTime.ElapsedGameTime);
+                    layout.ArenaBounds);
                 pointerConsumed = interaction.PointerConsumed;
                 consumedBy = pointerConsumed ? "damageTally" : consumedBy;
                 _damageTallyHover = _damageTallyPanel.Hovered;
@@ -1544,6 +1554,11 @@ public sealed partial class ArenaGame : Game
             case ClientCommand.ToggleDamageTally:
                 _isDamageTallyVisible = !_isDamageTallyVisible;
                 _damageTallyHover = null;
+                if (_isDamageTallyVisible)
+                {
+                    _damageTallyPanel.Refresh(_presentation.DamageTally);
+                }
+
                 return;
             case ClientCommand.Minimize:
                 SDL_MinimizeWindow(Window.Handle);
@@ -2654,6 +2669,12 @@ public sealed partial class ArenaGame : Game
             resetCommand,
             CombatPresetRegistry.Get(_scenario.CombatPreset));
         _presentation.EventFeed.SetScenarioSeed(_scenario.Seed);
+
+        // A new battle opens paused and the tally is fed once per tick, so
+        // without these two calls the card would list no rows, or last
+        // battle's, until the first tick ran.
+        _presentation.DamageTally.SeedRoster(_simulation.Agents);
+        _damageTallyPanel.Refresh(_presentation.DamageTally);
         _soundDirector.Clear();
         _hoverSelection.Clear();
         _simulationAccumulator = 0;
@@ -2672,9 +2693,17 @@ public sealed partial class ArenaGame : Game
         // After the FullReset branch, which may change the requested speed.
         _renderPositions.Reset(_simulation.Agents);
         _renderAlpha = 0d;
-        _playRateGovernor.Reset();
-        _wasPlayRateGoverned = false;
-        _playRateGovernor.Update(0d, 0d, 0, _speedMultiplier, _scenario.TickRate);
+        // Only a full reset forgets the cost history. A next round runs on the
+        // same machine under the same load, so it keeps the governed speed and
+        // only re-clamps it to the requested speed; forgetting it would play
+        // the opening second ungoverned and stutter.
+        if (resetCommand == ClientCommand.FullReset)
+        {
+            _playRateGovernor.Reset();
+            _wasPlayRateGoverned = false;
+        }
+
+        UpdatePlayRateGovernor(0d, 0d, 0);
     }
 
     private void UpdateHoverSelection(Rectangle arenaBounds)
@@ -2717,11 +2746,15 @@ public sealed partial class ArenaGame : Game
             _renderAlpha);
     }
 
+    // A decided battle stops advancing, so the governor stops updating and its
+    // last verdict would otherwise read "holding" for as long as the result
+    // stays on screen.
     private string BuildSpeedText() =>
         PlaybackSpeedText.Format(
             _speedMultiplier,
             _playRateGovernor.EffectiveSpeed,
-            _playRateGovernor.IsGoverned);
+            _playRateGovernor.IsGoverned &&
+            _simulation.Outcome == BattleOutcome.Ongoing);
 
     private void UpdateWindowTitle()
     {

@@ -175,6 +175,51 @@ public sealed class WeaponDamageTallyTests
     }
 
     [Fact]
+    public void SeedRosterListsEveryFieldedRowBeforeAnyEventIsIngested()
+    {
+        var tally = new WeaponDamageTally(Rules);
+        var fallen = Agent(3, 1, WeaponId.Kampilan) with { IsAlive = false };
+
+        tally.SeedRoster(
+            [Agent(1, 0, WeaponId.Wasay), Agent(2, 0, WeaponId.Wasay), fallen]);
+
+        var wasay = Assert.Single(RowsOf(tally, 0));
+        Assert.Equal(WeaponId.Wasay, wasay.Weapon);
+        Assert.Equal(2, wasay.Alive);
+        Assert.Equal(2, wasay.Fielded);
+        Assert.Equal(0, wasay.Damage);
+        var kampilan = Assert.Single(RowsOf(tally, 1));
+        Assert.Equal(0, kampilan.Alive);
+        Assert.Equal(1, kampilan.Fielded);
+    }
+
+    [Fact]
+    public void SeedRosterAfterAResetReplacesTheLastBattlesRowsAndLearnsArmour()
+    {
+        var tally = new WeaponDamageTally(Rules);
+        tally.Ingest(
+            [Attack(1, source: 1, target: 2, damage: 10)],
+            [Agent(1, 0, WeaponId.Kampilan), Agent(2, 1, WeaponId.Kampilan)]);
+
+        tally.Reset();
+        tally.SeedRoster(
+            [
+                Agent(1, 0, WeaponId.Wasay),
+                Agent(2, 1, WeaponId.Kampilan, ArmorId.ImportedIron),
+            ]);
+
+        Assert.Equal(WeaponId.Wasay, Assert.Single(RowsOf(tally, 0)).Weapon);
+        Assert.Equal(0, tally.GetFactionDamage(0));
+
+        // The seeded armour is what a blow lands against: it needs no roster
+        // of its own on the ingest call.
+        tally.Ingest(
+            [Attack(2, source: 1, target: 2, damage: 100, weapon: WeaponId.Wasay)],
+            []);
+        Assert.Equal(68, tally.GetFactionDamage(0));
+    }
+
+    [Fact]
     public void RowsSortByDamageDescending()
     {
         var tally = new WeaponDamageTally(Rules);

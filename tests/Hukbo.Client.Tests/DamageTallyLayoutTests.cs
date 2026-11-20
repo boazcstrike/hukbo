@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using Hukbo.Client.Presentation;
 using Hukbo.Client.Settings;
@@ -31,6 +32,8 @@ public sealed class DamageTallyLayoutTests
         { 0, 0, 1280, 720, 21, 3 },
         { 0, 0, 1280, 720, 0, 0 },
         { 300, 40, 1280, 720, 11, 11 },
+        { 0, 0, 1280, 160, 11, 11 },
+        { 0, 0, 1280, 60, 11, 11 },
     };
 
     [Theory]
@@ -211,6 +214,30 @@ public sealed class DamageTallyLayoutTests
     }
 
     [Fact]
+    public void Calculate_InAnArenaShorterThanTheChromeDropsWhatDoesNotFit()
+    {
+        // 160 - 2 * 20 margin leaves 120 pixels; the full chrome needs 140.
+        var layout = DamageTallyLayout.Calculate(new Rectangle(0, 0, 1280, 160), 11, 11);
+
+        Assert.True(layout.TitleBounds.Height > 0);
+        Assert.True(layout.FirstSection.HeaderBounds.Height > 0);
+        Assert.Equal(0, layout.FirstSection.VisibleRowCount);
+        Assert.Equal(0, layout.FooterBounds.Height);
+        AssertInside(layout.Bounds, layout.FooterBounds);
+    }
+
+    [Fact]
+    public void Calculate_InAnArenaTooShortForTheTitleDrawsNothing()
+    {
+        var layout = DamageTallyLayout.Calculate(new Rectangle(0, 0, 1280, 60), 11, 11);
+
+        Assert.Equal(0, layout.TitleBounds.Height);
+        Assert.Equal(0, layout.FirstSection.HeaderBounds.Height);
+        Assert.Equal(0, layout.SecondSection.HeaderBounds.Height);
+        Assert.Equal(0, layout.FooterBounds.Height);
+    }
+
+    [Fact]
     public void Panel_ExposesTheHoveredRowAndNullElsewhere()
     {
         var tally = SeededTally();
@@ -219,22 +246,40 @@ public sealed class DamageTallyLayoutTests
         var layout = DamageTallyLayout.Calculate(arena, 2, 1);
         var firstRow = DamageTallyLayout.GetRowBounds(layout.FirstSection, 0).Center;
         var otherFaction = DamageTallyLayout.GetRowBounds(layout.SecondSection, 0).Center;
+        panel.Tick(tally, TimeSpan.Zero);
 
-        var interaction = panel.Update(InputAt(firstRow), tally, arena, TimeSpan.Zero);
+        var interaction = panel.UpdatePointer(InputAt(firstRow), arena);
 
         Assert.True(interaction.PointerConsumed);
         Assert.Equal(
             new DamageTallyHover(0, WeaponId.Wasay, ShieldId.None),
             panel.Hovered);
 
-        panel.Update(InputAt(otherFaction), tally, arena, TimeSpan.Zero);
+        panel.UpdatePointer(InputAt(otherFaction), arena);
         Assert.Equal(
             new DamageTallyHover(1, WeaponId.Kampilan, ShieldId.None),
             panel.Hovered);
 
-        var outside = panel.Update(InputAt(new Point(5, 5)), tally, arena, TimeSpan.Zero);
+        var outside = panel.UpdatePointer(InputAt(new Point(5, 5)), arena);
         Assert.Null(panel.Hovered);
         Assert.False(outside.PointerConsumed);
+    }
+
+    [Fact]
+    public void Panel_ClearPointerForgetsTheHoveredRow()
+    {
+        var panel = new DamageTallyPanel();
+        var arena = new Rectangle(0, 0, 1920, 1080);
+        var layout = DamageTallyLayout.Calculate(arena, 2, 1);
+        panel.Tick(SeededTally(), TimeSpan.Zero);
+        panel.UpdatePointer(
+            InputAt(DamageTallyLayout.GetRowBounds(layout.FirstSection, 0).Center),
+            arena);
+        Assert.NotNull(panel.Hovered);
+
+        panel.ClearPointer();
+
+        Assert.Null(panel.Hovered);
     }
 
     [Fact]
@@ -245,7 +290,8 @@ public sealed class DamageTallyLayoutTests
         var arena = new Rectangle(0, 0, 1920, 1080);
         var layout = DamageTallyLayout.Calculate(arena, 2, 1);
         var topRow = InputAt(DamageTallyLayout.GetRowBounds(layout.FirstSection, 0).Center);
-        panel.Update(topRow, tally, arena, TimeSpan.Zero);
+        panel.Tick(tally, TimeSpan.Zero);
+        panel.UpdatePointer(topRow, arena);
         Assert.Equal(WeaponId.Wasay, panel.Hovered!.Value.Weapon);
 
         // Kalis overtakes Wasay in the live tally.
@@ -253,14 +299,131 @@ public sealed class DamageTallyLayoutTests
             [Landed(1, source: 3, target: 9, damage: 500, WeaponId.Kalis)],
             Roster());
 
-        panel.Update(topRow, tally, arena, TimeSpan.FromMilliseconds(100));
+        panel.Tick(tally, TimeSpan.FromMilliseconds(100));
+        panel.UpdatePointer(topRow, arena);
         Assert.Equal(WeaponId.Wasay, panel.Hovered!.Value.Weapon);
 
-        panel.Update(topRow, tally, arena, TimeSpan.FromMilliseconds(100));
+        panel.Tick(tally, TimeSpan.FromMilliseconds(100));
+        panel.UpdatePointer(topRow, arena);
         Assert.Equal(WeaponId.Wasay, panel.Hovered!.Value.Weapon);
 
-        panel.Update(topRow, tally, arena, TimeSpan.FromMilliseconds(100));
+        panel.Tick(tally, TimeSpan.FromMilliseconds(100));
+        panel.UpdatePointer(topRow, arena);
         Assert.Equal(WeaponId.Kalis, panel.Hovered!.Value.Weapon);
+    }
+
+    [Fact]
+    public void Panel_RefreshClockAdvancesWithNoPointerUpdateAtAll()
+    {
+        // A surface above the card consuming the pointer means UpdatePointer
+        // is never called; the numbers must keep refreshing regardless.
+        var tally = SeededTally();
+        var panel = new DamageTallyPanel();
+        panel.Tick(tally, TimeSpan.Zero);
+        var before = panel.GetHeaderText(0);
+        Assert.Contains("40 dealt", before, StringComparison.Ordinal);
+
+        tally.Ingest(
+            [Landed(1, source: 3, target: 9, damage: 500, WeaponId.Kalis)],
+            Roster());
+        panel.Tick(tally, TimeSpan.FromMilliseconds(200));
+        Assert.Equal(before, panel.GetHeaderText(0));
+
+        panel.Tick(tally, TimeSpan.FromMilliseconds(100));
+        Assert.Contains("540 dealt", panel.GetHeaderText(0), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Panel_RefreshRetakesTheSnapshotWithoutWaitingForTheClock()
+    {
+        var tally = SeededTally();
+        var panel = new DamageTallyPanel();
+        panel.Tick(tally, TimeSpan.Zero);
+
+        tally.Reset();
+        panel.Refresh(tally);
+
+        Assert.Contains("0 dealt", panel.GetHeaderText(0), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Panel_ShowsTheRosterOfASeededTallyBeforeAnyTick()
+    {
+        var tally = new WeaponDamageTally(
+            CombatPresetRegistry.Get(CombatPresetId.PrecolonialPhilippinesV8));
+        tally.SeedRoster(Roster());
+        var panel = new DamageTallyPanel();
+        var arena = new Rectangle(0, 0, 1920, 1080);
+        var layout = DamageTallyLayout.Calculate(arena, 2, 1);
+
+        panel.Tick(tally, TimeSpan.Zero);
+        panel.UpdatePointer(
+            InputAt(DamageTallyLayout.GetRowBounds(layout.FirstSection, 0).Center),
+            arena);
+
+        Assert.NotNull(panel.Hovered);
+    }
+
+    [Theory]
+    [InlineData(0, "")]
+    [InlineData(-3, "")]
+    [InlineData(1, ".")]
+    [InlineData(3, "...")]
+    [InlineData(8, "Kampi...")]
+    [InlineData(40, "Kampilan — Great Blade")]
+    public void ClipLabel_FitsTheColumnWithNoFloor(int maximumCharacters, string expected)
+    {
+        var clipped = DamageTallyPanel.ClipLabel(
+            "Kampilan — Great Blade",
+            maximumCharacters);
+
+        Assert.Equal(expected, clipped);
+    }
+
+    [Fact]
+    public void Panel_ClipsEachLabelOncePerSnapshotAndWidth()
+    {
+        var panel = new DamageTallyPanel();
+        panel.Tick(SeededTally(), TimeSpan.Zero);
+
+        var first = panel.GetClippedLabel(0, 0, 6);
+        var again = panel.GetClippedLabel(0, 0, 6);
+        var wider = panel.GetClippedLabel(0, 0, 40);
+
+        Assert.Same(first, again);
+        Assert.True(first.Length <= 6);
+        Assert.NotEqual(first, wider);
+    }
+
+    [Fact]
+    public void Formatting_IgnoresTheCurrentCultureAndStaysInTheFontRange()
+    {
+        // A culture whose group separator, percent symbol, and percent pattern
+        // all fall outside the bundled fonts, as fr-FR and de-DE do on a
+        // machine with ICU. Built from the invariant culture so the test does
+        // not depend on the host's culture data.
+        var hostile = (CultureInfo)CultureInfo.InvariantCulture.Clone();
+        hostile.NumberFormat.NumberGroupSeparator = "\u202F";
+        hostile.NumberFormat.NumberDecimalSeparator = ",";
+        hostile.NumberFormat.PercentSymbol = "\u066A";
+        hostile.NumberFormat.PercentPositivePattern = 2;
+
+        var previous = CultureInfo.CurrentCulture;
+        try
+        {
+            CultureInfo.CurrentCulture = hostile;
+
+            Assert.Equal("1,234,567", DamageTallyPanel.FormatCount(1_234_567));
+            Assert.Equal("50 %", DamageTallyPanel.FormatShare(1, 2));
+            Assert.Equal("0 %", DamageTallyPanel.FormatShare(0, 0));
+            Assert.All(
+                DamageTallyPanel.FormatHeader(0, 1_234_567),
+                character => Assert.True(character < 0x2000 || character == '\u2014'));
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = previous;
+        }
     }
 
     private static WeaponDamageTally SeededTally()

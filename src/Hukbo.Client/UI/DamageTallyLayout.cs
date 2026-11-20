@@ -87,7 +87,10 @@ internal static class DamageTallyLayout
     /// arena is too short for every row, the lowest rows are dropped: the
     /// lists are sorted by damage, so the rows that go are the weakest. The
     /// two factions share the row budget, and a faction with few rows lends
-    /// its unused space to the other.
+    /// its unused space to the other. When the arena is shorter than the card's
+    /// own chrome, the title, headers, and footer that do not fit are dropped
+    /// from the bottom up as zero-height regions at the card's lower edge, so
+    /// every region stays inside <see cref="DamageTallyPanelLayout.Bounds"/>.
     /// </summary>
     /// <param name="firstRowCount">Rows in faction 0's sorted list.</param>
     /// <param name="secondRowCount">Rows in faction 1's sorted list.</param>
@@ -131,19 +134,19 @@ internal static class DamageTallyLayout
 
         var innerLeft = bounds.Left + padding;
         var innerWidth = Math.Max(0, width - (padding * 2));
-        var cursor = bounds.Top + padding;
+        var limit = Math.Max(bounds.Top, bounds.Bottom - padding);
+        var cursor = Math.Min(bounds.Top + padding, limit);
 
-        var title = new Rectangle(innerLeft, cursor, innerWidth, titleHeight);
-        cursor = title.Bottom;
+        var title = TakeBand(innerLeft, innerWidth, ref cursor, limit, titleHeight);
 
         var first = LayoutSection(
-            innerLeft, innerWidth, ref cursor, sectionHeaderHeight, rowHeight, firstVisible);
-        cursor += sectionGap;
+            innerLeft, innerWidth, ref cursor, limit, sectionHeaderHeight, rowHeight, firstVisible);
+        cursor = Math.Min(cursor + sectionGap, limit);
         var second = LayoutSection(
-            innerLeft, innerWidth, ref cursor, sectionHeaderHeight, rowHeight, secondVisible);
-        cursor += sectionGap;
+            innerLeft, innerWidth, ref cursor, limit, sectionHeaderHeight, rowHeight, secondVisible);
+        cursor = Math.Min(cursor + sectionGap, limit);
 
-        var footer = new Rectangle(innerLeft, cursor, innerWidth, footerHeight);
+        var footer = TakeBand(innerLeft, innerWidth, ref cursor, limit, footerHeight);
 
         return new DamageTallyPanelLayout(bounds, title, first, second, footer);
     }
@@ -221,14 +224,39 @@ internal static class DamageTallyLayout
         int left,
         int width,
         ref int cursor,
+        int limit,
         int headerHeight,
         int rowHeight,
         int visibleRows)
     {
-        var header = new Rectangle(left, cursor, width, headerHeight);
-        var rows = new Rectangle(left, header.Bottom, width, visibleRows * rowHeight);
-        cursor = rows.Bottom;
+        var header = TakeBand(left, width, ref cursor, limit, headerHeight);
+        var rows = TakeBand(left, width, ref cursor, limit, visibleRows * rowHeight);
         return new DamageTallySectionLayout(visibleRows, header, rows);
+    }
+
+    /// <summary>
+    /// Takes the next <paramref name="height"/> pixels below
+    /// <paramref name="cursor"/>, or, when they do not fit above
+    /// <paramref name="limit"/>, an empty band at the limit and every later
+    /// band empty too. A region is whole or absent: a clipped one would still
+    /// have its text drawn from its top edge, below the card.
+    /// </summary>
+    private static Rectangle TakeBand(
+        int left,
+        int width,
+        ref int cursor,
+        int limit,
+        int height)
+    {
+        if (height > limit - cursor)
+        {
+            cursor = limit;
+            return new Rectangle(left, limit, width, 0);
+        }
+
+        var band = new Rectangle(left, cursor, width, height);
+        cursor += height;
+        return band;
     }
 
     private static Rectangle TakeFromRight(Rectangle row, ref int right, int preferredWidth)
