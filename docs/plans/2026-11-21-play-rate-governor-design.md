@@ -184,6 +184,22 @@ These consumers keep **authoritative** tick positions:
   positions matter. Alpha is the fraction left over after the loop.
 - **Dead agents.** A corpse does not move, so previous equals current.
 
+**Implementation notes, 2026-11-21.** The wiring differs from this section in
+five small ways:
+
+- The interpolator captures positions after each tick rather than before it.
+- Alpha is set to 1 once the battle is decided, so the final frame shows the
+  authoritative positions.
+- The governor is re-clamped when a speed key is pressed and at the end of
+  `ResetSimulation`.
+- The status text uses an ASCII `x`, for example `4x (holding 2.6x)`, not `×`.
+- The shortcut hint line does not list `I`.
+
+Two behaviours need the smoke rows to judge them. After unpausing, alpha
+restarts near 0, so a pawn can step back by about a third of a tick once. The
+automatic camera pan follows tick positions, not drawn positions, so it may
+jitter slightly against the pawns it follows.
+
 ### 4.4 The visible cost, and how it is judged
 
 Event effects stay on tick positions while pawns are drawn up to one tick

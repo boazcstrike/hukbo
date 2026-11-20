@@ -114,6 +114,23 @@ is where yielding happens.
    snapshot.
 4. Apply all pushes, then clamp to the arena as `CollisionGeometry` already does.
 
+**Implementation notes, 2026-11-21.** The pure pass (SS-2) and the V17 ruleset
+(SS-1) differ from the list above in four ways:
+
+- Distance uses `FixedPoint.IntegerSquareRoot`, not `FixedPoint.Sqrt`, because
+  `Sqrt` rescales its result by the fixed-point scale and the pass works in raw
+  units throughout.
+- The sideways component is applied by each body rotating its own push normal
+  by +90 degrees, rather than by choosing a side from the lower entity id. The
+  two bodies of a pair still slide in opposite directions, and the result is
+  still independent of processing order.
+- A coincident pair takes its direction from a 16-entry unit-vector table,
+  indexed by the top four bits of an `Fnv1a` hash over both entity ids.
+- The V17 constants are stiffness 5,000 basis points (0.5), committed weight
+  multiplier 3, and sideways 2,500 basis points. The first two follow section 2.
+  The sideways value was chosen in implementation and is provisional, like the
+  others.
+
 A crowd-pressure channel, like We March as One's, is deferred. The first preset
 keeps only the overlap push, so its effect can be measured alone.
 

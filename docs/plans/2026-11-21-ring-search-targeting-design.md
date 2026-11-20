@@ -65,6 +65,14 @@ Every unvisited candidate then has squared distance strictly greater than
 `>`. With `≥`, the search could stop while an equally distant enemy with a lower
 `EntityId` sits in the next ring, and the tie-break would change.
 
+**Correction, 2026-11-21, found in implementation.** The last two sentences
+overstate the risk. Cells are half-open and coordinates are integers, so a query
+point lies at most `C − 1` raw units inside its own cell, and every candidate in
+ring `k` is at least `(k − 1) · C + 1` away along the offset axis. The bound
+`L_k²` is therefore never attained, and `≥` would give the same answers as `>`.
+The implementation keeps the strict comparison anyway, because it costs nothing
+and stays correct if the cell assignment ever changes.
+
 The search also stops when `L_k² > perception²`, because no later candidate can
 pass the perception test. Each visited candidate still goes through the existing
 perception test at `:1501-1505`, unchanged.
@@ -176,6 +184,14 @@ For each living actor:
    integer division truncates toward zero, so this step must use floor
    division explicitly. Truncation would put the actor one cell too close and
    break the bound in section 2.2.
+
+   **Correction, 2026-11-21, found in implementation.** Truncation does not
+   break the bound. It moves the actor's computed cell toward the grid, and the
+   actor is then really farther from every occupied cell than the ring bound
+   assumes. The bound only becomes looser and the search visits more rings. A
+   mutation test confirmed this: replacing floor division with truncation
+   fails no test, while weakening the ring bound itself fails 169. Floor
+   division is kept, because it gives the tighter bound.
 3. Set the first ring to the Chebyshev distance from `c_q` to the grid's cell
    bounds. Rings closer than that hold no cells.
 4. For each ring `k`, stop if `L_k² > best` for every result the actor needs,
