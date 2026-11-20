@@ -152,6 +152,16 @@ job in the plan, and no task may assume the attribution before it is taken.
 
 ### 4.1 `SelectTargetsAndIntents` is genuinely all-pairs, and spatial indexing cannot help it
 
+> **Correction, 2026-11-21.** The conclusion of this section is wrong for the
+> nearest-enemy query. It holds for radius pruning only. An expanding-ring
+> nearest-neighbour search stops once a found enemy is closer than the next ring
+> could be, which needs no perception bound. With a strict `>` termination test
+> it keeps the lower-`EntityId` tie-break and selects the identical target, so
+> it is hash-neutral. See `docs/plans/2026-11-21-ring-search-targeting-design.md`.
+> The V6 local-context accumulator in the same loop does observe every enemy,
+> and that part of the argument still stands. The text below is kept as it was
+> written.
+
 `BattleSimulation.SelectTargetsAndIntents` walks every agent (line 1277) and, for
 each living one, walks the entire agent array again (line 1329). At 1,000 agents
 that is 1,000,000 candidate visits per tick. The inner loop opens with an
