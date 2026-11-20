@@ -1,7 +1,7 @@
 # Optimizations from the We March as One comparison — plan
 
-**Authorized on 2026-11-21** for phases 0 to 4, after these documents were
-written. Phase 5 is blocked on a product-owner decision.
+**Authorized on 2026-11-21** for phases 0 to 5, after these documents were
+written. Phase 5 covers only the opt-in Hukbo preset that the decision record approves.
 
 **Baseline: `main` at `0ccc0d3`, 2026-11-21.** Branch `wmao-optimizations`.
 
@@ -12,7 +12,7 @@ Design documents, one per phase:
 | 1 | `docs/plans/2026-11-21-ring-search-targeting-design.md` | `Hukbo.Core`, hash-neutral |
 | 2 | `docs/plans/2026-11-21-play-rate-governor-design.md` | `Hukbo.Client` only |
 | 3 | `docs/plans/2026-11-21-weapon-damage-tally-design.md` | `Hukbo.Client` only |
-| 5 | `docs/plans/2026-11-21-soft-separation-design.md` | Proposal; blocked |
+| 5 | `docs/plans/2026-11-21-soft-separation-design.md` | `Hukbo.Core`, opt-in preset V17 |
 
 The comparison that produced these documents studied the decompiled source of
 We March as One, a Unity DOTS battle game. Its ideas transfer, and its code does
@@ -88,19 +88,29 @@ and `ClientCommand.cs` as phase 2, so it runs after PG-4.
 
 | Task | What | Files | Done when | Depends on | Verified by |
 | --- | --- | --- | --- | --- | --- |
-| IN-1 | Rebase onto the current local `main`. Run `./scripts/verify.ps1` once and paste its output. Both games must be green, and all seven Hukbo workload hashes must be unchanged | — | The gate is green and the hashes match `docs/development/testing.md` | All of phases 1 to 3 | The real gate output |
+| IN-1 | Rebase onto the current local `main`. Run `./scripts/verify.ps1` once and paste its output. Both games must be green, and all seven Hukbo workload hashes must be unchanged | — | The gate is green and the hashes match `docs/development/testing.md` | All of phases 1 to 3, and SS-3 | The real gate output |
 | IN-2 | Add the smoke rows named in the three design documents as `PENDING`, and update the controls paragraph with `I` and `T`. Recount the status column at write time, because another session edits this file | `docs/development/smoke-checklist.md` | The rows exist and the counts are right | IN-1 | Recount by `Select-String` |
 | IN-3 | Merge into `main` through a pull request, then remove the worktree and the merged branch | — | Merged | IN-2 | `git log main` |
 
 ---
 
-## Phase 5 — soft separation (blocked)
+## Phase 5 — separating contact, opt-in Hukbo preset V17
 
-| Task | What | Depends on |
-| --- | --- | --- |
-| SS-0 | Write the decision record the soft-separation proposal asks for (its §7), if the product owner approves it. Until then nothing in this phase starts | Product-owner decision |
+Approved on 2026-11-21. Decision record:
+`docs/decisions/2026-11-21-separating-contact.md`. Design:
+`docs/plans/2026-11-21-soft-separation-design.md`, sections 3 and 5. Sandata
+is out of scope.
 
-The tasks after SS-0 are planned only once the decision is taken.
+V1 to V16 must keep every recorded hash and every pinned `ContentHash`. V17
+gets new pins of its own. A moved existing hash means a task is wrong.
+
+| Task | What | Files | Done when | Depends on | Verified by |
+| --- | --- | --- | --- | --- | --- |
+| SS-0 | Write the decision record and update the design | `docs/decisions/2026-11-21-separating-contact.md`, the design | Committed | Approval | Done 2026-11-21 |
+| SS-1 | Append `SeparatingContactV17 = 17`. Add the ruleset gate `AppliesSeparatingContact` and its basis-point fields: soft-band fraction, push cap as a share of the radius, stiffness, committed-weight multiplier, and sideways share. Fold them only inside the gate. Register V17 as a copy of V14's row plus the gate. Pin V17's new `ContentHash` and extend the registration tests | `src/Hukbo.Core/Movement/MovementPresetId.cs`, `src/Hukbo.Core/Movement/MovementRuleset.cs`, `src/Hukbo.Core/Movement/MovementPresetRegistry.cs`, the registration and `ContentHash` tests | Every V1–V16 pin is unchanged and V17 has its own | — | `./scripts/test.ps1 -Configuration Release` |
+| SS-2 | Write a pure `SeparationPass` (design §3.1): a Jacobi pass over a position snapshot, with a weight share, an `Fnv1a` direction for coincident pairs, a sideways component in the soft band, the push cap, and the arena clamp. Integer math only. Test order independence (shuffled storage gives the same result), the weight share, the cap, the coincident direction, the sideways side, and zero warm allocation | `src/Hukbo.Core/Simulation/SeparationPass.cs` (new), `tests/Hukbo.Core.Tests/SeparationPassTests.cs` (new) | Tests pass | — | Filtered `dotnet test` on `SeparationPass` |
+| SS-3 | Wire V17 into the tick. Pass the floor `2R × (1 − f)` to `CollisionResolver` under the gate, with `2R` everywhere else. Run the pass after `CommitMovement` under the gate. Make the zero-overlap tests preset-aware, and add the invariant test `d ≥ 2R(1 − f) − 2c` over seeded V17 battles. Add V17 to the army-composition preset list. Amend `SIMULATION-GAME-STANDARDS.md` §13 and the `CollisionMetrics` documentation | `src/Hukbo.Core/Simulation/BattleSimulation.cs`, `src/Hukbo.Core/Simulation/CollisionResolver.cs`, `src/Hukbo.Client/UI/ArmyCompositionPanel.cs`, `src/Hukbo.Core/Simulation/CollisionMetrics.cs`, collision and panel tests, `tests/Hukbo.Core.Tests/SeparatingContactTests.cs` (new), `SIMULATION-GAME-STANDARDS.md` | Both suites pass, all existing gate hashes unchanged, and the V17 invariant holds | SS-1, SS-2, RS-2 (shared `BattleSimulation.cs`) | `./scripts/test.ps1 -Configuration Release` and a gate-hash check |
+| SS-4 | Measure V17 against V14 under combat V8 (design §5): 20 seeds at 200 agents for decision rate, blocked agent-ticks at 500 agents, the 2,000-agent battle, and tick cost at 500 and 1,000. Record the results. Add smoke rows as `PENDING`. Do not change the default | `docs/development/measurement-history.md`, `docs/development/smoke-checklist.md` | The table is recorded with commands, and each design §5 condition is marked pass or fail | SS-3 | The recorded figures |
 
 ---
 

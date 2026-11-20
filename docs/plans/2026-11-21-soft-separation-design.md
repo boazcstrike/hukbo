@@ -1,13 +1,16 @@
-# Soft separation — design proposal
+# Soft separation — design
 
-**Status: proposal. This document authorizes nothing.** It asks to reverse a
-recorded decision. `docs/decisions/2026-07-27-collision-policy.md` §12 rejected
-"soft discs with bounded penetration". Section 13 of
-`SIMULATION-GAME-STANDARDS.md` says "adding a second policy value is a new
-decision record, not an implementation detail". Sandata's design document bans
-push-apart at `:1097-1099`. No code in this document may be written until the
-product owner approves a new decision record that supersedes those passages.
-The plan document lists the work as blocked on that approval.
+**Status: the Hukbo opt-in preset is approved; Sandata is not.** The product
+owner approved the Hukbo half of this proposal on 2026-11-21. The decision
+record is `docs/decisions/2026-11-21-separating-contact.md`, and it supersedes
+the "soft discs" row of `docs/decisions/2026-07-27-collision-policy.md` §12 for
+that preset only. The Sandata half (section 4) remains a proposal and needs a
+second decision after the Hukbo measurements.
+
+When this document was first written it asked to reverse a recorded decision.
+Section 13 of `SIMULATION-GAME-STANDARDS.md` said "adding a second policy value
+is a new decision record, not an implementation detail". Sandata's design
+document bans push-apart at `:1097-1099`.
 
 **Baseline: `main` at `0ccc0d3`, 2026-11-21.**
 
@@ -66,14 +69,31 @@ Those numbers are floats tuned for another game. Only the structure transfers.
 
 ## 3. The proposal for Hukbo
 
-A new movement preset, appended after V16. It selects a new collision policy,
-`CollisionPolicy.Separating`, through a new decision record. Every existing
-preset keeps `CollisionPolicy.Solid` byte for byte, so no recorded hash moves
-until the shipped default changes.
+A new movement preset, `SeparatingContactV17 = 17`, appended after V16. It is
+movement **V14 with separation added and nothing else**. V14 is the shipped
+default, so the experiment changes exactly one variable. V16's shield
+encumbrance is not carried over.
+
+The preset carries the behaviour, as every movement change in Hukbo does. The
+ruleset gains an `AppliesSeparatingContact` gate and its parameters, folded into
+`MovementRuleset.ContentHash` only inside that gate, following the pattern of
+the existing gates (`MovementRuleset.cs:1226-1256`). V1 to V16 fold the same
+bytes as before, so no recorded hash and no pinned `ContentHash` moves.
+`Scenario.CollisionPolicy` keeps its single value, `Solid`. Its meaning is
+amended by the decision record: under a preset that applies separating contact,
+`Solid` names the hard floor in section 3.2, not zero overlap.
 
 ### 3.1 The pass, in fixed point
 
-After `CommitMovement`, one separation pass runs over living agents:
+Two pieces change under the new preset.
+
+**The resolver gets a smaller hard floor.** `CollisionResolver` keeps its
+ladder, its priority order, and its strict overlap test. Only the distance it
+tests against changes: `floor = 2R × (1 − f)`, where `f` is the **soft-band
+fraction**. A mover may step into the band between `floor` and `2R`. That band
+is where yielding happens.
+
+**A separation pass runs after `CommitMovement`, before `MeasureCollision`:**
 
 1. Snapshot all positions into a flat array.
 2. For each living agent in ascending `EntityId`, sum the pushes from every
@@ -85,9 +105,17 @@ After `CommitMovement`, one separation pass runs over living agents:
    - weight share `w_other / (w_me + w_other)`, where weight comes from the
      armour weight class that already scales movement speed
      (`ArmorWeightClasses`), times a committed-in-combat factor.
-3. Average over the contact count, multiply by the stiffness, cap the length,
-   and write the result into a second array. Never write into the snapshot.
+   - inside the soft band, add a small sideways component perpendicular to
+     the line between centres, its side chosen by the lower entity id, so a
+     symmetric head-on pair slides past instead of pressing forever. This is
+     the same idea as We March as One's tangential push.
+3. Average over the contact count, multiply by the stiffness, cap the length at
+   `c`, and write the result into a second array. Never write into the
+   snapshot.
 4. Apply all pushes, then clamp to the arena as `CollisionGeometry` already does.
+
+A crowd-pressure channel, like We March as One's, is deferred. The first preset
+keeps only the overlap push, so its effect can be measured alone.
 
 Every multiply and division is integer. Every constant is a basis-point field on
 the movement ruleset, labelled provisional in code and tests. The pass is
@@ -100,10 +128,22 @@ The decision record of 2026-07-27 rejected soft discs because they need "an
 invented maximum-penetration constant" and give "a weaker invariant". Both
 objections are fair, and this proposal answers them directly.
 
-- **The constant is a cap, and the cap is tested.** The new invariant is that no
-  living pair overlaps by more than `MaximumOverlapBasisPoints × 2R` at the end
-  of any tick. A regression test asserts it over seeded battles, just as
-  `CollisionRegressionTests.cs:64` asserts zero overlap today.
+- **The bound is proved, not hoped for.** The resolver guarantees that every
+  living pair ends `CommitMovement` at least `floor` apart. The pass then moves
+  each body at most `c`, so no pair distance shrinks by more than `2c`. After
+  every tick, therefore:
+
+  ```text
+  for every pair of living agents:  d  >=  2R(1 - f) - 2c
+  ```
+
+  With the starting values `f = 15%` and `c = 5% of R`, that is `d ≥ 1.6R`, an
+  overlap of at most 20% of a diameter. A regression test asserts the formula
+  over seeded battles, just as `CollisionRegressionTests.cs:64` asserts zero
+  overlap today. The resolver also accepts a starting position already inside
+  the floor, as it already accepts merely overlapping stationary bodies
+  (`CollisionResolverTests.cs:399`), so a pair the pass left below `floor`
+  recovers on later ticks instead of locking.
 - **The iteration count is fixed at one pass per tick.** There is no
   convergence loop to tune.
 - **The weaker invariant buys something measurable:** the defect table in
@@ -121,10 +161,11 @@ objections are fair, and this proposal answers them directly.
 
 ### 3.4 What changes and must be rewritten
 
-- `SIMULATION-GAME-STANDARDS.md` §13 gains a second policy with its own
-  invariant. The sentence that forbids a second policy is replaced, by the
-  decision record, with the rules for this one.
-- Tests that assert zero overlap become per-policy:
+- `SIMULATION-GAME-STANDARDS.md` §13 gains the floor rule and the bounded
+  invariant for presets that apply separating contact. The sentence that
+  forbids any other behaviour is narrowed, by the decision record, to every
+  preset that does not.
+- Tests that assert zero overlap become preset-aware:
   - `CollisionRegressionTests` (`:64`, `:87`);
   - `CollisionMetricsTests` (`:23`, `:131`);
   - `HeadlessRunnerTests` (`:437`).
@@ -186,11 +227,12 @@ All measurements compare the new preset against movement V14 with combat V8.
 My recommendation is to build the Hukbo preset as an opt-in experiment, measure
 it against section 5, and decide from data whether it becomes the default.
 
-## 7. The decision the product owner is asked for
+## 7. The decision the product owner was asked for
 
-Approve or reject a new decision record that:
+**Approved on 2026-11-21**, as `docs/decisions/2026-11-21-separating-contact.md`.
+The request was for a new decision record that:
 
-1. allows a second collision policy, `Separating`, alongside `Solid`;
+1. allows a separating-contact behaviour beside the zero-overlap rule;
 2. defines its bounded-overlap invariant and its single-pass rule;
 3. states that a weight share on a positional correction is not rigid-body
    physics under `CLAUDE.md` §9;
