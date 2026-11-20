@@ -198,6 +198,29 @@ public sealed class PawnQuadCountTests
     }
 
     /// <summary>
+    /// <c>PawnRenderer.DrawSpotlightMark</c> draws a four-edge ring — a fixed
+    /// +4 over the same layout's count, whatever the pawn's state and at every
+    /// detail tier. A selected pawn that is also spotlit pays for both marks.
+    /// </summary>
+    [Theory]
+    [InlineData(LowTierZoom, nameof(PawnVisualState.Normal))]
+    [InlineData(MediumTierZoom, nameof(PawnVisualState.Normal))]
+    [InlineData(HighTierZoom, nameof(PawnVisualState.Normal))]
+    [InlineData(HighTierZoom, nameof(PawnVisualState.Selected))]
+    [InlineData(HighTierZoom, nameof(PawnVisualState.Hovered))]
+    public void Count_AddsExactlyFourForTheSpotlightMark(float zoom, string stateName)
+    {
+        var state = Enum.Parse<PawnVisualState>(stateName);
+        var appearance = PawnAppearanceFactory.Create(0, WeaponId.Kalis, ShieldId.None);
+        var layout = PawnGeometry.Create(Vector2.Zero, zoom, appearance);
+
+        var unlit = PawnQuadCount.Count(layout, appearance, state);
+        var lit = PawnQuadCount.Count(layout, appearance, state, isSpotlit: true);
+
+        Assert.Equal(unlit + 4, lit);
+    }
+
+    /// <summary>
     /// <c>PawnRenderer.DrawDeadMark</c> draws two crossed lines — a fixed +2
     /// over the same layout's normal-state count — but only at
     /// <c>PawnDetailTier.Low</c> since the 2026-08-14 death collapse, where
