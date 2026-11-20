@@ -10,8 +10,9 @@ namespace Hukbo.Core.Tests;
 /// ever be a faster way of computing what <see cref="NaiveNearestEnemy.Find"/>
 /// already computes, so every test asserts exact equality against that oracle
 /// over scenarios built from <see cref="SplitMix64"/>, never against a
-/// hand-written expectation, apart from the one handcrafted tie case that
-/// exists to pin the strict stop bound. Design:
+/// hand-written expectation, apart from the handcrafted cases that pin the
+/// far-ring tie, the perception boundary, extreme query coordinates, and the
+/// allocation-free rebuild. Design:
 /// <c>docs/plans/2026-11-21-ring-search-targeting-design.md</c> section 6.
 /// </summary>
 public sealed class TargetingGridTests
@@ -201,12 +202,14 @@ public sealed class TargetingGridTests
     }
 
     /// <summary>
-    /// The case the strict stop bound exists for. With 1-unit cells and the
-    /// actor at the corner of its cell, the enemy with the higher entity ID at
-    /// (3, 4) sits in ring 4 and the enemy with the lower entity ID at (5, 0)
-    /// sits in ring 5, both at squared distance 25. Ring 5's lower bound,
-    /// (5 - 1) * 1 unit, squared, is 16, below the best of 25, so the search
-    /// must go on into ring 5 and pick the lower entity ID.
+    /// The far-ring tie. With 1-unit cells and the actor at the corner of its
+    /// cell, the enemy with the higher entity ID at (3, 4) sits in ring 4 and
+    /// the enemy with the lower entity ID at (5, 0) sits in ring 5, both at
+    /// squared distance 25. Ring 5's lower bound, (5 - 1) * 1 unit, squared, is
+    /// 16, below the best of 25, so the search must go on into ring 5 and pick
+    /// the lower entity ID. The bound is what keeps it going; a strict or a
+    /// non-strict comparison would both continue here, because the strict
+    /// comparison is only a safety margin.
     /// </summary>
     [Fact]
     public void EqualDistanceEnemyInAFartherRing_WithALowerEntityId_Wins()
@@ -223,6 +226,122 @@ public sealed class TargetingGridTests
 
         Assert.Equal(25L * UnitRaw * UnitRaw, visitor.Selected);
         Assert.Equal(2UL, visitor.Target);
+    }
+
+    public static TheoryData<int> CellSizes() => new()
+    {
+        UnitRaw,
+        8 * UnitRaw,
+        TargetingGrid.DefaultCellSizeRaw,
+        1_000 * UnitRaw,
+    };
+
+    /// <summary>
+    /// Perception rejects only a squared distance strictly above its range, so
+    /// an enemy exactly on the boundary is perceived and one raw unit beyond
+    /// is not. The farther enemy has the lower entity ID, so wrongly including
+    /// it would change the answer.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(CellSizes))]
+    public void EnemyExactlyAtPerceptionRange_IsPerceivedAndOneRawUnitBeyondIsNot(int cellSizeRaw)
+    {
+        const int perceptionRaw = 10 * UnitRaw;
+        var actor = CreateAgent(10, 0, 0, 0, perceptionRaw);
+        var onTheBoundary = CreateAgent(5, 1, perceptionRaw, 0, perceptionRaw);
+        var justBeyond = CreateAgent(1, 1, 0, perceptionRaw + 1, perceptionRaw);
+
+        var both = new[] { justBeyond, onTheBoundary, actor };
+        AssertMatchesOracle(both, cellSizeRaw);
+        var visitor = new NearestEnemyVisitor(actor, observesThreats: false);
+        BuildGrids(both, cellSizeRaw)[1].Search(actor.XRaw, actor.YRaw, ref visitor);
+        Assert.Equal(5UL, visitor.Target);
+        Assert.Equal((long)perceptionRaw * perceptionRaw, visitor.Selected);
+
+        var beyondOnly = new[] { justBeyond, actor };
+        AssertMatchesOracle(beyondOnly, cellSizeRaw);
+        var none = new NearestEnemyVisitor(actor, observesThreats: false);
+        BuildGrids(beyondOnly, cellSizeRaw)[1].Search(actor.XRaw, actor.YRaw, ref none);
+        Assert.Null(none.Target);
+    }
+
+    /// <summary>
+    /// A query coordinate at the edge of <see cref="int"/>, with the enemy at
+    /// the opposite edge, puts the first ring more than 130,000 rings out, so
+    /// its lower bound is above the largest value that can be squared. The
+    /// search must saturate that bound rather than overflow, and still reach
+    /// every enemy.
+    /// </summary>
+    [Theory]
+    [InlineData(int.MinValue, int.MaxValue)]
+    [InlineData(int.MaxValue, int.MinValue)]
+    public void QueryAtTheEdgeOfTheCoordinateRange_SaturatesTheBoundAndVisitsEveryEnemy(
+        int queryCoordinate,
+        int enemyEdge)
+    {
+        var step = enemyEdge > 0 ? -1 : 1;
+        var agents = new[]
+        {
+            CreateAgent(1, 1, enemyEdge + (step * 100 * UnitRaw), enemyEdge + (step * 50 * UnitRaw), WholeMapPerceptionRaw),
+            CreateAgent(2, 1, enemyEdge + (step * 10 * UnitRaw), enemyEdge, WholeMapPerceptionRaw),
+        };
+        var grid = new TargetingGrid();
+        grid.Rebuild(agents, 1);
+
+        var visitor = new BoundRecordingVisitor();
+        grid.Search(queryCoordinate, queryCoordinate, ref visitor);
+
+        Assert.Equal(2, visitor.Visits);
+        Assert.Equal(long.MaxValue, visitor.LargestBoundSquared);
+    }
+
+    /// <summary>
+    /// An ordinary query's bound is the exact square of its ring's lower bound,
+    /// so saturation only ever replaces a value that would have overflowed.
+    /// </summary>
+    [Fact]
+    public void OrdinaryQuery_PassesTheExactSquaredBound()
+    {
+        var agents = new[]
+        {
+            CreateAgent(1, 1, 100 * UnitRaw, 0, WholeMapPerceptionRaw),
+            CreateAgent(2, 1, 0, 0, WholeMapPerceptionRaw),
+        };
+        var grid = new TargetingGrid(UnitRaw);
+        grid.Rebuild(agents, 1);
+
+        var visitor = new BoundRecordingVisitor();
+        grid.Search(0, 0, ref visitor);
+
+        // The last ring is 100 cells out; its bound is 99 cells of 1 unit.
+        Assert.Equal(99L * UnitRaw * 99L * UnitRaw, visitor.LargestBoundSquared);
+    }
+
+    /// <summary>
+    /// A faction spreading out mid-battle widens its bounding box and needs
+    /// more cells. The cell array is sized on the first rebuild for the extent
+    /// the grid was told to expect, so a wider rebuild within it, and the
+    /// narrow one after it, allocate nothing.
+    /// </summary>
+    [Fact]
+    public void RebuildingWithAWiderBoundingBox_AllocatesNothingOnceWarm()
+    {
+        var random = new SplitMix64(900UL);
+        var narrow = CreateScatter(ref random, 200, 0, 40, WholeMapPerceptionRaw);
+        var wide = CreateScatter(ref random, 200, 0, 8_000, WholeMapPerceptionRaw);
+        var grid = new TargetingGrid(expectedExtentRaw: 8_192L * UnitRaw);
+        grid.Rebuild(narrow, 1);
+        var narrowCellSide = grid.CellSizeRaw;
+
+        var allocatedBefore = GC.GetAllocatedBytesForCurrentThread();
+        grid.Rebuild(wide, 1);
+        var wideCellSide = grid.CellSizeRaw;
+        grid.Rebuild(narrow, 1);
+        var allocatedBytes = GC.GetAllocatedBytesForCurrentThread() - allocatedBefore;
+
+        Assert.Equal(TargetingGrid.DefaultCellSizeRaw, narrowCellSide);
+        Assert.Equal(TargetingGrid.DefaultCellSizeRaw, wideCellSide);
+        Assert.Equal(0L, allocatedBytes);
     }
 
     [Fact]
@@ -438,6 +557,25 @@ public sealed class TargetingGridTests
             lowerBoundSquared > _perceptionSquared ||
             (lowerBoundSquared > Selected &&
                 (!_observesThreats || lowerBoundSquared > Threat));
+    }
+
+    /// <summary>
+    /// A visitor that never stops the search and records the largest squared
+    /// bound the search offered it.
+    /// </summary>
+    private struct BoundRecordingVisitor : ITargetingVisitor
+    {
+        internal int Visits { get; private set; }
+
+        internal long LargestBoundSquared { get; private set; }
+
+        public void Visit(AgentState candidate) => Visits++;
+
+        public bool CanStopBefore(long lowerBoundSquared)
+        {
+            LargestBoundSquared = Math.Max(LargestBoundSquared, lowerBoundSquared);
+            return false;
+        }
     }
 
     /// <summary>A visitor that never stops the search and records every visit.</summary>
