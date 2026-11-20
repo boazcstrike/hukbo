@@ -113,7 +113,9 @@ Rules the implementation must keep:
   weapon-label switch crashing the client on the first arquebus attack. Do not
   write another.
 - **Colours come from the theme.** Use the 27 semantic roles in
-  `Theming/UiTheme.cs`, never a literal `Color`.
+  `Theming/UiTheme.cs`, never a literal `Color`. `PawnRenderer` takes no
+  theme, so the spotlight ring takes its colour as a `Color?` argument. The
+  caller passes `UiThemeColors.StatusInfo`, and `null` draws no ring.
 - **Pointer priority.** The card takes the pointer before the arena and after
   the inspector, in the chain at `ArenaGame.cs:1043-1114`.
 - **The menu panel is full** (657 px budget, both columns at 634). The toggle is

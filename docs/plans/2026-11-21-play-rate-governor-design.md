@@ -69,7 +69,13 @@ calls to `AdvanceOneTick`, `IngestTick`, and `IngestImmediate`, timed with
   the same 50% share the thousand-unit performance plan uses for submit time.
 - **Sustainable rate.** `sustainableTicksPerSecond = 0.5 / smoothedCostPerTick`.
 - **Governed speed.** `sustainableTicksPerSecond / TickRate`, clamped to the
-  range `[0.25, requested]`. The floor keeps a battle moving on any machine.
+  range `[0.25, 4]`. The floor keeps a battle moving on any machine. The client
+  plays at `min(requested, governed)`. The clamp is not `[0.25, requested]`,
+  because then pressing 4× on a cheap battle would climb at the rising rate for
+  several seconds and show `holding` the whole time. A speed key now takes
+  effect at once. This change was made in implementation on 2026-11-21.
+- **Cost smoothing.** The cost per tick is itself smoothed with a 0.25 s time
+  constant before the speed is computed.
 - **Smoothing.** The governed speed moves toward its target with a time
   constant of 0.4 s when falling and 2.5 s when rising. These two numbers are a
   starting point, labelled provisional in code, to tune during the smoke rows.
