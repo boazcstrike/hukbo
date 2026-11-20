@@ -161,6 +161,22 @@ objections are fair, and this proposal answers them directly.
   the floor, as it already accepts merely overlapping stationary bodies
   (`CollisionResolverTests.cs:399`), so a pair the pass left below `floor`
   recovers on later ticks instead of locking.
+- **Correction, 2026-11-21, found in implementation (SS-3).** The proof above
+  has a gap. The resolver leaves a pair that already starts inside `floor`
+  where it is, and the pass then averages pushes over all contacts, so pushes
+  from third parties could squeeze such a pair closer on tick after tick.
+  Measured before the fix, a 1,000-agent battle reached a closest pair of
+  5,799 raw units against a bound of 6,964. The pass now limits each body's
+  motion. After the arena clamp, a body's displacement is scaled toward zero
+  until its component toward every neighbour closer than `2R` is at most half
+  of that pair's remaining slack above the bound, less a margin of 4 raw units
+  that absorbs integer rounding. The pair distance can only shrink by the sum
+  of the two bodies' components toward each other, so no pair can cross the
+  bound. The resolver never closes a pair below `min(start distance, floor)`,
+  so the bound now holds on every tick by induction. A test asserts it over
+  seeded battles at 200, 500, and 1,000 agents. The closest pair observed after
+  the fix is 6,967 raw units. Any future change to `f` or `c` must keep
+  `B + 4 ≤ 2R`.
 - **The iteration count is fixed at one pass per tick.** There is no
   convergence loop to tune.
 - **The weaker invariant buys something measurable:** the defect table in

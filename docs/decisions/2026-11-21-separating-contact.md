@@ -72,6 +72,15 @@ that applies everywhere.
   documentation says so.
 - A V17 workload is added to the measurement record, not to the canonical
   gate, until it is a default candidate.
+- **Added in implementation, 2026-11-21.** `BattleSimulation` switches several
+  V14 behaviours on by preset identity rather than by ruleset field:
+  battlefield realism, the last-stand yield, lateral cohort deployment, the
+  evasive scratch and its hash fold, and the evasive-footwork arms. V17 is
+  admitted at all seven of those sites, because without them V17 would not be
+  "V14 plus separation". The V14 hashes are unchanged.
+- **Added in implementation, 2026-11-21.** The invariant needed a limit on the
+  pass to hold on every tick. The soft-separation design records the gap in
+  its section 3.2 and the limit that closes it.
 
 ## Not decided here
 
