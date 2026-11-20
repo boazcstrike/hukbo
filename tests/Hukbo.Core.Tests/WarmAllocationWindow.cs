@@ -57,6 +57,43 @@ internal static class WarmAllocationWindow
     }
 
     /// <summary>
+    /// Runs <paramref name="runAttempt"/> until <paramref name="failureOf"/>
+    /// accepts its measurement or <see cref="MaximumAttempts"/> is reached, for
+    /// bars that are a ceiling rather than zero. Each call of
+    /// <paramref name="runAttempt"/> must build fresh state, warm it, measure
+    /// and return the measurement, so a runtime allocation that lands in one
+    /// window is not carried into the next. <paramref name="failureOf"/>
+    /// returns <see langword="null"/> when every bar holds and the text of the
+    /// violated bar otherwise; the failure message lists every attempt's text.
+    /// </summary>
+    internal static void AssertEventually<T>(
+        Func<T> runAttempt,
+        Func<T, string?> failureOf,
+        string description)
+    {
+        var failures = new List<string>(MaximumAttempts);
+        while (failures.Count < MaximumAttempts)
+        {
+            var failure = failureOf(runAttempt());
+            if (failure is null)
+            {
+                return;
+            }
+
+            failures.Add(failure);
+        }
+
+        var perAttempt = string.Join(
+            Environment.NewLine,
+            failures.Select((text, index) => string.Create(
+                CultureInfo.InvariantCulture,
+                $"attempt {index + 1}: {text}")));
+        Assert.Fail(
+            $"{description} failed in all {failures.Count} attempts:" +
+            $"{Environment.NewLine}{perAttempt}");
+    }
+
+    /// <summary>
     /// Fails unless an attempt allocated nothing. The message names the bytes of
     /// every attempt so a deterministic allocation is visibly repeated.
     /// </summary>

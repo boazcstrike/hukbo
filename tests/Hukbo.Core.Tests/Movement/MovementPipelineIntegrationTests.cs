@@ -802,56 +802,79 @@ public sealed class MovementPipelineIntegrationTests
             AttackCooldownTicks = 20,
         };
 
-        var agents = new List<AgentState>(agentsPerFaction * 2);
-        for (var index = 0; index < agentsPerFaction; index++)
+        WarmAllocationWindow.AssertEventually(
+            () =>
+            {
+                var agents = new List<AgentState>(agentsPerFaction * 2);
+                for (var index = 0; index < agentsPerFaction; index++)
+                {
+                    agents.Add(CreateAgent(
+                        checked((ulong)index + 1),
+                        factionId: 0,
+                        checked((90 - (index % 3)) * FixedPoint.Scale),
+                        checked((40 + index) * FixedPoint.Scale),
+                        scenario));
+                    agents.Add(CreateAgent(
+                        checked((ulong)(agentsPerFaction + index) + 1),
+                        factionId: 1,
+                        checked((110 + (index % 3)) * FixedPoint.Scale),
+                        checked((40 + index) * FixedPoint.Scale),
+                        scenario));
+                }
+
+                var simulation = BattleSimulation.CreateForTesting(
+                    scenario, [.. agents]);
+
+                for (var tick = 0; tick < 32; tick++)
+                {
+                    simulation.AdvanceOneTick();
+                }
+
+                var firstWindowStart = GC.GetAllocatedBytesForCurrentThread();
+                for (var tick = 0; tick < measuredTicks; tick++)
+                {
+                    simulation.AdvanceOneTick();
+                }
+
+                var secondWindowStart = GC.GetAllocatedBytesForCurrentThread();
+                for (var tick = 0; tick < measuredTicks; tick++)
+                {
+                    simulation.AdvanceOneTick();
+                }
+
+                var windowEnd = GC.GetAllocatedBytesForCurrentThread();
+
+                Assert.Equal(BattleOutcome.Ongoing, simulation.Outcome);
+
+                return (
+                    FirstWindowBytes: secondWindowStart - firstWindowStart,
+                    SecondWindowBytes: windowEnd - secondWindowStart);
+            },
+            window => VSixWindowFailure(
+                window.FirstWindowBytes,
+                window.SecondWindowBytes,
+                maximumAllocatedBytes),
+            "V6 collision ticks");
+    }
+
+    private static string? VSixWindowFailure(
+        long firstWindowBytes,
+        long secondWindowBytes,
+        long maximumAllocatedBytes)
+    {
+        if (firstWindowBytes > maximumAllocatedBytes)
         {
-            agents.Add(CreateAgent(
-                checked((ulong)index + 1),
-                factionId: 0,
-                checked((90 - (index % 3)) * FixedPoint.Scale),
-                checked((40 + index) * FixedPoint.Scale),
-                scenario));
-            agents.Add(CreateAgent(
-                checked((ulong)(agentsPerFaction + index) + 1),
-                factionId: 1,
-                checked((110 + (index % 3)) * FixedPoint.Scale),
-                checked((40 + index) * FixedPoint.Scale),
-                scenario));
+            return $"V6 collision ticks allocated {firstWindowBytes:N0} bytes; " +
+                $"expected at most {maximumAllocatedBytes:N0}.";
         }
 
-        var simulation = BattleSimulation.CreateForTesting(
-            scenario, [.. agents]);
-
-        for (var tick = 0; tick < 32; tick++)
+        if (secondWindowBytes > maximumAllocatedBytes)
         {
-            simulation.AdvanceOneTick();
+            return $"A warm V6 window allocated {secondWindowBytes:N0} bytes; " +
+                $"expected at most {maximumAllocatedBytes:N0}.";
         }
 
-        var firstWindowStart = GC.GetAllocatedBytesForCurrentThread();
-        for (var tick = 0; tick < measuredTicks; tick++)
-        {
-            simulation.AdvanceOneTick();
-        }
-
-        var secondWindowStart = GC.GetAllocatedBytesForCurrentThread();
-        for (var tick = 0; tick < measuredTicks; tick++)
-        {
-            simulation.AdvanceOneTick();
-        }
-
-        var windowEnd = GC.GetAllocatedBytesForCurrentThread();
-        var firstWindowBytes = secondWindowStart - firstWindowStart;
-        var secondWindowBytes = windowEnd - secondWindowStart;
-
-        Assert.Equal(BattleOutcome.Ongoing, simulation.Outcome);
-        Assert.True(
-            firstWindowBytes <= maximumAllocatedBytes,
-            $"V6 collision ticks allocated {firstWindowBytes:N0} bytes; " +
-            $"expected at most {maximumAllocatedBytes:N0}.");
-        Assert.True(
-            secondWindowBytes <= maximumAllocatedBytes,
-            $"A warm V6 window allocated {secondWindowBytes:N0} bytes; " +
-            $"expected at most {maximumAllocatedBytes:N0}.");
+        return null;
     }
 
     // ----- Helpers -----

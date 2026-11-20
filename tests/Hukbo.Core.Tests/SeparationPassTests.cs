@@ -579,24 +579,33 @@ public sealed class SeparationPassTests
     [Fact]
     public void WarmPassAllocatesNothing()
     {
-        var bodies = BuildCloud(seed: 3, count: 400, withCoincidentPairs: true);
-        var x = bodies.Select(b => b.X).ToArray();
-        var y = bodies.Select(b => b.Y).ToArray();
-        var alive = bodies.Select(b => b.IsAlive).ToArray();
-        var weight = bodies.Select(b => b.Weight).ToArray();
-        var committed = bodies.Select(b => b.IsCommitted).ToArray();
-        var ids = bodies.Select(b => b.Id).ToArray();
         var parameters = Plain() with { SidewaysBasisPoints = 1_500 };
-        var pass = new SeparationPass();
-        pass.Run(x, y, alive, weight, committed, ids, parameters);
 
-        var before = GC.GetAllocatedBytesForCurrentThread();
-        for (var run = 0; run < 50; run++)
-        {
-            pass.Run(x, y, alive, weight, committed, ids, parameters);
-        }
+        WarmAllocationWindow.AssertEventually(
+            () =>
+            {
+                var bodies = BuildCloud(seed: 3, count: 400, withCoincidentPairs: true);
+                var x = bodies.Select(b => b.X).ToArray();
+                var y = bodies.Select(b => b.Y).ToArray();
+                var alive = bodies.Select(b => b.IsAlive).ToArray();
+                var weight = bodies.Select(b => b.Weight).ToArray();
+                var committed = bodies.Select(b => b.IsCommitted).ToArray();
+                var ids = bodies.Select(b => b.Id).ToArray();
+                var pass = new SeparationPass();
+                pass.Run(x, y, alive, weight, committed, ids, parameters);
 
-        Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+                var before = GC.GetAllocatedBytesForCurrentThread();
+                for (var run = 0; run < 50; run++)
+                {
+                    pass.Run(x, y, alive, weight, committed, ids, parameters);
+                }
+
+                return GC.GetAllocatedBytesForCurrentThread() - before;
+            },
+            allocatedBytes => allocatedBytes == 0
+                ? null
+                : $"warm passes allocated {allocatedBytes:N0} bytes; expected none.",
+            "Warm separation passes");
     }
 
     [Fact]

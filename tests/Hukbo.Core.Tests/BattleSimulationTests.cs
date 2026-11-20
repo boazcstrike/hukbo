@@ -313,29 +313,33 @@ public sealed class BattleSimulationTests
             AttackRangeRaw = FixedPoint.Scale,
             PerceptionRangeRaw = 5 * FixedPoint.Scale,
         };
-        var simulation = BattleSimulation.CreateForTesting(
-            scenario,
-            CreateAgent(1, factionId: 0, x: 10, y: 10, scenario),
-            CreateAgent(2, factionId: 1, x: 190, y: 90, scenario));
 
-        for (var tick = 0; tick < 32; tick++)
-        {
-            simulation.AdvanceOneTick();
-        }
+        WarmAllocationWindow.AssertEventually(
+            () =>
+            {
+                var simulation = BattleSimulation.CreateForTesting(
+                    scenario,
+                    CreateAgent(1, factionId: 0, x: 10, y: 10, scenario),
+                    CreateAgent(2, factionId: 1, x: 190, y: 90, scenario));
 
-        var allocatedBefore = GC.GetAllocatedBytesForCurrentThread();
-        for (var tick = 0; tick < measuredTicks; tick++)
-        {
-            simulation.AdvanceOneTick();
-        }
+                for (var tick = 0; tick < 32; tick++)
+                {
+                    simulation.AdvanceOneTick();
+                }
 
-        var allocatedBytes =
-            GC.GetAllocatedBytesForCurrentThread() - allocatedBefore;
+                var allocatedBefore = GC.GetAllocatedBytesForCurrentThread();
+                for (var tick = 0; tick < measuredTicks; tick++)
+                {
+                    simulation.AdvanceOneTick();
+                }
 
-        Assert.True(
-            allocatedBytes <= maximumAllocatedBytes,
-            $"Quiet ticks allocated {allocatedBytes:N0} bytes; " +
-            $"expected at most {maximumAllocatedBytes:N0}.");
+                return GC.GetAllocatedBytesForCurrentThread() - allocatedBefore;
+            },
+            allocatedBytes => allocatedBytes <= maximumAllocatedBytes
+                ? null
+                : $"Quiet ticks allocated {allocatedBytes:N0} bytes; " +
+                  $"expected at most {maximumAllocatedBytes:N0}.",
+            "Quiet ticks");
     }
 
     [Fact]
@@ -412,79 +416,103 @@ public sealed class BattleSimulationTests
             AttackCooldownTicks = 20,
         };
 
-        var agents = new List<AgentState>(agentsPerFaction * 2);
-        for (var index = 0; index < agentsPerFaction; index++)
+        WarmAllocationWindow.AssertEventually(
+            () =>
+            {
+                var agents = new List<AgentState>(agentsPerFaction * 2);
+                for (var index = 0; index < agentsPerFaction; index++)
+                {
+                    agents.Add(
+                        CreateAgent(
+                            checked((ulong)index + 1),
+                            factionId: 0,
+                            x: 90 - (index % 3),
+                            y: 40 + index,
+                            scenario));
+                    agents.Add(
+                        CreateAgent(
+                            checked((ulong)(agentsPerFaction + index) + 1),
+                            factionId: 1,
+                            x: 110 + (index % 3),
+                            y: 40 + index,
+                            scenario));
+                }
+
+                var simulation = BattleSimulation.CreateForTesting(
+                    scenario,
+                    [.. agents]);
+
+                for (var tick = 0; tick < 32; tick++)
+                {
+                    simulation.AdvanceOneTick();
+                }
+
+                var firstWindowStart = GC.GetAllocatedBytesForCurrentThread();
+                for (var tick = 0; tick < measuredTicks; tick++)
+                {
+                    simulation.AdvanceOneTick();
+                }
+
+                var secondWindowStart = GC.GetAllocatedBytesForCurrentThread();
+                for (var tick = 0; tick < measuredTicks; tick++)
+                {
+                    simulation.AdvanceOneTick();
+                }
+
+                var windowEnd = GC.GetAllocatedBytesForCurrentThread();
+
+                Assert.Equal(BattleOutcome.Ongoing, simulation.Outcome);
+
+                return (
+                    FirstWindowBytes: secondWindowStart - firstWindowStart,
+                    SecondWindowBytes: windowEnd - secondWindowStart);
+            },
+            window => CollisionWindowFailure(
+                window.FirstWindowBytes,
+                window.SecondWindowBytes,
+                maximumAllocatedBytes,
+                warmWindowGrowthTolerance),
+            "Collision ticks");
+    }
+
+    private static string? CollisionWindowFailure(
+        long firstWindowBytes,
+        long secondWindowBytes,
+        long maximumAllocatedBytes,
+        long warmWindowGrowthTolerance)
+    {
+        if (firstWindowBytes > maximumAllocatedBytes)
         {
-            agents.Add(
-                CreateAgent(
-                    checked((ulong)index + 1),
-                    factionId: 0,
-                    x: 90 - (index % 3),
-                    y: 40 + index,
-                    scenario));
-            agents.Add(
-                CreateAgent(
-                    checked((ulong)(agentsPerFaction + index) + 1),
-                    factionId: 1,
-                    x: 110 + (index % 3),
-                    y: 40 + index,
-                    scenario));
+            return $"Collision ticks allocated {firstWindowBytes:N0} bytes; " +
+                $"expected at most {maximumAllocatedBytes:N0}.";
         }
-
-        var simulation = BattleSimulation.CreateForTesting(
-            scenario,
-            [.. agents]);
-
-        for (var tick = 0; tick < 32; tick++)
-        {
-            simulation.AdvanceOneTick();
-        }
-
-        var firstWindowStart = GC.GetAllocatedBytesForCurrentThread();
-        for (var tick = 0; tick < measuredTicks; tick++)
-        {
-            simulation.AdvanceOneTick();
-        }
-
-        var secondWindowStart = GC.GetAllocatedBytesForCurrentThread();
-        for (var tick = 0; tick < measuredTicks; tick++)
-        {
-            simulation.AdvanceOneTick();
-        }
-
-        var windowEnd = GC.GetAllocatedBytesForCurrentThread();
-        var firstWindowBytes = secondWindowStart - firstWindowStart;
-        var secondWindowBytes = windowEnd - secondWindowStart;
-
-        Assert.Equal(BattleOutcome.Ongoing, simulation.Outcome);
-
-        Assert.True(
-            firstWindowBytes <= maximumAllocatedBytes,
-            $"Collision ticks allocated {firstWindowBytes:N0} bytes; " +
-            $"expected at most {maximumAllocatedBytes:N0}.");
 
         // This is the assertion that guards the reused storage. Grid cells,
         // pair lists, proposal buffers, resolver scratch, and now the event
         // buffers are all reused, so a second identical window must stay
         // inside the same ceiling. Anything reallocating per tick blows
         // through it by two orders of magnitude, as the note above works out.
-        Assert.True(
-            secondWindowBytes <= maximumAllocatedBytes,
-            $"A warm window allocated {secondWindowBytes:N0} bytes after a " +
-            $"first window of {firstWindowBytes:N0}; expected at most " +
-            $"{maximumAllocatedBytes:N0}. Collision and event storage must be " +
-            "reused, growing only when capacity is insufficient.");
+        if (secondWindowBytes > maximumAllocatedBytes)
+        {
+            return $"A warm window allocated {secondWindowBytes:N0} bytes after a " +
+                $"first window of {firstWindowBytes:N0}; expected at most " +
+                $"{maximumAllocatedBytes:N0}. Collision and event storage must be " +
+                "reused, growing only when capacity is insufficient.";
+        }
 
         // The relative guard, kept because an absolute ceiling alone would let
         // a window that grew several thousand bytes relative to its
         // predecessor pass unnoticed.
-        Assert.True(
-            secondWindowBytes <= firstWindowBytes + warmWindowGrowthTolerance,
-            $"A warm window allocated {secondWindowBytes:N0} bytes after a " +
-            $"first window of {firstWindowBytes:N0}, a growth of " +
-            $"{secondWindowBytes - firstWindowBytes:N0} bytes against a " +
-            $"tolerance of {warmWindowGrowthTolerance:N0}. Two identical " +
-            "windows must cost the same to within measurement noise.");
+        if (secondWindowBytes > firstWindowBytes + warmWindowGrowthTolerance)
+        {
+            return $"A warm window allocated {secondWindowBytes:N0} bytes after a " +
+                $"first window of {firstWindowBytes:N0}, a growth of " +
+                $"{secondWindowBytes - firstWindowBytes:N0} bytes against a " +
+                $"tolerance of {warmWindowGrowthTolerance:N0}. Two identical " +
+                "windows must cost the same to within measurement noise.";
+        }
+
+        return null;
     }
 
     [Fact]

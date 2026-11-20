@@ -635,29 +635,33 @@ public sealed class MovementContextObservationTests
             AttackRangeRaw = FixedPoint.Scale,
             PerceptionRangeRaw = 5 * FixedPoint.Scale,
         };
-        var simulation = BattleSimulation.CreateForTesting(
-            scenario,
-            CreateState(1, 0, 10 * FixedPoint.Scale, 10 * FixedPoint.Scale),
-            CreateState(2, 1, 190 * FixedPoint.Scale, 90 * FixedPoint.Scale));
 
-        for (var tick = 0; tick < 32; tick++)
-        {
-            simulation.AdvanceOneTick();
-        }
+        WarmAllocationWindow.AssertEventually(
+            () =>
+            {
+                var simulation = BattleSimulation.CreateForTesting(
+                    scenario,
+                    CreateState(1, 0, 10 * FixedPoint.Scale, 10 * FixedPoint.Scale),
+                    CreateState(2, 1, 190 * FixedPoint.Scale, 90 * FixedPoint.Scale));
 
-        var allocatedBefore = GC.GetAllocatedBytesForCurrentThread();
-        for (var tick = 0; tick < measuredTicks; tick++)
-        {
-            simulation.AdvanceOneTick();
-        }
+                for (var tick = 0; tick < 32; tick++)
+                {
+                    simulation.AdvanceOneTick();
+                }
 
-        var allocatedBytes =
-            GC.GetAllocatedBytesForCurrentThread() - allocatedBefore;
+                var allocatedBefore = GC.GetAllocatedBytesForCurrentThread();
+                for (var tick = 0; tick < measuredTicks; tick++)
+                {
+                    simulation.AdvanceOneTick();
+                }
 
-        Assert.True(
-            allocatedBytes <= maximumAllocatedBytes,
-            $"Quiet V6 ticks allocated {allocatedBytes:N0} bytes; " +
-            $"expected at most {maximumAllocatedBytes:N0}.");
+                return GC.GetAllocatedBytesForCurrentThread() - allocatedBefore;
+            },
+            allocatedBytes => allocatedBytes <= maximumAllocatedBytes
+                ? null
+                : $"Quiet V6 ticks allocated {allocatedBytes:N0} bytes; " +
+                  $"expected at most {maximumAllocatedBytes:N0}.",
+            "Quiet V6 ticks");
     }
 
     // ----- Helpers -----

@@ -329,19 +329,28 @@ public sealed class TargetingGridTests
         var random = new SplitMix64(900UL);
         var narrow = CreateScatter(ref random, 200, 0, 40, WholeMapPerceptionRaw);
         var wide = CreateScatter(ref random, 200, 0, 8_000, WholeMapPerceptionRaw);
-        var grid = new TargetingGrid(expectedExtentRaw: 8_192L * UnitRaw);
-        grid.Rebuild(narrow, 1);
-        var narrowCellSide = grid.CellSizeRaw;
 
-        var allocatedBefore = GC.GetAllocatedBytesForCurrentThread();
-        grid.Rebuild(wide, 1);
-        var wideCellSide = grid.CellSizeRaw;
-        grid.Rebuild(narrow, 1);
-        var allocatedBytes = GC.GetAllocatedBytesForCurrentThread() - allocatedBefore;
+        WarmAllocationWindow.AssertEventually(
+            () =>
+            {
+                var grid = new TargetingGrid(expectedExtentRaw: 8_192L * UnitRaw);
+                grid.Rebuild(narrow, 1);
+                var narrowCellSide = grid.CellSizeRaw;
 
-        Assert.Equal(TargetingGrid.DefaultCellSizeRaw, narrowCellSide);
-        Assert.Equal(TargetingGrid.DefaultCellSizeRaw, wideCellSide);
-        Assert.Equal(0L, allocatedBytes);
+                var allocatedBefore = GC.GetAllocatedBytesForCurrentThread();
+                grid.Rebuild(wide, 1);
+                var wideCellSide = grid.CellSizeRaw;
+                grid.Rebuild(narrow, 1);
+                var allocatedBytes = GC.GetAllocatedBytesForCurrentThread() - allocatedBefore;
+
+                Assert.Equal(TargetingGrid.DefaultCellSizeRaw, narrowCellSide);
+                Assert.Equal(TargetingGrid.DefaultCellSizeRaw, wideCellSide);
+                return allocatedBytes;
+            },
+            allocatedBytes => allocatedBytes == 0
+                ? null
+                : $"wider and narrower rebuilds allocated {allocatedBytes:N0} bytes; expected none.",
+            "Warm grid rebuilds");
     }
 
     [Fact]

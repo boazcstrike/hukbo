@@ -84,4 +84,75 @@ public sealed class WarmAllocationWindowTests
         Assert.Equal(1, factoryCalls);
         Assert.Equal(0, WarmAllocationWindow.Measure(() => () => { }).Single());
     }
+
+    [Fact]
+    public void AssertEventuallyFailsWhenEveryAttemptFailsAndNamesAllAttempts()
+    {
+        var attempts = 0;
+
+        var failure = Assert.Throws<FailException>(() =>
+            WarmAllocationWindow.AssertEventually(
+                () => ++attempts,
+                attempt => $"failure text {attempt}",
+                "literal bars"));
+
+        Assert.Equal(WarmAllocationWindow.MaximumAttempts, attempts);
+        Assert.Contains("literal bars", failure.Message, StringComparison.Ordinal);
+        for (var attempt = 1; attempt <= WarmAllocationWindow.MaximumAttempts; attempt++)
+        {
+            Assert.Contains(
+                $"attempt {attempt}: failure text {attempt}",
+                failure.Message,
+                StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
+    public void AssertEventuallyPassesOnALaterAttemptAndStopsThere()
+    {
+        var attempts = 0;
+        const int passingAttempt = 3;
+
+        WarmAllocationWindow.AssertEventually(
+            () => ++attempts,
+            attempt => attempt < passingAttempt ? "still failing" : null,
+            "literal bars");
+
+        Assert.Equal(passingAttempt, attempts);
+    }
+
+    [Fact]
+    public void AssertEventuallyBuildsOnceWhenTheFirstAttemptPasses()
+    {
+        var attempts = 0;
+
+        WarmAllocationWindow.AssertEventually(
+            () => ++attempts,
+            _ => null,
+            "literal bars");
+
+        Assert.Equal(1, attempts);
+    }
+
+    [Fact]
+    public void AssertEventuallyJudgesACeilingOnTheMeasuredBytesOfEachFreshAttempt()
+    {
+        const long ceiling = 1_024;
+        var attempts = 0;
+
+        var failure = Assert.Throws<FailException>(() =>
+            WarmAllocationWindow.AssertEventually(
+                () =>
+                {
+                    attempts++;
+                    var allocatedBefore = GC.GetAllocatedBytesForCurrentThread();
+                    _sink = new byte[ceiling * 2];
+                    return GC.GetAllocatedBytesForCurrentThread() - allocatedBefore;
+                },
+                bytes => bytes <= ceiling ? null : $"{bytes} bytes over {ceiling}",
+                "literal ceiling"));
+
+        Assert.Equal(WarmAllocationWindow.MaximumAttempts, attempts);
+        Assert.Contains("bytes over 1024", failure.Message, StringComparison.Ordinal);
+    }
 }
