@@ -114,10 +114,13 @@ internal static class MovementContextQuery
 
 /// <summary>
 /// Per-actor accumulation state for one <see cref="LocalMovementContext"/>
-/// derivation. A stack-local scratch value: constructed fresh per actor per
-/// tick, mutated only through <see cref="ObserveAlly"/> and
+/// derivation. A scratch value: the pure <see cref="MovementContextQuery.Derive"/>
+/// seam keeps one on the stack, and the production loop holds one in
+/// <c>BattleSimulation._contextAccumulator</c>, re-seeded with a new value at
+/// the top of each actor's turn under a preset that derives local context.
+/// Either way it is mutated only through <see cref="ObserveAlly"/> and
 /// <see cref="ObserveEnemy"/>, drained once by <see cref="Complete"/>, and
-/// never stored, shared, or reused across actors. Both the pure
+/// never carries state from one actor to the next. Both the pure
 /// <see cref="MovementContextQuery.Derive"/> seam and the fused production
 /// loop drive this one type, so the two paths cannot drift apart.
 /// </summary>

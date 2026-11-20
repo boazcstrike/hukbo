@@ -278,26 +278,29 @@ public sealed class SeparatingContactTests
             primer.AdvanceOneTick();
         }
 
-        var simulation = BattleSimulation.Create(scenario);
+        var simulations = new List<BattleSimulation>();
 
-        for (var tick = 0; tick < AllocationWarmUpTicks; tick++)
-        {
-            simulation.AdvanceOneTick();
-        }
+        WarmAllocationWindow.AssertAllocatesNothing(
+            () =>
+            {
+                var simulation = BattleSimulation.Create(scenario);
+                simulations.Add(simulation);
+                for (var tick = 0; tick < AllocationWarmUpTicks; tick++)
+                {
+                    simulation.AdvanceOneTick();
+                }
 
-        var allocatedBefore = GC.GetAllocatedBytesForCurrentThread();
-        for (var tick = 0; tick < AllocationMeasuredTicks; tick++)
-        {
-            simulation.AdvanceOneTick();
-        }
+                return () =>
+                {
+                    for (var tick = 0; tick < AllocationMeasuredTicks; tick++)
+                    {
+                        simulation.AdvanceOneTick();
+                    }
+                };
+            },
+            $"{AllocationMeasuredTicks} warm ticks at {GateAgents} agents");
 
-        var allocatedBytes = GC.GetAllocatedBytesForCurrentThread() - allocatedBefore;
-
-        Assert.Equal(BattleOutcome.Ongoing, simulation.Outcome);
-        Assert.True(
-            allocatedBytes == 0,
-            $"{AllocationMeasuredTicks} warm ticks at {GateAgents} agents allocated " +
-            $"{allocatedBytes:N0} bytes; expected none.");
+        Assert.All(simulations, simulation => Assert.Equal(BattleOutcome.Ongoing, simulation.Outcome));
     }
 
     private static Scenario BuildScenario(
