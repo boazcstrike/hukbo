@@ -132,6 +132,7 @@ public static class LogEvents
     public const string RenderAttackContactCollapsed =
         "render.attackContactCollapsed";
     public const string RenderFrame = "render.frame";
+    public const string RenderPlayRateGoverned = "render.playRateGoverned";
     public const string RenderStarved = "render.starved";
     public const string RenderViewportChanged = "render.viewport.changed";
     public const string RenderWindow = "render.window";

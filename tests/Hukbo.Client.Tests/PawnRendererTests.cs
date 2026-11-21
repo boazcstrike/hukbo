@@ -516,6 +516,33 @@ public sealed class PawnRendererTests
         }
     }
 
+    [Fact]
+    public void GetSpotlightMarkBounds_SurroundsTheSelectionBoundsByTwoPixels()
+    {
+        Assert.Equal(
+            new Rectangle(8, 18, 52, 68),
+            PawnRenderer.GetSpotlightMarkBounds(new Rectangle(10, 20, 48, 64)));
+    }
+
+    /// <summary>
+    /// The selection and hover brackets hang inside the selection bounds, so a
+    /// ring whose inner edge is those bounds can never overlap them.
+    /// </summary>
+    [Fact]
+    public void GetSpotlightMarkBounds_ContainsTheSelectionBoundsForEveryLayout()
+    {
+        foreach (var layout in EnumerateLayouts())
+        {
+            var ring = PawnRenderer.GetSpotlightMarkBounds(layout.SelectionBounds);
+
+            Assert.True(
+                ring.Contains(layout.SelectionBounds),
+                $"ring {ring} does not surround {layout.SelectionBounds}");
+            Assert.True(ring.Width > layout.SelectionBounds.Width);
+            Assert.True(ring.Height > layout.SelectionBounds.Height);
+        }
+    }
+
     // ------------------------------------------------------------------
     // movement-gait-animation T4: legs and feet, between the ground ring
     // and the torso. PawnRenderer.DrawLayout calls DrawLegs and DrawFeet

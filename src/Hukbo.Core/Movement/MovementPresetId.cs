@@ -408,4 +408,26 @@ public enum MovementPresetId
     /// </para>
     /// </summary>
     ShieldEncumbranceV16 = 16,
+
+    /// <summary>
+    /// The separating-contact preset, from the 2026-11-21 soft-separation
+    /// design and its decision record. A verbatim restatement of
+    /// <see cref="EvasiveFootworkV14"/>'s registered field values under its
+    /// own <c>id</c> — movement V14 plus separating contact and nothing else,
+    /// so an A/B against the shipped default isolates one variable. V16's
+    /// shield encumbrance and block recovery are not carried over.
+    /// <para>
+    /// <see cref="MovementRuleset.AppliesSeparatingContact"/> lets two living
+    /// bodies overlap a little inside a soft band and be pushed apart by one
+    /// order-independent pass per tick, instead of refusing every move that
+    /// would overlap. The hard floor the resolver keeps is
+    /// <see cref="MovementRuleset.SeparationFloorRaw"/>, not a full diameter.
+    /// </para>
+    /// <para>
+    /// It is reachable only through explicit selection. The shipped client
+    /// default stays <see cref="EvasiveFootworkV14"/>, and no other preset's
+    /// behaviour or <see cref="MovementRuleset.ContentHash"/> changes.
+    /// </para>
+    /// </summary>
+    SeparatingContactV17 = 17,
 }

@@ -3825,3 +3825,299 @@ alive. Both hashes moved together this time: contact memory is hashed state, and
 an operator that stops holding `Engage` against a corpse resumes advancing, so
 the workload's shots, positions, and deaths all diverge from the recorded run.
 The current figure and the full reasoning live in `docs/development/testing.md`.
+
+
+## Ring-search targeting baseline — 2026-11-21
+
+Phase 0 of `docs/plans/2026-11-21-wmao-optimizations.md`, recorded on branch
+`wmao-optimizations` at `c1c0347`. That commit changes only documents, so this
+is the simulation as it stands on `main` at `0ccc0d3`. It runs the **shipped**
+presets, combat V8 and movement V14, rather than the V5 and V13 pair the
+2026-08-14 thousand-unit figures used.
+
+Commands, one per agent count, all seed 1, 10,000 requested ticks:
+
+```powershell
+./scripts/benchmark.ps1 -Agents 200 -Preset 8 -MovementPreset 14 -Output <path>
+./scripts/benchmark.ps1 -Agents 500 -Preset 8 -MovementPreset 14 -NoBuild -Output <path>
+./scripts/benchmark.ps1 -Agents 1000 -Preset 8 -MovementPreset 14 -NoBuild -Output <path>
+./scripts/benchmark.ps1 -Agents 2000 -Preset 8 -MovementPreset 14 -NoBuild -Output <path>
+```
+
+| Agents | Measured ticks | Outcome | p50 ms | p95 ms | p99 ms | Max ms | Core allocated bytes | State hash | Event hash |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 200 | 1,568 | Faction1Victory | 0.09 | 0.91 | 1.25 | 23.29 | 154,896 | `7A1838EB4D835A45` | `447727A6E82FB9FD` |
+| 500 | 1,921 | Faction1Victory | 0.34 | 1.90 | 3.09 | 27.19 | 338,656 | `14FF11B059C528CB` | `EAE53E226A601B03` |
+| 1,000 | 3,628 | Faction1Victory | 1.17 | 4.35 | 5.75 | 27.59 | 712,224 | `23C1E15282187F73` | `4D27E2506BF94FFD` |
+| 2,000 | 10,000 | Draw | 5.41 | 17.34 | 20.32 | 50.13 | 1,492,176 | `DE740A4F81B7BDCD` | `11FE0D668B6A8C0C` |
+
+The 200-agent state hash equals the gate's recorded 8/14 workload, which
+confirms the benchmark ran the shipped pair. The 2,000-agent battle still ends
+in a draw at the tick cap.
+
+### Where the tick goes at 1,000 agents
+
+Attributed with an external sampling trace, with no instrumentation added to
+`Hukbo.Core`:
+
+```powershell
+dotnet-trace collect --format speedscope -o trace-1000.nettrace -- `
+  src/Hukbo.Headless/bin/Release/net10.0/Hukbo.Headless.exe `
+  --agents 1000 --ticks 10000 --seed 1 --log-level off --preset 8 --movement-preset 14
+```
+
+Inclusive share of `BattleSimulation.AdvanceOneTick` samples on the simulation
+thread:
+
+| Stage | Share |
+| --- | --- |
+| `SelectTargetsAndIntents` | 44.7% |
+| `ResolveCollisions` | 31.2% |
+| `MeasureCollision` | 13.6% |
+| `GatherMovementProposals` | 4.7% |
+| `GatherAndCommitAttacks` | 1.7% |
+| `ResolveContingentStates` | 1.3% |
+| `CommitMovement` | 1.0% |
+| `UpdateViews` | 1.0% |
+| `FindNearestMeleeThreatPosition` | 0.5% |
+| `ResolveOutcome` | 0.1% |
+
+Target selection is the largest single cost, which is what the ring-search
+design targets. `FindNearestMeleeThreatPosition` is under the 5% threshold, so
+the plan's conditional task RS-5 does not start on this evidence.
+
+`MeasureCollision` is worth noting for later. It rebuilds a uniform grid every
+tick only to produce derived contact metrics that no rule reads, and it costs
+13.6% of the tick. It is not part of this plan.
+
+## Ring-search cell-size sweep — 2026-11-21
+
+Task RS-3 of `docs/plans/2026-11-21-wmao-optimizations.md`. Four scratch builds
+of the headless runner, identical except for `TargetingGrid.DefaultCellSizeRaw`,
+were built with `dotnet build src/Hukbo.Headless -c Release -o <dir>` and never
+committed. The sweep ran on branch `wmao-optimizations` with the ring search
+merged and before the review-fix round; the exact commit was not written down
+at the time. Each run was:
+
+```powershell
+<dir>/Hukbo.Headless.exe --agents <N> --ticks 10000 --seed 1 --log-level off `
+  --preset 8 --movement-preset 14
+```
+
+The four binaries were run interleaved, one after another inside each repeat,
+so that a change in machine load falls on every candidate alike. There were two
+repeats, and both are shown rather than a median, because two values have no
+meaningful median. Figures are milliseconds per tick, written as p50 / p95.
+
+| Cell size | 500 agents, run 1 | 500 agents, run 2 | 1,000 agents, run 1 | 1,000 agents, run 2 | 2,000 agents, run 1 | 2,000 agents, run 2 |
+| --- | --- | --- | --- | --- | --- | --- |
+| 16 wu | 0.25 / 1.92 | 0.25 / 1.83 | 0.86 / 2.29 | 0.86 / 2.13 | 2.81 / 6.09 | 2.43 / 5.27 |
+| 32 wu | 0.24 / 1.99 | 0.24 / 1.88 | 0.75 / 2.19 | 0.65 / 2.13 | 2.69 / 6.30 | 2.99 / 5.79 |
+| 64 wu | 0.24 / 2.11 | 0.24 / 2.01 | 0.75 / 2.23 | 0.66 / 2.20 | 2.88 / 6.55 | 2.57 / 6.52 |
+| 128 wu | 0.23 / 2.30 | 0.23 / 2.54 | 0.81 / 2.45 | 0.66 / 2.40 | 2.95 / 6.75 | 4.32 / 8.67 |
+
+Every one of the 24 runs produced the recorded hashes for its agent count
+(`14FF11B059C528CB` / `EAE53E226A601B03` at 500, `23C1E15282187F73` /
+`4D27E2506BF94FFD` at 1,000, `DE740A4F81B7BDCD` / `11FE0D668B6A8C0C` at 2,000),
+which is the expected result: the cell size changes how the search walks, never
+which enemy it returns.
+
+**Decision: the cell size stays at 32 world units.** Sixteen, 32, and 64 are
+within run-to-run noise of each other, and no candidate wins at every agent
+count. Only 128 is distinguishably worse, on p95 at every count. With no
+measured reason to move it, the constant keeps the value the design chose. Two
+repeats cannot rank 16 against 32, and this record does not claim they do.
+
+## Separating contact (movement V17) against V14 — 2026-11-21
+
+Task SS-4 of `docs/plans/2026-11-21-wmao-optimizations.md`, judged against the
+table in section 5 of `docs/plans/2026-11-21-soft-separation-design.md`. Every
+run uses combat V8. The headless runner was built from branch
+`wmao-optimizations` at `1a055d8`, which has the separation bound fix
+(`cd6e805`) merged. The ring-search warm-up change merged afterwards
+(`a5e3b93`) does not move any hash: the 1,000-agent seed-1 pairs for V14 and
+V17 were re-checked on it and are unchanged.
+
+```powershell
+<dir>/Hukbo.Headless.exe --agents <N> --ticks 10000 --seed <S> --log-level off `
+  --preset 8 --movement-preset <14 or 17>
+```
+
+Seeds 1 to 20 at 200 and at 500 agents, and seed 1 at 2,000 agents, each under
+both presets: 82 runs. Every run reported `deterministic: true`.
+
+### Decision rate and battle length
+
+| Agents | Preset | Decided inside 5,000 ticks | Shortest | Median | Longest |
+| --- | --- | --- | --- | --- | --- |
+| 200 | V14 | 20 of 20 | 1,568 | 2,060 | 3,025 |
+| 200 | V17 | 20 of 20 | 1,151 | 1,826 | 2,529 |
+| 500 | V14 | 20 of 20 | 1,921 | 2,544 | 3,707 |
+| 500 | V17 | 20 of 20 | 1,644 | 2,305 | 4,214 |
+
+The lengths are measured ticks to a decision. V17 is not uniformly faster: at
+500 agents its longest battle, seed 20, runs 4,214 ticks against 2,372 for V14
+on the same seed.
+
+### Blocked agent-ticks at 500 agents, per seed
+
+`blockedAgentTicks` is the collision metric that counts one unit for each agent
+on each tick whose movement resolved to `MovementResolution.Blocked`. `maximumPenetrationRaw` is the
+deepest overlap of any living pair over the whole battle, in raw units; under
+V14 it is zero on every run.
+
+| Seed | V14 blocked | V17 blocked | V14 ticks | V17 ticks | V17 maximum penetration |
+| --- | --- | --- | --- | --- | --- |
+| 1 | 39,774 | 4,072 | 1,921 | 1,877 | 1,737 |
+| 2 | 73,218 | 2,470 | 2,495 | 2,053 | 1,736 |
+| 3 | 67,790 | 8,238 | 2,271 | 2,270 | 1,737 |
+| 4 | 87,730 | 4,715 | 2,557 | 2,477 | 1,736 |
+| 5 | 62,294 | 1,765 | 1,992 | 2,592 | 1,737 |
+| 6 | 75,185 | 6,057 | 2,839 | 2,305 | 1,737 |
+| 7 | 73,928 | 6,742 | 2,420 | 3,371 | 1,737 |
+| 8 | 80,812 | 7,473 | 2,161 | 2,002 | 1,737 |
+| 9 | 96,316 | 2,189 | 2,910 | 3,173 | 1,736 |
+| 10 | 57,613 | 4,438 | 3,707 | 1,644 | 1,737 |
+| 11 | 70,767 | 6,308 | 2,544 | 2,218 | 1,737 |
+| 12 | 75,124 | 4,072 | 2,557 | 2,313 | 1,737 |
+| 13 | 79,892 | 4,564 | 2,480 | 2,034 | 1,737 |
+| 14 | 93,809 | 2,667 | 2,910 | 3,200 | 1,737 |
+| 15 | 85,331 | 2,243 | 2,294 | 2,308 | 1,737 |
+| 16 | 79,724 | 3,871 | 3,041 | 1,943 | 1,736 |
+| 17 | 80,633 | 3,743 | 2,983 | 2,494 | 1,737 |
+| 18 | 96,304 | 5,706 | 2,700 | 1,793 | 1,737 |
+| 19 | 98,637 | 4,652 | 2,119 | 2,013 | 1,737 |
+| 20 | 58,530 | 3,576 | 2,372 | 4,214 | 1,737 |
+
+V17 is lower on all 20 seeds, by a factor of between 8 and 44. At 200 agents it
+is also lower on all 20 seeds, with a median of 546 against 16,056.
+
+The deepest penetration over all 41 V17 runs is 1,737 raw units. The bound is
+`2R - B = 8,704 - 6,964 = 1,740`, so the closest pair ever observed sat 3 raw
+units above the proved floor.
+
+### The 2,000-agent battle, seed 1
+
+| Preset | Outcome | Measured ticks | Blocked agent-ticks | Maximum penetration | State hash | Event hash |
+| --- | --- | --- | --- | --- | --- | --- |
+| V14 | Draw | 10,000 | 3,630,642 | 0 | `DE740A4F81B7BDCD` | `11FE0D668B6A8C0C` |
+| V17 | Faction0Victory | 6,455 | 1,013,727 | 1,737 | `3EA3AC4DBC89E168` | `0480F5B11F10A9F7` |
+
+V14 still ends in a draw at the tick cap, as it does in the baseline above. V17
+reaches a decision at tick 6,455.
+
+### Tick cost
+
+Measured after the review-fix round, with the headless runner built from branch
+`wmao-optimizations` at `6ddceb8`. One binary ran both presets, seed 1,
+interleaved: each repeat ran V14 and V17 back to back, alternating which went
+first, nine repeats per agent count. The figures are the median across the nine
+runs of each run's own tick percentile. Three test processes from an unrelated
+project were running on the machine throughout, using about three of its twenty
+logical processors.
+
+| Agents | Preset | Measured ticks | Median p50 ms | Median p95 ms | p95 range ms |
+| --- | --- | --- | --- | --- | --- |
+| 500 | V14 | 1,921 | 0.24 | 1.57 | 1.51 – 1.67 |
+| 500 | V17 | 1,877 | 0.20 | 2.11 | 1.92 – 2.56 |
+| 1,000 | V14 | 3,628 | 0.63 | 2.12 | 2.10 – 2.19 |
+| 1,000 | V17 | 2,584 | 0.41 | 2.29 | 2.23 – 2.44 |
+
+V17's p95 is 34% above V14's at 500 agents and 8% above it at 1,000. Its p50 is
+lower at both counts. Every run of a preset produced the same hashes, and the
+V17 1,000-agent pair is the `FFE7B707D61F4DD9` / `24D3FEB9422DB905` recorded
+above. Three seeded rows of the correctness data (200 agents, V17 seeds 3 and
+11, V14 seed 7) were re-run on this binary and reproduced their recorded hashes.
+
+### Against the design's section 5
+
+| Measure | Pass condition | Result |
+| --- | --- | --- |
+| Overlap invariant | Never exceeded in 20 seeds × 10,000 ticks | **Pass.** Deepest penetration 1,737 against a floor of 1,740 |
+| Decision rate | At least 19 of 20 seeds decided inside 5,000 ticks | **Pass.** 20 of 20 at 200 agents, and 20 of 20 at 500 |
+| 2,000-agent battle | Decided before the 10,000-tick cap | **Pass.** Faction 0 wins at tick 6,455 |
+| Blocked agent-ticks at 500 agents | Lower than V14 on every seed | **Pass.** Lower on 20 of 20 seeds |
+| Tick cost | p95 within 10% of V14 at 500 and 1,000 agents | **Fail at 500** (+34%), pass at 1,000 (+8%) |
+| Sandata | The three about-face acceptance tests pass | **Not applicable.** Sandata separating contact was not approved and was not built |
+| Spectator | Smoke rows judge whether a packed front still reads as a line | **Pending.** The SEP smoke rows have not been run |
+
+V17 stays opt-in. The tick-cost failure at 500 agents is one reason not to make
+it the default on this evidence.
+
+## Ring-search targeting, before and after — 2026-11-21
+
+Task RS-4 of `docs/plans/2026-11-21-wmao-optimizations.md`, judged against item 5
+of section 6 of `docs/plans/2026-11-21-ring-search-targeting-design.md`. Two
+headless runners were built with `dotnet build src/Hukbo.Headless -c Release -o
+<dir>`: **before** from `main` at `0ccc0d3`, **after** from branch
+`wmao-optimizations` at `6ddceb8`, which includes the review-fix round and the
+`AggressiveOptimization` warm-up change. Both ran combat V8, movement V14, seed
+1, 10,000 requested ticks, interleaved: each repeat ran both binaries back to
+back, alternating which went first. Three test processes from an unrelated
+project were running throughout, using about three of the machine's twenty
+logical processors.
+
+| Agents | Pairs | Before p50 ms | After p50 ms | Change | Before p95 ms | After p95 ms | Change |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 200 | 45 | 0.091 | 0.093 | +2.3% | 1.01 | 0.97 | −4.7% |
+| 500 | 15 | 0.33 | 0.26 | −21% | 1.87 | 1.71 | −8.6% |
+| 1,000 | 9 | 0.98 | 0.65 | −34% | 3.73 | 2.21 | −41% |
+| 2,000 | 6 | 3.92 | 2.31 | −41% | 11.23 | 5.17 | −54% |
+
+Each figure is the median across the pairs of each run's own tick percentile; at
+2,000 agents, with six pairs, it is the mean of the two middle values. Before
+and after produced identical state and event hashes in every pair, equal to the
+phase-0 table above.
+
+The 200-agent row first ran fifteen pairs, which put the p50 median 5.9% above
+the baseline, at the edge of the run-to-run spread of about 15%. Thirty more
+pairs brought the figure to +2.3%; the mean moved from +3.0% to +1.3%.
+
+**Acceptance: pass.** p50 and p95 fall at 1,000 and 2,000 agents, and neither
+regresses by more than 5% at 200. The previous quiet measurement, taken before
+the warm-up change, put the 200-agent p95 25% above the baseline. At 1,000 and
+2,000 agents the after figures match that earlier measurement (0.62 / 2.12 and
+2.31 / 5.13 ms), so compiling the search methods fully optimised on first call
+did not cost the large battles anything visible.
+
+`./scripts/benchmark.ps1 -Agents <N> -Preset 8 -MovementPreset 14 -Output
+<path>` on the same commit, one run each:
+
+| Agents | Measured ticks | Outcome | p50 ms | p95 ms | p99 ms | Max ms | Core allocated bytes |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 200 | 1,568 | Faction1Victory | 0.08 | 0.90 | 1.22 | 17.92 | 171,120 |
+| 500 | 1,921 | Faction1Victory | 0.25 | 1.62 | 3.13 | 19.65 | 358,256 |
+| 1,000 | 3,628 | Faction1Victory | 0.62 | 2.14 | 2.77 | 23.55 | 737,824 |
+| 2,000 | 10,000 | Draw | 2.26 | 5.21 | 5.94 | 42.78 | 1,529,776 |
+
+Core allocated bytes rise by between 16 KB and 38 KB per battle against the
+phase-0 table. That is a whole-battle total, including construction, and the
+1,000-agent warm-tick window still allocates nothing, so the growth is the
+targeting grid's storage allocated once when the battle is created rather than
+anything per tick.
+
+### Where the tick goes at 1,000 agents, after
+
+The same `dotnet-trace` command as the phase-0 section, run against the after
+binary, with each stage's share of inclusive `BattleSimulation.AdvanceOneTick`
+time on the simulation thread:
+
+| Stage | Before | After |
+| --- | --- | --- |
+| `SelectTargetsAndIntents` | 44.7% | 11.8% |
+| `ResolveCollisions` | 31.2% | 49.9% |
+| `MeasureCollision` | 13.6% | 22.5% |
+| `GatherMovementProposals` | 4.7% | 7.2% |
+| `GatherAndCommitAttacks` | 1.7% | 2.6% |
+| `ResolveContingentStates` | 1.3% | 2.5% |
+| `CommitMovement` | 1.0% | 1.8% |
+| `UpdateViews` | 1.0% | 1.2% |
+| `FindNearestMeleeThreatPosition` | 0.5% | 0.7% |
+| `ResolveOutcome` | 0.1% | 0.0% |
+
+Inside `SelectTargetsAndIntents`, `TargetSearch` takes 3.4% of the tick and the
+per-tick `TargetingGrid.Rebuild` 0.3%. The other stages did not get slower; their
+shares rose because the tick they are a share of shrank. Collision resolution is
+now half of the tick, and `MeasureCollision`, which only produces derived
+metrics, is the next largest cost. `FindNearestMeleeThreatPosition` stays under
+the 5% threshold, so the plan's conditional task RS-5 does not start.

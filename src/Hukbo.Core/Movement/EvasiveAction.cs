@@ -2,9 +2,11 @@ namespace Hukbo.Core.Movement;
 
 /// <summary>
 /// One warrior's resolved in-fight evasive movement for a single tick under
-/// <see cref="MovementPresetId.EvasiveFootworkV14"/>. Every other preset leaves
-/// the field at <see cref="None"/> forever, and the value is folded into the
-/// state hash only under that preset. Numeric values are part of the
+/// <see cref="MovementPresetId.EvasiveFootworkV14"/> and
+/// <see cref="MovementPresetId.SeparatingContactV17"/>, which is V14 plus
+/// separating contact. Every other preset leaves the field at
+/// <see cref="None"/> forever, and the value is folded into the state hash only
+/// under those two presets. Numeric values are part of the
 /// deterministic replay and state-hash contract; the enum is append-only —
 /// never renumber, reorder, or remove a member.
 /// </summary>

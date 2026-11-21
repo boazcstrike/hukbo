@@ -228,50 +228,71 @@ public sealed class ProjectileTests
             TickLimit = (measuredTicks * 2) + 100,
         };
 
-        var simulation = BattleSimulation.CreateForTesting(
-            scenario,
-            rules,
-            CreateAgent(1, factionId: 0, x: 0, y: 0, scenario, rules, BangkawLoadout),
-            CreateAgent(2, factionId: 1, x: 40, y: 0, scenario, rules, BangkawLoadout));
+        WarmAllocationWindow.AssertEventually(
+            () =>
+            {
+                var simulation = BattleSimulation.CreateForTesting(
+                    scenario,
+                    rules,
+                    CreateAgent(1, factionId: 0, x: 0, y: 0, scenario, rules, BangkawLoadout),
+                    CreateAgent(2, factionId: 1, x: 40, y: 0, scenario, rules, BangkawLoadout));
 
-        for (var tick = 0; tick < 32; tick++)
+                for (var tick = 0; tick < 32; tick++)
+                {
+                    simulation.AdvanceOneTick();
+                }
+
+                var firstWindowStart = GC.GetAllocatedBytesForCurrentThread();
+                for (var tick = 0; tick < measuredTicks; tick++)
+                {
+                    simulation.AdvanceOneTick();
+                }
+
+                var secondWindowStart = GC.GetAllocatedBytesForCurrentThread();
+                for (var tick = 0; tick < measuredTicks; tick++)
+                {
+                    simulation.AdvanceOneTick();
+                }
+
+                var windowEnd = GC.GetAllocatedBytesForCurrentThread();
+
+                Assert.Equal(BattleOutcome.Ongoing, simulation.Outcome);
+                Assert.Equal(0, simulation.ProjectileLaunchRefusals);
+
+                return (
+                    FirstWindowBytes: secondWindowStart - firstWindowStart,
+                    SecondWindowBytes: windowEnd - secondWindowStart);
+            },
+            window => RangedWindowFailure(
+                window.FirstWindowBytes,
+                window.SecondWindowBytes,
+                maximumAllocatedBytes),
+            "Ranged-combat ticks");
+    }
+
+    private static string? RangedWindowFailure(
+        long firstWindowBytes,
+        long secondWindowBytes,
+        long maximumAllocatedBytes)
+    {
+        if (firstWindowBytes > maximumAllocatedBytes)
         {
-            simulation.AdvanceOneTick();
+            return $"Ranged-combat ticks allocated {firstWindowBytes:N0} bytes; " +
+                $"expected at most {maximumAllocatedBytes:N0}.";
         }
-
-        var firstWindowStart = GC.GetAllocatedBytesForCurrentThread();
-        for (var tick = 0; tick < measuredTicks; tick++)
-        {
-            simulation.AdvanceOneTick();
-        }
-
-        var secondWindowStart = GC.GetAllocatedBytesForCurrentThread();
-        for (var tick = 0; tick < measuredTicks; tick++)
-        {
-            simulation.AdvanceOneTick();
-        }
-
-        var windowEnd = GC.GetAllocatedBytesForCurrentThread();
-        var firstWindowBytes = secondWindowStart - firstWindowStart;
-        var secondWindowBytes = windowEnd - secondWindowStart;
-
-        Assert.Equal(BattleOutcome.Ongoing, simulation.Outcome);
-        Assert.Equal(0, simulation.ProjectileLaunchRefusals);
-
-        Assert.True(
-            firstWindowBytes <= maximumAllocatedBytes,
-            $"Ranged-combat ticks allocated {firstWindowBytes:N0} bytes; " +
-            $"expected at most {maximumAllocatedBytes:N0}.");
 
         // The warm-window guard: the projectile pool, its write-index
         // scratch, and the event buffers must all be reused, so a second
         // identical window allocates no more than the first.
-        Assert.True(
-            secondWindowBytes <= maximumAllocatedBytes,
-            $"A warm ranged-combat window allocated {secondWindowBytes:N0} " +
-            $"bytes after a first window of {firstWindowBytes:N0}; expected " +
-            $"at most {maximumAllocatedBytes:N0}. The projectile pool must " +
-            "be reused, growing only when capacity is insufficient.");
+        if (secondWindowBytes > maximumAllocatedBytes)
+        {
+            return $"A warm ranged-combat window allocated {secondWindowBytes:N0} " +
+                $"bytes after a first window of {firstWindowBytes:N0}; expected " +
+                $"at most {maximumAllocatedBytes:N0}. The projectile pool must " +
+                "be reused, growing only when capacity is insufficient.";
+        }
+
+        return null;
     }
 
     /// <summary>

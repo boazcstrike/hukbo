@@ -20,9 +20,12 @@ namespace Hukbo.Core.Simulation;
 /// <b>No penetration percentiles are reported, deliberately.</b> Under the
 /// approved <see cref="CollisionPolicy.Solid"/> contract, penetration between
 /// two living bodies is identically zero at the end of every tick, so a p50/p95
-/// histogram would be a column of zeros carrying no information. If a future
-/// decision record introduces a soft contact policy, percentiles become
-/// meaningful and may be added then — not before.
+/// histogram would be a column of zeros carrying no information. The one
+/// exception is the preset that applies separating contact
+/// (<see cref="Movement.MovementPresetId.SeparatingContactV17"/>), where
+/// penetration is non-zero by design and bounded by its invariant; percentiles
+/// for it are not reported yet and may be added with the measurement work, not
+/// before.
 /// </para>
 /// </remarks>
 /// <param name="CandidatePairs">
@@ -68,6 +71,12 @@ namespace Hukbo.Core.Simulation;
 /// permitted in any amount, so a correct run reports exactly <c>0</c>. Any
 /// nonzero value is a contract violation and must be treated as a defect in the
 /// collision resolver.
+/// <b>Exception:</b> under a preset that applies separating contact
+/// (<see cref="Movement.MovementPresetId.SeparatingContactV17"/>) a non-zero
+/// value is by design. It is bounded by <c>2R - (2R(1 - f) - 2c)</c>, the
+/// overlap implied by the invariant of
+/// <c>docs/decisions/2026-11-21-separating-contact.md</c> item 5, and a value
+/// above that bound is the violation instead.
 /// </param>
 public readonly record struct CollisionMetrics(
     long CandidatePairs,
@@ -144,7 +153,9 @@ internal struct CollisionMetricsAccumulator
     /// <param name="penetrationRaw">
     /// Deepest living-body overlap at the end of this tick, in raw fixed-point
     /// units. Kept as a running maximum, and expected to be <c>0</c> on every
-    /// tick under the approved <see cref="CollisionPolicy.Solid"/> contract.
+    /// tick under the approved <see cref="CollisionPolicy.Solid"/> contract,
+    /// except under a preset that applies separating contact, where it is
+    /// non-zero by design and bounded by that preset's invariant.
     /// </param>
     /// <exception cref="ArgumentOutOfRangeException">
     /// Any argument is negative. Every input is a count or a nonnegative

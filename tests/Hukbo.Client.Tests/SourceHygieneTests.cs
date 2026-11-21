@@ -562,11 +562,201 @@ public sealed class SourceHygieneTests
         var quadCountArguments = SplitTopLevelArguments(
             ExtractCallArguments(arenaSource, "PawnQuadCount.Count("));
 
-        Assert.Equal(4, quadCountArguments.Length);
+        // Five since the damage tally's hover spotlight: the probe must count
+        // the ring through the same DamageTallySpotlight.Matches predicate the
+        // draw pass rings agents with, or the two passes stop agreeing.
+        Assert.Equal(5, quadCountArguments.Length);
         Assert.Equal(
             "isLeader: agent.IsLeader",
-            quadCountArguments[^1],
+            quadCountArguments[3],
             StringComparer.Ordinal);
+        Assert.StartsWith(
+            "isSpotlit: DamageTallySpotlight.Matches(",
+            quadCountArguments[^1],
+            StringComparison.Ordinal);
+
+        var drawLayoutArguments = SplitTopLevelArguments(
+            ExtractCallArguments(arenaSource, "PawnRenderer.DrawLayout("));
+        Assert.StartsWith(
+            "spotlightColor: DamageTallySpotlight.Matches(",
+            drawLayoutArguments[^1],
+            StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// <c>PresentationCoordinator.ResetFor</c>'s ruleset is an optional
+    /// trailing parameter: a call that drops it compiles and silently keeps
+    /// the previous battle's armour table in the damage tally. The one call
+    /// site must hand it the new scenario's own combat preset.
+    /// </summary>
+    [Fact]
+    public void TheResetCallSitePassesTheNewScenariosCombatRuleset()
+    {
+        var arguments = SplitTopLevelArguments(
+            ExtractCallArguments(ReadArenaGame(), "_presentation.ResetFor("));
+
+        Assert.Equal(2, arguments.Length);
+        Assert.Equal(
+            "CombatPresetRegistry.Get(_scenario.CombatPreset)",
+            arguments[1],
+            StringComparer.Ordinal);
+    }
+
+    /// <summary>
+    /// The play-rate governor's wiring (design section 3). Each piece
+    /// compiles whether or not it is present, so a regression is silent: the
+    /// effects clock would keep scaling by the requested speed, the
+    /// accumulator would run ticks the governor refused, or pawns would be
+    /// drawn from stale positions.
+    /// </summary>
+    [Fact]
+    public void EffectsAndTheAccumulatorAdvanceByTheGovernedSpeedNotTheRequestedOne()
+    {
+        var source = ReadArenaGame();
+
+        var effectsArguments = SplitTopLevelArguments(
+            ExtractCallArguments(source, "_presentation.AdvanceEffects("));
+        Assert.Equal(
+            "(float)_playRateGovernor.EffectiveSpeed",
+            effectsArguments[1],
+            StringComparer.Ordinal);
+
+        var body = ExtractSection(
+            source,
+            "private void AdvanceSimulation(",
+            "private void UpdatePlayRateGovernor(");
+        Assert.Contains(
+            "_playRateGovernor.EffectiveSpeed", body, StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "* _speedMultiplier", body, StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "_speedMultiplier *", body, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void BothPawnPositionSitesResolveThroughTheInterpolatedPosition()
+    {
+        var root = GetRepositoryRoot();
+        var rendering = File.ReadAllText(Path.Combine(
+            root, "src", "Hukbo.Client", "ArenaGame.Rendering.cs"));
+
+        // The metrics probe's pass and the draw pass: two sites that must
+        // agree on where a pawn stands, or the probe counts a different
+        // frame from the one drawn.
+        Assert.Equal(
+            2,
+            CountOccurrences(
+                rendering,
+                "var (drawnXRaw, drawnYRaw) = ResolveDrawnPosition(ordinal, agent);"));
+    }
+
+    [Fact]
+    public void TheRenderPositionsAreCapturedAfterEveryTickTheLoopRuns()
+    {
+        var body = ExtractSection(
+            ReadArenaGame(),
+            "private void AdvanceSimulation(",
+            "private void UpdatePlayRateGovernor(");
+
+        var tick = body.IndexOf(
+            "_simulation.AdvanceOneTick();", StringComparison.Ordinal);
+        var capture = body.IndexOf(
+            "_renderPositions.Capture(_simulation.Agents);", StringComparison.Ordinal);
+
+        Assert.True(tick >= 0, "AdvanceSimulation no longer advances a tick.");
+        Assert.True(
+            capture > tick,
+            "_renderPositions.Capture must follow AdvanceOneTick inside the tick loop.");
+        Assert.Equal(1, CountOccurrences(body, "_simulation.AdvanceOneTick();"));
+        Assert.Equal(
+            1,
+            CountOccurrences(body, "_renderPositions.Capture(_simulation.Agents);"));
+    }
+
+    [Fact]
+    public void OnlyAFullResetForgetsTheGovernorsCostHistory()
+    {
+        var source = ReadArenaGame();
+
+        Assert.Equal(1, CountOccurrences(source, "_playRateGovernor.Reset();"));
+        var reset = source.IndexOf(
+            "_playRateGovernor.Reset();", StringComparison.Ordinal);
+        Assert.Contains(
+            "if (resetCommand == ClientCommand.FullReset)",
+            source[(reset - 100)..reset],
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ADecidedBattleNeverReadsAsHolding()
+    {
+        var body = ExtractSection(
+            ReadArenaGame(),
+            "private string BuildSpeedText()",
+            "private void UpdateWindowTitle()");
+
+        Assert.Contains(
+            "_simulation.Outcome == BattleOutcome.Ongoing",
+            body,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void TheDamageCardTicksOutsideThePointerChainAndIsSeededAtEveryBattleStart()
+    {
+        var source = ReadArenaGame();
+
+        var tick = source.IndexOf(
+            "_damageTallyPanel.Tick(", StringComparison.Ordinal);
+        Assert.True(tick >= 0, "The damage card is never ticked.");
+        Assert.Equal(1, CountOccurrences(source, "_damageTallyPanel.Tick("));
+
+        // Gated on visibility alone: a surface above the card consuming the
+        // pointer must not stop its numbers refreshing.
+        var guard = source[(tick - 120)..tick];
+        Assert.Contains("if (_isDamageTallyVisible)", guard, StringComparison.Ordinal);
+        Assert.DoesNotContain("pointerConsumed", guard, StringComparison.Ordinal);
+
+        // Startup and ResetSimulation: the battle opens paused, so no tick has
+        // fed the tally a roster yet.
+        Assert.Equal(
+            2,
+            CountOccurrences(
+                source, "_presentation.DamageTally.SeedRoster(_simulation.Agents);"));
+    }
+
+    private static string ReadArenaGame() =>
+        File.ReadAllText(Path.Combine(
+            GetRepositoryRoot(), "src", "Hukbo.Client", "ArenaGame.cs"));
+
+    private static int CountOccurrences(string source, string text)
+    {
+        var count = 0;
+        var index = source.IndexOf(text, StringComparison.Ordinal);
+        while (index >= 0)
+        {
+            count++;
+            index = source.IndexOf(text, index + text.Length, StringComparison.Ordinal);
+        }
+
+        return count;
+    }
+
+    /// <summary>
+    /// The text from the first occurrence of <paramref name="startAnchor"/> up
+    /// to the next occurrence of <paramref name="endAnchor"/>, for scanning one
+    /// method's body.
+    /// </summary>
+    private static string ExtractSection(
+        string source,
+        string startAnchor,
+        string endAnchor)
+    {
+        var start = source.IndexOf(startAnchor, StringComparison.Ordinal);
+        Assert.True(start >= 0, "Could not find \"" + startAnchor + "\".");
+        var end = source.IndexOf(endAnchor, start, StringComparison.Ordinal);
+        Assert.True(end > start, "Could not find \"" + endAnchor + "\" after it.");
+        return source[start..end];
     }
 
     /// <summary>

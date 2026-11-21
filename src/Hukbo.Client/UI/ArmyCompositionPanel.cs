@@ -139,6 +139,7 @@ internal sealed partial class ArmyCompositionPanel
             MovementPresetId.EvasiveFootworkV14,
             MovementPresetId.ContingentCohesionBeforeContactV15,
             MovementPresetId.ShieldEncumbranceV16,
+            MovementPresetId.SeparatingContactV17,
         ];
 
     /// <summary>
@@ -164,6 +165,7 @@ internal sealed partial class ArmyCompositionPanel
             "V14 Evasive Footwork",
             "V15 Contingent Cohesion Before Contact",
             "V16 Shield Encumbrance",
+            "V17 Separating Contact",
         ];
 
     /// <summary>

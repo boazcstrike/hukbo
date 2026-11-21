@@ -53,7 +53,9 @@ internal readonly record struct CollisionMoveResult(
 /// <summary>
 /// The <see cref="CollisionPolicy.Solid"/> movement resolver. It takes one
 /// movement proposal per living agent and returns one committed position per
-/// agent such that no two committed bodies strictly overlap.
+/// agent such that every pair ends at least as far apart as the smaller of its
+/// start distance and the effective floor: the full diameter <c>2R</c> unless
+/// a hard floor was given, in which case that floor.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -63,14 +65,18 @@ internal readonly record struct CollisionMoveResult(
 /// filtered out before they reach this stage rather than being skipped here.
 /// </para>
 /// <para>
-/// <b>Precondition.</b> No two request start positions may strictly overlap.
-/// Spawn resolution guarantees this on the first tick and the resolver's own
-/// output invariant carries it forward on every later tick. The one exception the
-/// resolver repairs is an exact co-location, which can only arise from a test
-/// constructor or an unresolved spawn. Two bodies that merely overlap without
-/// sharing a centre are deliberately left exactly where they are: inventing a
-/// repair for an input state that spawn validation already forbids would add an
-/// untestable code path and a second, weaker notion of a legal position.
+/// <b>Precondition.</b> No pair of request start positions may sit below the
+/// effective floor, except as the separation pass leaves them. Spawn resolution
+/// guarantees full-diameter spacing on the first tick, and the resolver's own
+/// output invariant carries it forward on every later tick. Under a preset that
+/// applies separating contact the pass can leave a pair inside the soft band
+/// between the floor and <c>2R</c>; such a pair is not repaired here and may not
+/// close further. The one exception the resolver repairs is an exact
+/// co-location, which can only arise from a test constructor or an unresolved
+/// spawn. Two bodies that merely start below the floor without sharing a centre
+/// are deliberately left exactly where they are: inventing a repair for them
+/// would add an untestable code path and a second, weaker notion of a legal
+/// position.
 /// </para>
 /// <para>
 /// <b>Order.</b> Stationary bodies are committed first, in ascending entity ID,
@@ -98,6 +104,17 @@ internal readonly record struct CollisionMoveResult(
 /// <see cref="CollisionGeometry.Overlaps"/>. Exact tangency is an accepted
 /// resting position, which is what lets a packed front settle instead of
 /// jittering by one raw unit forever.
+/// </para>
+/// <para>
+/// <b>Hard floor.</b> The test distance is the full diameter <c>2R</c> unless
+/// the caller passes a smaller <c>hardFloorRaw</c>, as a preset that applies
+/// separating contact does, per
+/// <c>docs/decisions/2026-11-21-separating-contact.md</c> item 3. The overlap
+/// query takes a radius and tests against twice it, so an odd floor is rounded
+/// up to the next even value: the effective floor is never below the requested
+/// one, and the invariant <c>d &gt;= floor</c> proved from it never weakens.
+/// With no floor the radius is exactly the body radius and every query is
+/// byte-identical to what it was before this parameter existed.
 /// </para>
 /// <para>
 /// <b>Indices.</b> Both sets of obstacles are held in a
@@ -182,6 +199,12 @@ internal sealed class CollisionResolver
 
     private readonly int _diameterRaw;
 
+    /// <summary>
+    /// The radius handed to every overlap query, so that twice it is the hard
+    /// floor. Equal to <see cref="_bodyRadiusRaw"/> when no floor is given.
+    /// </summary>
+    private readonly int _overlapRadiusRaw;
+
     private readonly int _mapWidthRaw;
 
     private readonly int _mapHeightRaw;
@@ -206,12 +229,22 @@ internal sealed class CollisionResolver
     /// </param>
     /// <param name="mapWidthRaw">Map width in raw fixed-point units.</param>
     /// <param name="mapHeightRaw">Map height in raw fixed-point units.</param>
+    /// <param name="hardFloorRaw">
+    /// The centre distance below which a candidate is refused, in raw units.
+    /// Omitted for the full diameter <c>2R</c>. See the hard-floor remark on
+    /// the class.
+    /// </param>
     /// <exception cref="ArgumentOutOfRangeException">
-    /// <paramref name="bodyRadiusRaw"/> is not positive, or either map dimension
-    /// is narrower than one body diameter. A map that cannot hold one body has no
-    /// legal centre at all, which the boundary rule cannot express.
+    /// <paramref name="bodyRadiusRaw"/> is not positive, either map dimension
+    /// is narrower than one body diameter (a map that cannot hold one body has no
+    /// legal centre at all, which the boundary rule cannot express), or
+    /// <paramref name="hardFloorRaw"/> is outside <c>1..2R</c>.
     /// </exception>
-    internal CollisionResolver(int bodyRadiusRaw, int mapWidthRaw, int mapHeightRaw)
+    internal CollisionResolver(
+        int bodyRadiusRaw,
+        int mapWidthRaw,
+        int mapHeightRaw,
+        int? hardFloorRaw = null)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(bodyRadiusRaw);
 
@@ -220,7 +253,12 @@ internal sealed class CollisionResolver
         ArgumentOutOfRangeException.ThrowIfLessThan(mapWidthRaw, diameterRaw);
         ArgumentOutOfRangeException.ThrowIfLessThan(mapHeightRaw, diameterRaw);
 
+        var floorRaw = hardFloorRaw ?? diameterRaw;
+        ArgumentOutOfRangeException.ThrowIfLessThan(floorRaw, 1);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(floorRaw, diameterRaw);
+
         _bodyRadiusRaw = bodyRadiusRaw;
+        _overlapRadiusRaw = (floorRaw + 1) / 2;
         _diameterRaw = diameterRaw;
         _mapWidthRaw = mapWidthRaw;
         _mapHeightRaw = mapHeightRaw;
@@ -230,8 +268,8 @@ internal sealed class CollisionResolver
         // The radius is fixed for this resolver's whole lifetime, so the guard
         // that every query would otherwise re-run is run once, here. That is what
         // lets the inner loop call the unchecked queries.
-        _committedGrid.ValidateRadiusForQueries(bodyRadiusRaw);
-        _pendingGrid.ValidateRadiusForQueries(bodyRadiusRaw);
+        _committedGrid.ValidateRadiusForQueries(_overlapRadiusRaw);
+        _pendingGrid.ValidateRadiusForQueries(_overlapRadiusRaw);
     }
 
     /// <summary>
@@ -260,7 +298,9 @@ internal sealed class CollisionResolver
     /// <summary>
     /// Resolves one tick of movement. On return, <see cref="Results"/> holds one
     /// committed position per request and no two of those positions strictly
-    /// overlap.
+    /// overlap, or sit closer than the hard floor when one was given. A pair
+    /// that already starts closer than the floor is not repaired here; it is left
+    /// where it is, as for any other merely overlapping start.
     /// </summary>
     /// <param name="requests">
     /// The living agents of this tick, strictly ascending by entity ID.
@@ -704,12 +744,12 @@ internal sealed class CollisionResolver
         return !_committedGrid.AnyOverlapUnchecked(
                 xRaw,
                 yRaw,
-                _bodyRadiusRaw,
+                _overlapRadiusRaw,
                 entityId) &&
             !_pendingGrid.AnyOverlapUnchecked(
                 xRaw,
                 yRaw,
-                _bodyRadiusRaw,
+                _overlapRadiusRaw,
                 entityId);
     }
 

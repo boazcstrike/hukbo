@@ -1,4 +1,5 @@
 using Hukbo.Core.Mathematics;
+using Hukbo.Core.Movement;
 
 namespace Hukbo.Core.Simulation;
 
@@ -38,8 +39,9 @@ namespace Hukbo.Core.Simulation;
 /// — it covers the pressed front rank and the rank reaching past it.
 /// </param>
 /// <param name="PenetrationRaw">
-/// Deepest living-body overlap measured after the commit. Must be zero under
-/// <see cref="CollisionPolicy.Solid"/>; see
+/// Deepest living-body overlap measured after the commit and, under a preset
+/// that applies separating contact, after the separation pass. Must be zero
+/// under every other preset; see
 /// <see cref="CollisionMetrics.MaximumPenetrationRaw"/>.
 /// </param>
 internal readonly record struct CollisionTickMetrics(
@@ -79,21 +81,55 @@ internal sealed class CollisionScratch
     private readonly int[] _stallGenerations;
 
 
-    internal CollisionScratch(Scenario scenario, int agentCount)
+    /// <param name="movementRules">
+    /// Supplies the resolver's hard floor and, when it applies separating
+    /// contact, the separation pass and its per-agent input arrays. Both are
+    /// built once here, so a warm tick allocates nothing for them.
+    /// </param>
+    internal CollisionScratch(
+        Scenario scenario,
+        int agentCount,
+        MovementRuleset movementRules)
     {
         // A solid resolver guarantees every living pair ends the tick at or
         // beyond the contact distance, so "touching" would mean a squared
         // distance of exactly (2R)^2 — a Pythagorean coincidence on an integer
-        // lattice, and unreachable in practice. Contact is therefore counted
+        // lattice, and unreachable in practice. That holds for a preset with no
+        // hard floor; a preset that applies separating contact lets pairs sit
+        // closer than 2R, down to its floor less the pass's push cap, and
+        // counts them as in contact like any other. Contact is therefore counted
         // over a band: bodies within one movement step of touching are pressed
         // together as far as a spectator is concerned.
         ContactBandRadiusRaw = checked(
             scenario.BodyRadiusRaw + (scenario.MovementSpeedRaw / 2));
         Grid = new CollisionUniformGrid(checked(2 * ContactBandRadiusRaw));
+        var mapWidthRaw = checked(scenario.MapWidth * FixedPoint.Scale);
+        var mapHeightRaw = checked(scenario.MapHeight * FixedPoint.Scale);
         Resolver = new CollisionResolver(
             scenario.BodyRadiusRaw,
-            checked(scenario.MapWidth * FixedPoint.Scale),
-            checked(scenario.MapHeight * FixedPoint.Scale));
+            mapWidthRaw,
+            mapHeightRaw,
+            movementRules.SeparationFloorRaw(scenario.BodyRadiusRaw));
+        if (movementRules.AppliesSeparatingContact)
+        {
+            Separation = new SeparationPass();
+            SeparationSettings = new SeparationParameters(
+                scenario.BodyRadiusRaw,
+                movementRules.SeparationSoftBandBasisPoints,
+                movementRules.SeparationPushCapRadiusBasisPoints,
+                movementRules.SeparationStiffnessBasisPoints,
+                movementRules.SeparationCommittedWeightMultiplier,
+                movementRules.SeparationSidewaysBasisPoints,
+                mapWidthRaw,
+                mapHeightRaw);
+            SeparationXRaw = new int[agentCount];
+            SeparationYRaw = new int[agentCount];
+            SeparationIsAlive = new bool[agentCount];
+            SeparationWeight = new int[agentCount];
+            SeparationIsCommitted = new bool[agentCount];
+            SeparationEntityId = new ulong[agentCount];
+        }
+
         Bodies = new List<CollisionBody>(agentCount);
         Requests = new List<CollisionMoveRequest>(agentCount);
         _blockedStreakTicks = new int[agentCount];
@@ -114,6 +150,32 @@ internal sealed class CollisionScratch
     internal int ContactBandRadiusRaw { get; }
 
     internal CollisionResolver Resolver { get; }
+
+    /// <summary>
+    /// The separation pass, or <see langword="null"/> under every preset that
+    /// does not apply separating contact. Derived scratch: never hashed,
+    /// never snapshotted.
+    /// </summary>
+    internal SeparationPass? Separation { get; }
+
+    internal SeparationParameters SeparationSettings { get; }
+
+    /// <summary>
+    /// The per-agent input arrays of <see cref="Separation"/>, indexed like the
+    /// agent array and refilled each tick. Empty under a preset that does not
+    /// apply separating contact.
+    /// </summary>
+    internal int[] SeparationXRaw { get; } = [];
+
+    internal int[] SeparationYRaw { get; } = [];
+
+    internal bool[] SeparationIsAlive { get; } = [];
+
+    internal int[] SeparationWeight { get; } = [];
+
+    internal bool[] SeparationIsCommitted { get; } = [];
+
+    internal ulong[] SeparationEntityId { get; } = [];
 
     internal List<CollisionBody> Bodies { get; }
 

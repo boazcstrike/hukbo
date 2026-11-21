@@ -207,6 +207,14 @@ internal static class PawnRenderer
     /// where every view carries <see langword="false"/> — draws exactly what
     /// it draws today.
     /// </param>
+    /// <param name="spotlightColor">
+    /// The damage tally's hover spotlight (weapon damage tally design, section
+    /// 2): when non-null, a ring in this colour is drawn around the pawn,
+    /// outside the selection and hover brackets. <see langword="null"/> (the
+    /// default) draws nothing, so every existing call site is unchanged. The
+    /// caller owns the colour, and the caller owns the living-only rule: this
+    /// renderer takes no theme and does not decide which pawns are lit.
+    /// </param>
     public static void Draw(
         SpriteBatch spriteBatch,
         Texture2D pixel,
@@ -231,7 +239,8 @@ internal static class PawnRenderer
         Texture2D? bodyAtlas = null,
         ulong entityId = 0,
         WeaponVisualStyle weaponVisualStyle = WeaponVisualStyle.Procedural,
-        Texture2D? weaponAtlas = null)
+        Texture2D? weaponAtlas = null,
+        Color? spotlightColor = null)
     {
         ArgumentNullException.ThrowIfNull(spriteBatch);
         ArgumentNullException.ThrowIfNull(pixel);
@@ -267,7 +276,8 @@ internal static class PawnRenderer
             bodyAtlas,
             entityId,
             weaponVisualStyle,
-            weaponAtlas);
+            weaponAtlas,
+            spotlightColor);
     }
 
     /// <summary>
@@ -311,7 +321,8 @@ internal static class PawnRenderer
         Texture2D? bodyAtlas = null,
         ulong entityId = 0,
         WeaponVisualStyle weaponVisualStyle = WeaponVisualStyle.Procedural,
-        Texture2D? weaponAtlas = null)
+        Texture2D? weaponAtlas = null,
+        Color? spotlightColor = null)
     {
         ArgumentNullException.ThrowIfNull(spriteBatch);
         ArgumentNullException.ThrowIfNull(pixel);
@@ -564,6 +575,14 @@ internal static class PawnRenderer
                 breakOffMarkBounds,
                 BreakOffColor,
                 layout.Collapse);
+        }
+
+        // Last, so the ring is never painted over by another mark. Like the
+        // selection mark it is deliberately not carried by layout.Collapse: it
+        // is a screen-space marker around the pawn, not a part of it.
+        if (spotlightColor is { } ringColor)
+        {
+            DrawSpotlightMark(spriteBatch, pixel, layout.SelectionBounds, ringColor);
         }
     }
 
@@ -2076,6 +2095,77 @@ internal static class PawnRenderer
                     corner.Height),
                 color);
         }
+    }
+
+    /// <summary>
+    /// How far the spotlight ring sits outside the selection bounds, in
+    /// pixels. The selection brackets hang inside those bounds, so the ring
+    /// never overlaps a selected or hovered pawn's brackets.
+    /// </summary>
+    private const int SpotlightRingOutset = 2;
+
+    /// <summary>
+    /// The stroke width of the spotlight ring, in pixels.
+    /// </summary>
+    private const int SpotlightRingThickness = 2;
+
+    /// <summary>
+    /// The outer rectangle of the spotlight ring around a pawn whose
+    /// selection bounds are <paramref name="selectionBounds"/>. Pure
+    /// placement math, extracted so <c>PawnRendererTests</c> can reason about
+    /// where the ring puts pixels without a graphics device.
+    /// </summary>
+    public static Rectangle GetSpotlightMarkBounds(Rectangle selectionBounds) =>
+        new(
+            selectionBounds.Left - SpotlightRingOutset,
+            selectionBounds.Top - SpotlightRingOutset,
+            selectionBounds.Width + (SpotlightRingOutset * 2),
+            selectionBounds.Height + (SpotlightRingOutset * 2));
+
+    /// <summary>
+    /// A closed rectangular ring of four non-overlapping edge quads around the
+    /// pawn, distinct in shape from <see cref="DrawSelectionMark"/>'s corner
+    /// brackets. Four draw calls, no allocation: the damage tally's hover
+    /// spotlight draws one of these for every living agent of a weapon at
+    /// once.
+    /// </summary>
+    private static void DrawSpotlightMark(
+        SpriteBatch spriteBatch,
+        Texture2D pixel,
+        Rectangle selectionBounds,
+        Color color)
+    {
+        var ring = GetSpotlightMarkBounds(selectionBounds);
+        var sideHeight = ring.Height - (SpotlightRingThickness * 2);
+
+        spriteBatch.Draw(
+            pixel,
+            new Rectangle(ring.Left, ring.Top, ring.Width, SpotlightRingThickness),
+            color);
+        spriteBatch.Draw(
+            pixel,
+            new Rectangle(
+                ring.Left,
+                ring.Bottom - SpotlightRingThickness,
+                ring.Width,
+                SpotlightRingThickness),
+            color);
+        spriteBatch.Draw(
+            pixel,
+            new Rectangle(
+                ring.Left,
+                ring.Top + SpotlightRingThickness,
+                SpotlightRingThickness,
+                sideHeight),
+            color);
+        spriteBatch.Draw(
+            pixel,
+            new Rectangle(
+                ring.Right - SpotlightRingThickness,
+                ring.Top + SpotlightRingThickness,
+                SpotlightRingThickness,
+                sideHeight),
+            color);
     }
 
     /// <summary>

@@ -811,6 +811,51 @@ public static class MovementPresetRegistry
         narrowBreastHighShieldPaceBasisPoints: 9_600,
         tallHardwoodShieldPaceBasisPoints: 9_000);
 
+    /// <summary>
+    /// The separating-contact preset, from the 2026-11-21 soft-separation
+    /// design. <see cref="EvasiveFootworkV14Ruleset"/>'s registered field
+    /// values restated verbatim under its own <c>id</c>, following the
+    /// "restate, do not reference" convention every preset above uses, plus
+    /// the <see cref="MovementRuleset.AppliesSeparatingContact"/> gate and its
+    /// five tunables and nothing else.
+    /// <para>
+    /// The five tunables are a <b>provisional reconstruction</b> for gameplay
+    /// purposes: a 15 per cent soft band, a push cap of 5 per cent of the body
+    /// radius per tick, half the averaged push applied, a committed body
+    /// weighing three times an uncommitted one, and a quarter of the in-band
+    /// push directed sideways. None is a historical measurement, and each is
+    /// to be settled by the design's section 5 measurements.
+    /// </para>
+    /// </summary>
+    private static readonly MovementRuleset SeparatingContactV17Ruleset = new(
+        id: MovementPresetId.SeparatingContactV17,
+        version: 1,
+        cohesionRadiusMultiplier: 24,
+        closeRadiusMultiplier: 16,
+        closeFractionNumerator: 1,
+        closeFractionDenominator: 2,
+        minimumCohesiveMembers: 3,
+        cohesionCycleTicks: 240,
+        cohesionDutyTicks: 180,
+        arrivalTaperMultiplier: 4,
+        offsetUnit: 1024,
+        narrowsCohesionScanToCohesionCapableContingents: true,
+        selectsLeaderByRank: false,
+        usesEquipmentRelativeFootwork: false,
+        immediateRadiusBodyDiametersBasisPoints: 0,
+        supportRadiusBodyDiametersBasisPoints: 0,
+        loadoutMovementProfiles: ImmutableArray<LoadoutMovementProfile>.Empty,
+        appliesPressureInterrupt: false,
+        supportPressureWeightBasisPoints: 0,
+        incomingDamageWeightBasisPoints: 0,
+        allyCollapseWeightBasisPoints: 0,
+        appliesSeparatingContact: true,
+        separationSoftBandBasisPoints: 1_500,
+        separationPushCapRadiusBasisPoints: 500,
+        separationStiffnessBasisPoints: 5_000,
+        separationCommittedWeightMultiplier: 3,
+        separationSidewaysBasisPoints: 2_500);
+
     public static bool IsRegistered(MovementPresetId id) =>
         id switch
         {
@@ -830,6 +875,7 @@ public static class MovementPresetRegistry
             MovementPresetId.EvasiveFootworkV14 => true,
             MovementPresetId.ContingentCohesionBeforeContactV15 => true,
             MovementPresetId.ShieldEncumbranceV16 => true,
+            MovementPresetId.SeparatingContactV17 => true,
             _ => false,
         };
 
@@ -854,6 +900,8 @@ public static class MovementPresetRegistry
                 ContingentCohesionBeforeContactV15Ruleset,
             MovementPresetId.ShieldEncumbranceV16 =>
                 ShieldEncumbranceV16Ruleset,
+            MovementPresetId.SeparatingContactV17 =>
+                SeparatingContactV17Ruleset,
             _ => throw new ArgumentOutOfRangeException(
                 nameof(id),
                 id,

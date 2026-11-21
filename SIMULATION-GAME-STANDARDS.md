@@ -449,11 +449,62 @@ for every ordered pair of living agents (a, b) with a.EntityId < b.EntityId:
     (bx - ax)^2 + (by - ay)^2  >=  (2 * BodyRadiusRaw)^2
 ```
 
-Penetration is never permitted between two living agents, in any amount, at the end of any tick.
+Penetration is never permitted between two living agents, in any amount, at the end of any tick,
+under every movement preset except the one that applies separating contact, described next.
 Exactly one policy value exists, `CollisionPolicy.Solid`, and `Scenario.Validate` rejects any
-other. Soft compression and faction-dependent contact were considered and rejected; the resolver
-must not grow a code path, enum value, or configuration field that selects a different behaviour.
-Adding a second policy value is a new decision record, not an implementation detail.
+other. Faction-dependent contact was considered and rejected, and the resolver must not grow an
+enum value or a `Scenario` configuration field that selects a different collision policy. Adding a
+second policy value is a new decision record, not an implementation detail.
+
+#### Presets that apply separating contact
+
+One opt-in movement preset, `MovementPresetId.SeparatingContactV17`, replaces the zero-overlap rule
+with a bounded-overlap rule. The authority is the decision record
+[docs/decisions/2026-11-21-separating-contact.md](docs/decisions/2026-11-21-separating-contact.md),
+which supersedes the zero-overlap sentence above for that preset only; the design is
+[docs/plans/2026-11-21-soft-separation-design.md](docs/plans/2026-11-21-soft-separation-design.md).
+The behaviour is gated by `MovementRuleset.AppliesSeparatingContact`, not by `CollisionPolicy`, which
+still has the single value `Solid`. Under that preset `Solid` names the hard floor below rather than
+zero overlap. Every other preset keeps the rule above exactly, with the same distance, the same
+resolver, and the same recorded hashes.
+
+The rule has two parts. Both are integer arithmetic on raw fixed-point coordinates, and every
+constant is a provisional basis-point field on the movement ruleset, never a measurement.
+
+- **The resolver keeps a hard floor.** Its ladder, priority order, and strict comparison are
+  unchanged. Only the distance it tests against becomes `floor = 2R * (1 - f)`, where `f` is the
+  soft-band fraction, instead of `2R`. A mover may step into the band between `floor` and `2R`.
+  The resolver's overlap query takes a radius and tests against twice it, so an odd `floor` is
+  rounded up to the next even value; the effective floor is never below `floor`.
+- **One separation pass runs per tick**, after `CommitMovement` and before `MeasureCollision`. It is
+  a Jacobi pass: every body reads the same start-of-pass snapshot and writes only its own push, so
+  the result does not depend on processing order, and there is no convergence loop. Each body's
+  share of a push comes from its armour weight class and from whether it is committed to a fight,
+  which the implementation reads as `AgentIntent.Attacking`. The push is capped at `c` per body
+  per tick and the result is clamped to the arena. The pass has no velocity, no impulse, no
+  restitution, and no momentum carried between ticks, so a weight share on a positional correction
+  is not rigid-body physics under `CLAUDE.md` section 9. The pass emits no event; a `Move` event
+  keeps the distance `CommitMovement` moved the agent. The state hash sees the positions after the
+  pass.
+
+The invariant for the preset replaces the one above. For every pair of living agents at the end of
+every tick:
+
+```text
+(bx - ax)^2 + (by - ay)^2  >=  (2R(1 - f) - 2c)^2
+```
+
+where `c` is the per-tick push cap. The resolver never closes a pair below the smaller of its start distance and `floor`
+(`src/Hukbo.Core/Simulation/CollisionResolver.cs`). The separation pass then limits each body's
+motion toward every neighbour closer than `2R` to half that pair's remaining slack above the bound
+`B = 2R(1 - f) - 2c`, less a rounding margin of 4 raw units (`ShrinkMarginRaw` in
+`src/Hukbo.Core/Simulation/SeparationPass.cs`, `LimitInwardMotion`), so the pair distance cannot
+cross `B`. The bound therefore holds on every tick by induction from spawn. Any change to `f` or `c`
+must keep `B + 4 ≤ 2R`. A regression test
+asserts the formula over seeded battles, and the penetration metric
+(`CollisionMetrics.MaximumPenetrationRaw`) can be non-zero under this preset by design, bounded by
+`2R - (2R(1 - f) - 2c)`. The tests that assert zero overlap for every other preset are preset-aware
+and assert exactly what they asserted before.
 
 `PawnRenderer` size stays cosmetic. Presentation may draw a pawn larger or smaller than four world
 units without affecting the simulation.
@@ -498,8 +549,8 @@ overlap: intent selection describes arrival, attack gathering describes striking
 
 | Pair | Behaviour |
 |---|---|
-| Living agent — living ally | Solid. Zero overlap. Identical to the enemy rule. |
-| Living agent — living enemy | Solid. Zero overlap. |
+| Living agent — living ally | Solid. Zero overlap. Identical to the enemy rule. Under `SeparatingContactV17`: bounded overlap, see the separating-contact subsection. |
+| Living agent — living enemy | Solid. Zero overlap. Under `SeparatingContactV17`: bounded overlap, see the separating-contact subsection. |
 | Living agent — corpse (`HitPoints == 0`) | No collision. Corpses are walked over. |
 | Corpse — corpse | No collision. Dead agents never move and never block. |
 | Living agent — map boundary | Hard clamp of the centre to `[BodyRadiusRaw, dimensionRaw - BodyRadiusRaw]` on each axis independently. |
@@ -522,6 +573,7 @@ ResolveContingentStates      // no-op under IndependentPursuitV1
 GatherMovementProposals      // reads tick-start positions only
 ResolveCollisions            // rebuilds the grid, validates candidates
 CommitMovement               // single commit, emits Move events
+SeparatingContact            // only under a preset that applies separating contact
 MeasureCollision             // pure observation, writes no agent state
 GatherAndCommitAttacks       // reads resolved positions
 ResolveOutcome
@@ -545,7 +597,14 @@ the contingent's living members. The per-slot arrays are working buffers
 recomputed from scratch every tick; only the per-agent `ContingentState` write
 is authoritative state, and it is what `StateHasher.Compute` observes.
 
-`MeasureCollision` derives this tick's counters from committed positions. It writes no agent state
+`SeparatingContact` is the one separation pass described under the rule above. It does not run
+under any other preset, so their tick pipeline is unchanged in effect. It writes agent positions,
+which are hashed, and emits no event. `MovementResolution`, the blocked streak, and the `Move` event
+distance describe the resolver's result only, before the pass moves anyone. Changing that needs a
+new preset version.
+
+`MeasureCollision` derives this tick's counters from committed positions, which under a preset that
+applies separating contact are the positions after the separation pass. It writes no agent state
 and nothing it produces is hashed.
 
 ### Priority and the candidate ladder
@@ -567,7 +626,8 @@ agent from combat: contact happens at eight world units while attack reach is tw
 agent is still attacking. `TickLimit` remains the terminal backstop.
 
 For each mover, the first candidate that satisfies the zero-overlap invariant against all committed
-positions and the boundary rule is taken. Candidates are evaluated in this fixed order:
+positions and the boundary rule is taken. Under `SeparatingContactV17` the invariant is the
+bounded-overlap rule of the separating-contact subsection instead. Candidates are evaluated in this fixed order:
 
 1. The preferred destination at full step. Accepting this reports `Moved`.
 2. X-axis-only slide: preferred X, tick-start Y. Reports `Slid`.
@@ -582,7 +642,8 @@ Rounding for every truncated candidate uses the existing integer division formul
 redistributed; there is nothing to split between two agents because the solid resolver moves one
 agent at a time.
 
-Collision resolution may only **reduce** displacement, never add any. Tunneling and path swapping
+Collision resolution may only **reduce** displacement, never add any. Under `SeparatingContactV17`
+the separation pass after the resolver adds at most `c` per body, and bodies still cannot swap sides. Tunneling and path swapping
 are forbidden and are made geometrically impossible rather than tested for at run time:
 `Scenario.Validate` enforces `MovementSpeedRaw <= BodyRadiusRaw`, so two agents closing head-on
 cover at most `2 * MovementSpeedRaw` in a tick, strictly less than the diameter they would have to
@@ -614,9 +675,20 @@ built, so a battlefield full of corpses costs nothing here.
 All grid, pair, proposal, and resolution storage is preallocated and reused, growing only when
 capacity is insufficient, so a warm collision tick allocates nothing.
 
+The targeting grid is a second derived oracle, with the same status. Each faction has its own grid,
+rebuilt each tick from the same `XRaw`, `YRaw`, and `IsAlive` fields that the brute-force scan reads
+(`src/Hukbo.Core/Simulation/TargetingGrid.cs`). It is never hashed and never snapshotted. The exact
+ring search returns the same target as the full scan, with the same tie-break and the same
+melee-threat minimum. The full scan is kept for presets whose movement rules derive local context
+(`UsesEquipmentRelativeFootwork`, movement V6, V7, and V9), so those presets never take the ring
+search. Equivalence is proven by the differential tests in `tests/Hukbo.Core.Tests/TargetingGridTests.cs`
+and `tests/Hukbo.Core.Tests/RingSearchTargetingTests.cs`, and by unchanged gate hashes. Design:
+`docs/plans/2026-11-21-ring-search-targeting-design.md`.
+
 ### Contact is measured over a proximity band
 
-A solid resolver guarantees that every living pair ends the tick at or beyond `(2R)^2`. "Touching"
+A solid resolver guarantees that every living pair ends the tick at or beyond `(2R)^2`. Under
+`SeparatingContactV17` that guarantee is replaced by the bounded-overlap rule above. "Touching"
 would therefore mean a squared distance of **exactly** `(2R)^2`, which on an integer lattice requires
 a Pythagorean coincidence between the two axis deltas and the diameter, and is unreachable in
 practice. An exact-tangency counter can essentially never fire, whatever the agents are doing, which

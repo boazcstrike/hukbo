@@ -1,6 +1,7 @@
 using Hukbo.Client.Audio;
 using Hukbo.Client.Rendering;
 using Hukbo.Client.Settings;
+using Hukbo.Core.Combat;
 using Hukbo.Core.Simulation;
 
 namespace Hukbo.Client.Presentation;
@@ -13,6 +14,13 @@ internal sealed class PresentationCoordinator
     /// so the many presentation tests that build a coordinator without caring
     /// about measurement keep their existing call, and so a normal run — where
     /// the render probe is off — pays only no-op calls.
+    /// </param>
+    /// <param name="combatRules">
+    /// The combat ruleset the battle resolves under, which <see cref="DamageTally"/>
+    /// applies for armour. Defaulted to the preset <c>ArenaGame</c> ships,
+    /// <see cref="CombatPresetId.PrecolonialPhilippinesV8"/>, so the many tests
+    /// that build a coordinator keep their existing call; a caller running a
+    /// different preset must pass that preset's ruleset.
     /// </param>
     /// <summary>
     /// Mirrors <c>Scenario</c>'s own default for
@@ -38,7 +46,8 @@ internal sealed class PresentationCoordinator
         int embeddedProjectileCapacity = EmbeddedProjectileSystem.Capacity,
         int attackCapacity = PawnAppearanceCache.Capacity,
         int deathCollapseCapacity = PawnAppearanceCache.Capacity,
-        IRenderMetricsRecorder? renderMetricsRecorder = null)
+        IRenderMetricsRecorder? renderMetricsRecorder = null,
+        CombatRuleset? combatRules = null)
     {
         PawnAppearances = new PawnAppearanceCache(
             renderMetricsRecorder ?? NullRenderMetricsRecorder.Instance);
@@ -58,6 +67,9 @@ internal sealed class PresentationCoordinator
         DefenderReactions = new DefenderReactionSystem(attackCapacity);
         DeathCollapse = new DeathCollapseSystem(deathCollapseCapacity);
         BattleReportAccumulator = new BattleReportAccumulator();
+        DamageTally = new WeaponDamageTally(
+            combatRules ?? CombatPresetRegistry.Get(
+                CombatPresetId.PrecolonialPhilippinesV8));
     }
 
     public PlaybackController Playback { get; } = new();
@@ -197,6 +209,14 @@ internal sealed class PresentationCoordinator
     /// </summary>
     public BattleReportAccumulator BattleReportAccumulator { get; }
 
+    /// <summary>
+    /// The per-faction, per-weapon damage tally, fed from <see cref="IngestTick"/>
+    /// and cleared by <see cref="ResetFor"/>, which also swaps in a tally for
+    /// the next battle's combat ruleset when given one. The damage card reads
+    /// it, so a caller must read this property each time rather than hold it.
+    /// </summary>
+    public WeaponDamageTally DamageTally { get; private set; }
+
     public MatchSummary? Summary { get; private set; }
 
     /// <summary>
@@ -238,6 +258,7 @@ internal sealed class PresentationCoordinator
         // survives the merge; only this branch changed that method, and it
         // needs the views to attribute a report row.
         BattleReportAccumulator.Ingest(events, tickCombatByFaction, agents);
+        DamageTally.Ingest(events, agents);
 
         // HitEffects, Blood, Swings and ClashEffects used to be driven from
         // here with (events, agents). The attack-animation-v2 migration moved
@@ -387,7 +408,16 @@ internal sealed class PresentationCoordinator
         return Summary;
     }
 
-    public void ResetFor(ClientCommand resetCommand)
+    /// <param name="combatRules">
+    /// The combat ruleset the next battle resolves under. A reset rebuilds the
+    /// scenario, so its combat preset can differ from the previous battle's;
+    /// when supplied, <see cref="DamageTally"/> is replaced by a tally that
+    /// applies that ruleset's armour rule. Left <c>null</c>, the existing
+    /// tally is only cleared and keeps its ruleset.
+    /// </param>
+    public void ResetFor(
+        ClientCommand resetCommand,
+        CombatRuleset? combatRules = null)
     {
         if (resetCommand is not ClientCommand.NextRound and
             not ClientCommand.FullReset)
@@ -416,6 +446,15 @@ internal sealed class PresentationCoordinator
         PawnAppearances.Clear();
         EventFeed.Clear();
         BattleReportAccumulator.Clear();
+        if (combatRules is null)
+        {
+            DamageTally.Reset();
+        }
+        else
+        {
+            DamageTally = new WeaponDamageTally(combatRules);
+        }
+
         HitEffects.Clear();
         Blood.Clear();
         AttackFrames.Clear();

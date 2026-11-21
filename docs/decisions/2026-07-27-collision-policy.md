@@ -372,7 +372,7 @@ single final verified run.
 
 | Alternative | Reason for rejection |
 | --- | --- |
-| Soft discs with bounded penetration | Requires an invented maximum-penetration constant and an invented iteration count, and yields a weaker invariant that is harder to test than "zero overlap". |
+| Soft discs with bounded penetration | Requires an invented maximum-penetration constant and an invented iteration count, and yields a weaker invariant that is harder to test than "zero overlap". Superseded for movement preset V17 only by `docs/decisions/2026-11-21-separating-contact.md`. |
 | Faction-dependent contact | Doubles the interaction matrix and regression surface for an undemonstrated feel benefit. |
 | Surface-gap attack reach | Pushes effective engagement to 20 world units centre-to-centre and forces a retune of every existing combat-range test. |
 | Loadout-specific radii | The research explicitly recommends proving one common radius first. |

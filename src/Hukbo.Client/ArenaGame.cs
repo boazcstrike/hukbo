@@ -102,6 +102,7 @@ public sealed partial class ArenaGame : Game
         Scenario.MaximumMapDimension * FixedPoint.Scale;
     private const ulong DefaultSeed = 1;
     private const double MaximumAccumulatedSeconds = 0.5;
+    private const double MicrosecondsPerSecond = 1_000_000d;
     private const string CompositionStagedNotice =
         "Army composition staged — takes effect on next Full Reset";
 
@@ -123,6 +124,7 @@ public sealed partial class ArenaGame : Game
     private readonly SoundDirector _soundDirector;
     private readonly MatchSummaryPanel _summaryPanel = new();
     private readonly BattleReportPanel _battleReportPanel = new();
+    private readonly DamageTallyPanel _damageTallyPanel = new();
 
     /// <summary>
     /// Guards the unrecoverable action. There is no save, so a stray click on
@@ -234,11 +236,33 @@ public sealed partial class ArenaGame : Game
     private bool _isSoundLogVisible;
     private bool _isEventLogVisible;
     private bool _isBattleReportVisible;
+
+    // The damage card starts hidden and is not persisted (design section 2).
+    // _damageTallyHover is the row the pointer is over this frame, or null:
+    // the draw pass and the render probe both ring agents from it, so it is
+    // cleared at the top of every Update and set only while the card is
+    // visible and no surface above it consumed the pointer.
+    private bool _isDamageTallyVisible;
+    private DamageTallyHover? _damageTallyHover;
     private bool _isArmyCompositionPanelVisible;
     private bool _isCompositionStaged;
     private bool _exitRequested;
     private int _speedMultiplier = 1;
     private double _simulationAccumulator;
+
+    // The requested speed is _speedMultiplier, the integer the keys set. The
+    // governor turns it into the speed the machine can sustain, and every
+    // consumer of "how fast is the battle playing" reads that instead (play-rate
+    // governor design, section 3.4).
+    private readonly PlayRateGovernor _playRateGovernor = new();
+    private bool _wasPlayRateGoverned;
+
+    // Pawns are drawn between their last two tick positions. _renderAlpha is
+    // the fraction of a tick left in the accumulator after the frame's tick
+    // loop; it stays where it was while paused so pawns hold still.
+    private readonly RenderPositionInterpolator _renderPositions = new();
+    private bool _isInterpolationEnabled = true;
+    private double _renderAlpha;
 
     // The frame's own measurements, written by Update and AdvanceSimulation
     // and read at the end of Update. Fields rather than arguments because the
@@ -356,10 +380,11 @@ public sealed partial class ArenaGame : Game
             ? new SpriteBatchRenderMetricsRecorder()
             : NullRenderMetricsRecorder.Instance;
 
-        // Computed ahead of the scenario field below, purely to size the
+        // Computed ahead of the scenario field below, to size the
         // coordinator's projectile store from the real
         // Scenario.MaximumProjectilesInFlight rather than a duplicated
-        // literal. initialSettings.Composition is exactly what
+        // literal, and to give its damage tally the scenario's own combat
+        // ruleset. initialSettings.Composition is exactly what
         // _activeComposition becomes two statements below, so this mirrors
         // the same BuildScenario call that produces _scenario itself; the
         // repeated call is a pure, allocation-cheap read, not a second
@@ -373,7 +398,9 @@ public sealed partial class ArenaGame : Game
         _presentation = new PresentationCoordinator(
             EventHistoryCapacity,
             projectileCapacity: startupScenarioForCapacity.MaximumProjectilesInFlight,
-            renderMetricsRecorder: _renderMetricsRecorder);
+            renderMetricsRecorder: _renderMetricsRecorder,
+            combatRules: CombatPresetRegistry.Get(
+                startupScenarioForCapacity.CombatPreset));
 
         // A restored preference takes effect from tick zero, so the spectator
         // never has to reopen the menu after a relaunch.
@@ -423,6 +450,7 @@ public sealed partial class ArenaGame : Game
                 _activeArmorComposition,
                 _activeMovementPreset);
         _simulation = BattleSimulation.Create(_scenario);
+        _renderPositions.Reset(_simulation.Agents);
         _camera = new SpectatorCamera(_scenario.MapWidth, _scenario.MapHeight);
         _plainsDecals = PlainsBackdropGeometry.GenerateDecals(
             _scenario.Seed,
@@ -433,6 +461,7 @@ public sealed partial class ArenaGame : Game
             _scenario.MapWidth,
             _scenario.MapHeight);
         _presentation.EventFeed.SetScenarioSeed(_scenario.Seed);
+        _presentation.DamageTally.SeedRoster(_simulation.Agents);
 
         LogScenarioBuilt("startup");
     }
@@ -888,6 +917,18 @@ public sealed partial class ArenaGame : Game
 
         var pointerConsumed = false;
 
+        // The card's refresh clock runs every frame it is visible, whoever owns
+        // the pointer; the pointer is cleared here and set again only if the
+        // chain below reaches the card, so no row keeps a stale hover fill.
+        _damageTallyHover = null;
+        _damageTallyPanel.ClearPointer();
+        if (_isDamageTallyVisible)
+        {
+            _damageTallyPanel.Tick(
+                _presentation.DamageTally,
+                gameTime.ElapsedGameTime);
+        }
+
         // Which surface claimed the press. The priority chain below is
         // invisible from outside the debugger, and a click that "did nothing"
         // is almost always a click a surface above the intended one swallowed.
@@ -1113,6 +1154,16 @@ public sealed partial class ArenaGame : Game
                 consumedBy = pointerConsumed ? "inspector" : consumedBy;
             }
 
+            if (!pointerConsumed && _isDamageTallyVisible)
+            {
+                interaction = _damageTallyPanel.UpdatePointer(
+                    _input,
+                    layout.ArenaBounds);
+                pointerConsumed = interaction.PointerConsumed;
+                consumedBy = pointerConsumed ? "damageTally" : consumedBy;
+                _damageTallyHover = _damageTallyPanel.Hovered;
+            }
+
             if (!pointerConsumed &&
                 layout.ArenaBounds.Contains(_input.MousePosition))
             {
@@ -1140,7 +1191,7 @@ public sealed partial class ArenaGame : Game
 
         _presentation.AdvanceEffects(
             (float)gameTime.ElapsedGameTime.TotalSeconds,
-            _speedMultiplier,
+            (float)_playRateGovernor.EffectiveSpeed,
             advanceContacts: _presentation.Playback.IsPlaying);
         AdvanceSimulation(gameTime.ElapsedGameTime.TotalSeconds);
         _presentation.ReleaseAttackContactsForDraw(
@@ -1356,6 +1407,16 @@ public sealed partial class ArenaGame : Game
             return LogKeyCommand("V", ClientCommand.ToggleWeaponSprites);
         }
 
+        if (_input.WasPressed(Keys.I))
+        {
+            return LogKeyCommand("I", ClientCommand.ToggleInterpolation);
+        }
+
+        if (_input.WasPressed(Keys.T))
+        {
+            return LogKeyCommand("T", ClientCommand.ToggleDamageTally);
+        }
+
         return ClientCommand.None;
     }
 
@@ -1395,6 +1456,10 @@ public sealed partial class ArenaGame : Game
 
         if (_speedMultiplier != previous)
         {
+            // A speed key takes effect at once: re-clamp the effective speed to
+            // the new request now, even while paused, so the status line never
+            // shows a stale "holding" for a speed nobody asked for.
+            UpdatePlayRateGovernor(0d, 0d, 0);
             _log.Write(
                 LogLevel.Information,
                 LogChannel.Simulation,
@@ -1482,6 +1547,18 @@ public sealed partial class ArenaGame : Game
                 return;
             case ClientCommand.ToggleWeaponSprites:
                 ToggleWeaponSpriteStyle();
+                return;
+            case ClientCommand.ToggleInterpolation:
+                _isInterpolationEnabled = !_isInterpolationEnabled;
+                return;
+            case ClientCommand.ToggleDamageTally:
+                _isDamageTallyVisible = !_isDamageTallyVisible;
+                _damageTallyHover = null;
+                if (_isDamageTallyVisible)
+                {
+                    _damageTallyPanel.Refresh(_presentation.DamageTally);
+                }
+
                 return;
             case ClientCommand.Minimize:
                 SDL_MinimizeWindow(Window.Handle);
@@ -2177,8 +2254,12 @@ public sealed partial class ArenaGame : Game
         }
 
         var secondsPerTick = 1d / _scenario.TickRate;
+
+        // The effective speed as it stood at the start of the frame: this
+        // frame's cost is measured below and only changes the next frame's.
         var requestedSeconds =
-            _simulationAccumulator + (elapsedSeconds * _speedMultiplier);
+            _simulationAccumulator +
+            (elapsedSeconds * _playRateGovernor.EffectiveSpeed);
         _simulationAccumulator = Math.Min(
             requestedSeconds,
             MaximumAccumulatedSeconds);
@@ -2190,10 +2271,14 @@ public sealed partial class ArenaGame : Game
         // frame look identical and only the log can tell them apart.
         _frameSimulationStarved = requestedSeconds > MaximumAccumulatedSeconds;
 
+        var ticksRun = 0;
+        var simulationWorkTimestamps = 0L;
         while (_simulationAccumulator >= secondsPerTick &&
                _simulation.Outcome == BattleOutcome.Ongoing)
         {
+            var tickStartTimestamp = Stopwatch.GetTimestamp();
             _simulation.AdvanceOneTick();
+            ticksRun++;
             _frameSimulationTicks++;
             _log.SetTick(_simulation.Tick);
             _presentation.IngestTick(
@@ -2212,10 +2297,72 @@ public sealed partial class ArenaGame : Game
             _soundDirector.IngestImmediate(
                 _simulation.LastEvents,
                 _simulation.Agents);
+            simulationWorkTimestamps +=
+                Stopwatch.GetTimestamp() - tickStartTimestamp;
+
+            // After the tick's own work and outside its timing: a pawn is
+            // drawn between this tick and the one before it.
+            _renderPositions.Capture(_simulation.Agents);
             LogTick();
             _simulationAccumulator -= secondsPerTick;
         }
+
+        // A decided battle has no next tick to move toward, so its pawns are
+        // drawn exactly where they stand.
+        _renderAlpha = _simulation.Outcome == BattleOutcome.Ongoing
+            ? _simulationAccumulator / secondsPerTick
+            : 1d;
+        UpdatePlayRateGovernor(
+            elapsedSeconds,
+            (double)simulationWorkTimestamps / Stopwatch.Frequency,
+            ticksRun);
     }
+
+    /// <summary>
+    /// Folds one frame into the play-rate governor and logs a transition into
+    /// or out of the governed state, never a frame that stayed in one.
+    /// </summary>
+    private void UpdatePlayRateGovernor(
+        double frameSeconds,
+        double simulationWorkSeconds,
+        int ticksRun)
+    {
+        _playRateGovernor.Update(
+            frameSeconds,
+            simulationWorkSeconds,
+            ticksRun,
+            _speedMultiplier,
+            _scenario.TickRate);
+
+        if (_playRateGovernor.IsGoverned == _wasPlayRateGoverned)
+        {
+            return;
+        }
+
+        _wasPlayRateGoverned = _playRateGovernor.IsGoverned;
+        _log.Write(
+            LogLevel.Debug,
+            LogChannel.Render,
+            LogEvents.RenderPlayRateGoverned,
+            "requested",
+            _speedMultiplier,
+            "effective",
+            _playRateGovernor.EffectiveSpeed,
+            "costPerTickMicroseconds",
+            _playRateGovernor.SmoothedCostSecondsPerTick * MicrosecondsPerSecond);
+    }
+
+    /// <summary>
+    /// The raw position to draw agent <paramref name="ordinal"/> at: between its
+    /// last two tick positions while interpolation is on, its authoritative
+    /// tick position while it is off.
+    /// </summary>
+    private (int XRaw, int YRaw) ResolveDrawnPosition(
+        int ordinal,
+        AgentView agent) =>
+        _isInterpolationEnabled
+            ? _renderPositions.Resolve(ordinal, _renderAlpha)
+            : (agent.XRaw, agent.YRaw);
 
     /// <summary>
     /// Emits one observation of the tick that just advanced. Sampled ticks go
@@ -2518,8 +2665,16 @@ public sealed partial class ArenaGame : Game
             _scenario.MapWidth,
             _scenario.MapHeight);
         LogScenarioBuilt(resetCommand.ToString());
-        _presentation.ResetFor(resetCommand);
+        _presentation.ResetFor(
+            resetCommand,
+            CombatPresetRegistry.Get(_scenario.CombatPreset));
         _presentation.EventFeed.SetScenarioSeed(_scenario.Seed);
+
+        // A new battle opens paused and the tally is fed once per tick, so
+        // without these two calls the card would list no rows, or last
+        // battle's, until the first tick ran.
+        _presentation.DamageTally.SeedRoster(_simulation.Agents);
+        _damageTallyPanel.Refresh(_presentation.DamageTally);
         _soundDirector.Clear();
         _hoverSelection.Clear();
         _simulationAccumulator = 0;
@@ -2534,6 +2689,21 @@ public sealed partial class ArenaGame : Game
                 _scenario.MapHeight);
             _camera.Fit(GetLayout(GraphicsDevice.Viewport.Bounds).ArenaBounds);
         }
+
+        // After the FullReset branch, which may change the requested speed.
+        _renderPositions.Reset(_simulation.Agents);
+        _renderAlpha = 0d;
+        // Only a full reset forgets the cost history. A next round runs on the
+        // same machine under the same load, so it keeps the governed speed and
+        // only re-clamps it to the requested speed; forgetting it would play
+        // the opening second ungoverned and stutter.
+        if (resetCommand == ClientCommand.FullReset)
+        {
+            _playRateGovernor.Reset();
+            _wasPlayRateGoverned = false;
+        }
+
+        UpdatePlayRateGovernor(0d, 0d, 0);
     }
 
     private void UpdateHoverSelection(Rectangle arenaBounds)
@@ -2571,15 +2741,27 @@ public sealed partial class ArenaGame : Game
             _simulation.Agents,
             pointerXRaw,
             pointerYRaw,
-            maximumDistanceSquared);
+            maximumDistanceSquared,
+            _isInterpolationEnabled ? _renderPositions : null,
+            _renderAlpha);
     }
+
+    // A decided battle stops advancing, so the governor stops updating and its
+    // last verdict would otherwise read "holding" for as long as the result
+    // stays on screen.
+    private string BuildSpeedText() =>
+        PlaybackSpeedText.Format(
+            _speedMultiplier,
+            _playRateGovernor.EffectiveSpeed,
+            _playRateGovernor.IsGoverned &&
+            _simulation.Outcome == BattleOutcome.Ongoing);
 
     private void UpdateWindowTitle()
     {
         Window.Title =
             $"Hukbo — A {_matchSeries.TeamAWins} : {_matchSeries.TeamBWins} B — " +
             $"Seed {_matchSeries.CurrentSeed} — Tick {_simulation.Tick:N0} — " +
-            $"{_speedMultiplier}x — " +
+            $"{BuildSpeedText()} — " +
             $"{(_presentation.Playback.IsPlaying ? "Playing" : "Paused")} — " +
             _simulation.Outcome;
     }

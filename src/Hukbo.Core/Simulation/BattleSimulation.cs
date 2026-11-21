@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using System.Collections.ObjectModel;
+using System.Runtime.CompilerServices;
 using Hukbo.Core.Combat;
 using Hukbo.Core.Determinism;
 using Hukbo.Core.Mathematics;
@@ -147,10 +148,30 @@ public sealed class BattleSimulation
     private readonly long[] _nearestMeleeThreatSquared;
 
     /// <summary>
+    /// One nearest-enemy grid per faction, indexed by <see cref="AgentState.FactionId"/>
+    /// (Hukbo fields exactly two). Derived scratch, rebuilt in full at the top
+    /// of <see cref="SelectTargetsAndIntents"/> and never hashed, snapshotted,
+    /// or carried across ticks. See
+    /// <c>docs/plans/2026-11-21-ring-search-targeting-design.md</c>.
+    /// </summary>
+    private readonly TargetingGrid[] _targetingGrids;
+
+    /// <summary>
+    /// The current actor's local-context accumulator, reused for each actor of
+    /// <see cref="SelectTargetsAndIntents"/> and re-seeded at the top of every
+    /// actor's turn. Held here rather than inside <see cref="TargetSearch"/> so
+    /// the ring search, which derives no local context, does not zero-fill and
+    /// copy the accumulator's large state for every actor of every tick. Read
+    /// only under a preset that derives local context.
+    /// </summary>
+    private MovementContextAccumulator _contextAccumulator;
+
+    /// <summary>
     /// Per-agent scratch for the evasive-footwork post-pass. Zero-length under
-    /// every preset but <see cref="MovementPresetId.EvasiveFootworkV14"/>,
-    /// following the <see cref="_nearestMeleeThreatSquared"/> precedent. The
-    /// pass resolves into this array and commits it onto
+    /// every preset but <see cref="MovementPresetId.EvasiveFootworkV14"/> and
+    /// <see cref="MovementPresetId.SeparatingContactV17"/>, following the
+    /// <see cref="_nearestMeleeThreatSquared"/> precedent. The pass resolves
+    /// into this array and commits it onto
     /// <see cref="AgentState.EvasiveAction"/> only once the whole loop has
     /// finished, so no agent can read another agent's already-updated value.
     /// </summary>
@@ -283,7 +304,17 @@ public sealed class BattleSimulation
             : [];
         _agentViews = new AgentView[agents.Length];
         _agents = Array.AsReadOnly(_agentViews);
-        _collision = new CollisionScratch(scenario, agents.Length);
+        _collision = new CollisionScratch(scenario, agents.Length, _movementRules);
+        FillSeparationConstants();
+        // Agents are clamped to the map, so no faction's bounding box is wider
+        // than the longer map side and the grids never outgrow this size.
+        var mapExtentRaw =
+            (long)Math.Max(scenario.MapWidth, scenario.MapHeight) * FixedPoint.Scale;
+        _targetingGrids =
+        [
+            new(TargetingGrid.DefaultCellSizeRaw, mapExtentRaw),
+            new(TargetingGrid.DefaultCellSizeRaw, mapExtentRaw),
+        ];
         _factionLivingCounts = new int[2];
         _factionRallyEntityIds = new ulong[2];
         _factionRallyEngaged = new bool[2];
@@ -298,6 +329,7 @@ public sealed class BattleSimulation
             : [];
         _evasiveActionScratch =
             scenario.MovementPreset is MovementPresetId.EvasiveFootworkV14
+                or MovementPresetId.SeparatingContactV17
                 ? new EvasiveAction[agents.Length]
                 : [];
         _factionSurvivingCompositions = new LoadoutCompositionCounts[2];
@@ -418,6 +450,14 @@ public sealed class BattleSimulation
     /// only: never hashed, never snapshotted, never persisted.
     /// </summary>
     internal CollisionTickMetrics LastTickCollision => _lastTickCollision;
+
+    /// <summary>
+    /// Test-only seam: makes <see cref="SelectTargetsAndIntents"/> run its
+    /// brute-force scan instead of the ring search. Both implementations
+    /// select the same targets; this exists so a differential test can prove
+    /// it. Not reachable from <see cref="Scenario"/> or the client.
+    /// </summary>
+    internal bool ForcesBruteForceTargeting { get; set; }
 
     /// <summary>
     /// The number of per-agent local-context derivations performed since the
@@ -759,7 +799,8 @@ public sealed class BattleSimulation
             var spreadCohortsLaterally =
                 scenario.MovementPreset is MovementPresetId.CohortLateralSpreadV13
                     or MovementPresetId.EvasiveFootworkV14
-                    or MovementPresetId.ContingentCohesionBeforeContactV15;
+                    or MovementPresetId.ContingentCohesionBeforeContactV15
+                    or MovementPresetId.SeparatingContactV17;
             faction0Deployment = CohortDeploymentAssignment.AssignForFaction(
                 deployment, faction0Loadouts, rules, spreadCohortsLaterally);
             faction1Deployment = CohortDeploymentAssignment.AssignForFaction(
@@ -933,6 +974,11 @@ public sealed class BattleSimulation
 
         ResolveCollisions();
         CommitMovement(events);
+        if (_movementRules.AppliesSeparatingContact)
+        {
+            ApplySeparatingContact();
+        }
+
         MeasureCollision();
         GatherAndCommitAttacks(events);
         if (_movementRules.UsesEquipmentRelativeFootwork)
@@ -1010,10 +1056,11 @@ public sealed class BattleSimulation
             _hasRangedWeapon,
             new ReadOnlySpan<Projectile>(_projectiles, 0, _projectileLiveCount),
             // A third gate of its own, for the same reason the second is not
-            // folded inside the first. Only V14 registers this true, so every
-            // preset from V1 to V13 folds nothing here and keeps the hash it
-            // already has.
-            Scenario.MovementPreset is MovementPresetId.EvasiveFootworkV14);
+            // folded inside the first. Only V14, and V17 which is V14 plus
+            // separating contact, register this true, so every preset from V1
+            // to V13 folds nothing here and keeps the hash it already has.
+            Scenario.MovementPreset is MovementPresetId.EvasiveFootworkV14
+                or MovementPresetId.SeparatingContactV17);
 
     public BattleSnapshot CreateSnapshot()
     {
@@ -1396,6 +1443,18 @@ public sealed class BattleSimulation
             _factionSurvivingCompositions[1] = default;
         }
 
+        // Ring-search targeting design, section 3: the equipment-relative
+        // local context observes every perceivable enemy and every ally, which
+        // is all-pairs by definition, so only a preset that derives none uses
+        // the grids. Positions and liveness are final for this whole call, so
+        // one rebuild here keeps the grids exact until it returns.
+        var usesRingSearch = !derivesLocalContext && !ForcesBruteForceTargeting;
+        if (usesRingSearch)
+        {
+            _targetingGrids[0].Rebuild(_agentStates, 0);
+            _targetingGrids[1].Rebuild(_agentStates, 1);
+        }
+
         for (var agentIndex = 0; agentIndex < _agentStates.Length; agentIndex++)
         {
             var agent = _agentStates[agentIndex];
@@ -1422,21 +1481,14 @@ public sealed class BattleSimulation
                 continue;
             }
 
-            var contextAccumulator = derivesLocalContext
-                ? new MovementContextAccumulator(
-                    agent.Loadout, immediateRadiusSquared, supportRadiusSquared)
-                : default;
             if (derivesLocalContext)
             {
+                _contextAccumulator = new MovementContextAccumulator(
+                    agent.Loadout, immediateRadiusSquared, supportRadiusSquared);
                 _factionSurvivingCompositions[agent.FactionId] =
                     _factionSurvivingCompositions[agent.FactionId]
                         .Add(agent.Loadout);
             }
-
-            AgentState? selectedTarget = null;
-            var selectedDistance = long.MaxValue;
-            var perceptionSquared = checked(
-                (long)agent.PerceptionRangeRaw * agent.PerceptionRangeRaw);
 
             // Battlefield realism design, section 5.3: the trigger reads the
             // nearest living enemy whose weapon is melee, observed only when
@@ -1444,110 +1496,66 @@ public sealed class BattleSimulation
             // the same test GatherMovementProposals' V8 standoff arm already
             // uses). Resolved once per actor, not per candidate, since it
             // does not depend on the candidate.
-            var nearestMeleeThreatSquared = long.MaxValue;
             var actorObservesMeleeThreats = observesNearestMeleeThreat &&
                 ResolveAttackerWeaponProfile(agent.Loadout).StandoffDistanceRaw != 0;
 
-            foreach (var candidate in _agentStates)
+            var search = new TargetSearch(
+                this,
+                agent,
+                actorObservesMeleeThreats,
+                derivesLocalContext);
+            if (usesRingSearch)
             {
-                if (!candidate.IsAlive || candidate.FactionId == agent.FactionId)
+                // Ring-search targeting design: the enemy faction's grid
+                // visits candidates nearest ring first and stops once none can
+                // beat the best found. TargetSearch.Consider is the same
+                // per-candidate body the brute-force scan below runs.
+                _targetingGrids[1 - agent.FactionId].Search(
+                    agent.XRaw, agent.YRaw, ref search);
+            }
+            else
+            {
+                foreach (var candidate in _agentStates)
                 {
-                    // A living candidate can only land here as a same-faction
-                    // one, so this V6-only branch observes exactly the living
-                    // allies. Allies never reach the perception test below —
-                    // the observation never perceives them at all — so their
-                    // deltas are computed here, on the actor's own dime, and
-                    // target selection reads nothing this accumulation
-                    // writes.
-                    if (derivesLocalContext &&
-                        candidate.IsAlive &&
-                        candidate.EntityId != agent.EntityId)
+                    if (!candidate.IsAlive || candidate.FactionId == agent.FactionId)
                     {
-                        var allyDeltaX = (long)candidate.XRaw - agent.XRaw;
-                        var allyDeltaY = (long)candidate.YRaw - agent.YRaw;
-                        contextAccumulator.ObserveAlly(
-                            candidate.EntityId,
-                            candidate.Loadout,
-                            checked(
-                                (allyDeltaX * allyDeltaX) +
-                                (allyDeltaY * allyDeltaY)));
+                        // A living candidate can only land here as a
+                        // same-faction one, so this V6-only branch observes
+                        // exactly the living allies. Allies never reach the
+                        // perception test in Consider — the observation never
+                        // perceives them at all — so their deltas are computed
+                        // here, on the actor's own dime, and target selection
+                        // reads nothing this accumulation writes.
+                        if (derivesLocalContext &&
+                            candidate.IsAlive &&
+                            candidate.EntityId != agent.EntityId)
+                        {
+                            var allyDeltaX = (long)candidate.XRaw - agent.XRaw;
+                            var allyDeltaY = (long)candidate.YRaw - agent.YRaw;
+                            _contextAccumulator.ObserveAlly(
+                                candidate.EntityId,
+                                candidate.Loadout,
+                                checked(
+                                    (allyDeltaX * allyDeltaX) +
+                                    (allyDeltaY * allyDeltaY)));
+                        }
+
+                        continue;
                     }
 
-                    continue;
-                }
-
-                // Cheap axis-aligned rejection before the squared-distance
-                // check below: if |dx| already exceeds the (unsquared)
-                // perception range, then dx*dx alone exceeds range*range,
-                // so dx*dx + dy*dy > range*range necessarily (dy*dy is
-                // never negative). Every candidate rejected here would also
-                // have been rejected by the perception test that follows,
-                // so the surviving candidate set and its scan order are
-                // unchanged. Written as two comparisons instead of an
-                // absolute value so no negation of deltaX/deltaY is needed.
-                var perceptionRangeRaw = (long)agent.PerceptionRangeRaw;
-                var deltaX = (long)candidate.XRaw - agent.XRaw;
-                if (deltaX > perceptionRangeRaw || deltaX < -perceptionRangeRaw)
-                {
-                    continue;
-                }
-
-                var deltaY = (long)candidate.YRaw - agent.YRaw;
-                if (deltaY > perceptionRangeRaw || deltaY < -perceptionRangeRaw)
-                {
-                    continue;
-                }
-
-                var distance = SquaredDistance(agent, candidate);
-                if (distance > perceptionSquared)
-                {
-                    continue;
-                }
-
-                // The V6 context hook of design section 7.3: after the
-                // perception test passes, before the comparison block, so
-                // the already-computed squared distance is reused and only
-                // perceivable enemies are ever observed. The comparison
-                // block below reads only distance, selectedDistance, and
-                // candidate.EntityId, so nothing written here can affect
-                // tie-breaking, and target selection stays byte-identical.
-                if (derivesLocalContext)
-                {
-                    contextAccumulator.ObserveEnemy(
-                        candidate.EntityId, candidate.Loadout, distance);
-                }
-
-                // The ranged-retreat threat fuse of design section 5.3, beside
-                // the V6 context fuse above: the same already-computed,
-                // already-perception-filtered distance is minimised into
-                // nearestMeleeThreatSquared when the candidate's weapon is
-                // melee (StandoffDistanceRaw == 0). No new scan, no new
-                // distance computation -- distance is exactly the value target
-                // selection below also reads. A plain minimum over squared
-                // distances needs no EntityId tie-break: the reduction is
-                // order-independent regardless of scan order.
-                if (actorObservesMeleeThreats &&
-                    distance < nearestMeleeThreatSquared &&
-                    ResolveAttackerWeaponProfile(candidate.Loadout).StandoffDistanceRaw == 0)
-                {
-                    nearestMeleeThreatSquared = distance;
-                }
-
-                if (distance < selectedDistance ||
-                    (distance == selectedDistance &&
-                        (selectedTarget is null ||
-                            candidate.EntityId < selectedTarget.EntityId)))
-                {
-                    selectedTarget = candidate;
-                    selectedDistance = distance;
+                    search.Consider(candidate);
                 }
             }
+
+            var selectedTarget = search.SelectedTarget;
+            var selectedDistance = search.SelectedDistance;
+            var nearestMeleeThreatSquared = search.NearestMeleeThreatSquared;
 
             agent.TargetEntityId = selectedTarget?.EntityId;
             if (derivesLocalContext)
             {
                 _localMovementContexts[agentIndex] =
-                    contextAccumulator.Complete(selectedTarget?.EntityId);
+                    _contextAccumulator.Complete(selectedTarget?.EntityId);
                 _localMovementContextDerivations = checked(
                     _localMovementContextDerivations + 1);
             }
@@ -1585,6 +1593,147 @@ public sealed class BattleSimulation
                 !YieldsRegroupingToEngagement(agent, selectedDistance))
             {
                 agent.Intent = AgentIntent.Regrouping;
+            }
+        }
+    }
+
+    /// <summary>
+    /// One actor's nearest-enemy search state, shared by the ring search and
+    /// the brute-force scan so the two cannot drift apart: both feed every
+    /// candidate through <see cref="Consider"/>, which holds the one copy of
+    /// the perception test, the melee-threat minimum, and the target
+    /// comparison.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A struct passed by <c>ref</c> to <see cref="TargetingGrid.Search"/>, so
+    /// the search allocates nothing. <see cref="Consider"/> expects a living
+    /// enemy of the actor.
+    /// </para>
+    /// <para>
+    /// The three search methods skip tiered compilation. A short battle runs
+    /// mostly in the unoptimised first tier, and measured at 200 agents the
+    /// ring search's extra calls there raised the tick p95 by about 6% over the
+    /// brute-force scan, while fully optimised it was about 15% faster. Jitting
+    /// them optimised on first call removes that cost; the work they do is
+    /// unchanged.
+    /// </para>
+    /// </remarks>
+    private struct TargetSearch : ITargetingVisitor
+    {
+        private readonly BattleSimulation _simulation;
+        private readonly AgentState _actor;
+        private readonly long _perceptionSquared;
+        private readonly bool _observesMeleeThreats;
+        private readonly bool _derivesLocalContext;
+
+        internal AgentState? SelectedTarget;
+        internal long SelectedDistance;
+        internal long NearestMeleeThreatSquared;
+
+        internal TargetSearch(
+            BattleSimulation simulation,
+            AgentState actor,
+            bool observesMeleeThreats,
+            bool derivesLocalContext)
+        {
+            _simulation = simulation;
+            _actor = actor;
+            _perceptionSquared = checked(
+                (long)actor.PerceptionRangeRaw * actor.PerceptionRangeRaw);
+            _observesMeleeThreats = observesMeleeThreats;
+            _derivesLocalContext = derivesLocalContext;
+            SelectedTarget = null;
+            SelectedDistance = long.MaxValue;
+            NearestMeleeThreatSquared = long.MaxValue;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+        public void Visit(AgentState candidate) => Consider(candidate);
+
+        // Strict > throughout, as a safety margin. With integer coordinates
+        // and half-open cells every candidate in the next ring is strictly
+        // farther than lowerBoundSquared, so >= would stop in the same places;
+        // strict stays correct even against an equally distant candidate with
+        // a lower EntityId. The perception test rejects only
+        // distance > perceptionSquared, so the perception bound is strict too.
+        [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+        public readonly bool CanStopBefore(long lowerBoundSquared) =>
+            lowerBoundSquared > _perceptionSquared ||
+            (lowerBoundSquared > SelectedDistance &&
+                (!_observesMeleeThreats ||
+                    lowerBoundSquared > NearestMeleeThreatSquared));
+
+        [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+        internal void Consider(AgentState candidate)
+        {
+            var agent = _actor;
+
+            // Cheap axis-aligned rejection before the squared-distance
+            // check below: if |dx| already exceeds the (unsquared)
+            // perception range, then dx*dx alone exceeds range*range,
+            // so dx*dx + dy*dy > range*range necessarily (dy*dy is
+            // never negative). Every candidate rejected here would also
+            // have been rejected by the perception test that follows,
+            // so the surviving candidate set and its scan order are
+            // unchanged. Written as two comparisons instead of an
+            // absolute value so no negation of deltaX/deltaY is needed.
+            var perceptionRangeRaw = (long)agent.PerceptionRangeRaw;
+            var deltaX = (long)candidate.XRaw - agent.XRaw;
+            if (deltaX > perceptionRangeRaw || deltaX < -perceptionRangeRaw)
+            {
+                return;
+            }
+
+            var deltaY = (long)candidate.YRaw - agent.YRaw;
+            if (deltaY > perceptionRangeRaw || deltaY < -perceptionRangeRaw)
+            {
+                return;
+            }
+
+            var distance = SquaredDistance(agent, candidate);
+            if (distance > _perceptionSquared)
+            {
+                return;
+            }
+
+            // The V6 context hook of design section 7.3: after the
+            // perception test passes, before the comparison block, so
+            // the already-computed squared distance is reused and only
+            // perceivable enemies are ever observed. The comparison
+            // block below reads only distance, selectedDistance, and
+            // candidate.EntityId, so nothing written here can affect
+            // tie-breaking, and target selection stays byte-identical.
+            if (_derivesLocalContext)
+            {
+                _simulation._contextAccumulator.ObserveEnemy(
+                    candidate.EntityId, candidate.Loadout, distance);
+            }
+
+            // The ranged-retreat threat fuse of design section 5.3, beside
+            // the V6 context fuse above: the same already-computed,
+            // already-perception-filtered distance is minimised into
+            // nearestMeleeThreatSquared when the candidate's weapon is
+            // melee (StandoffDistanceRaw == 0). No new scan, no new
+            // distance computation -- distance is exactly the value target
+            // selection below also reads. A plain minimum over squared
+            // distances needs no EntityId tie-break: the reduction is
+            // order-independent regardless of scan order.
+            if (_observesMeleeThreats &&
+                distance < NearestMeleeThreatSquared &&
+                _simulation.ResolveAttackerWeaponProfile(candidate.Loadout)
+                    .StandoffDistanceRaw == 0)
+            {
+                NearestMeleeThreatSquared = distance;
+            }
+
+            if (distance < SelectedDistance ||
+                (distance == SelectedDistance &&
+                    (SelectedTarget is null ||
+                        candidate.EntityId < SelectedTarget.EntityId)))
+            {
+                SelectedTarget = candidate;
+                SelectedDistance = distance;
             }
         }
     }
@@ -1661,7 +1810,8 @@ public sealed class BattleSimulation
             or MovementPresetId.ContingentShapeV12
             or MovementPresetId.CohortLateralSpreadV13
             or MovementPresetId.EvasiveFootworkV14
-            or MovementPresetId.ContingentCohesionBeforeContactV15;
+            or MovementPresetId.ContingentCohesionBeforeContactV15
+            or MovementPresetId.SeparatingContactV17;
 
     /// <summary>
     /// Derives <see cref="_factionRallyEngaged"/> for both factions: whether
@@ -2336,7 +2486,8 @@ public sealed class BattleSimulation
     /// section 5. Runs at the tail of <see cref="GatherMovementProposals"/>,
     /// after every ordinary proposal exists and before anything is resolved or
     /// committed, and only under
-    /// <see cref="MovementPresetId.EvasiveFootworkV14"/>.
+    /// <see cref="MovementPresetId.EvasiveFootworkV14"/> and
+    /// <see cref="MovementPresetId.SeparatingContactV17"/>.
     /// </summary>
     /// <remarks>
     /// <para>
@@ -2378,7 +2529,8 @@ public sealed class BattleSimulation
     /// </remarks>
     private void ApplyEvasiveFootwork()
     {
-        if (Scenario.MovementPreset is not MovementPresetId.EvasiveFootworkV14)
+        if (Scenario.MovementPreset is not (MovementPresetId.EvasiveFootworkV14
+            or MovementPresetId.SeparatingContactV17))
         {
             return;
         }
@@ -2476,7 +2628,8 @@ public sealed class BattleSimulation
     /// </remarks>
     private void ArmBreakOffIfIntercepted(AgentState target, AttackResolution resolution)
     {
-        if (Scenario.MovementPreset is not MovementPresetId.EvasiveFootworkV14)
+        if (Scenario.MovementPreset is not (MovementPresetId.EvasiveFootworkV14
+            or MovementPresetId.SeparatingContactV17))
         {
             return;
         }
@@ -4924,6 +5077,110 @@ public sealed class BattleSimulation
     }
 
     /// <summary>
+    /// The separation pass's weight for one armour weight class. Explicit
+    /// literals rather than the enum's numeric value, so renumbering or
+    /// reordering <see cref="ArmorWeightClass"/> cannot silently change the
+    /// separation under the preset that applies it.
+    /// </summary>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="weightClass"/> is not a declared member.
+    /// </exception>
+    internal static int SeparationWeightFor(ArmorWeightClass weightClass) =>
+        weightClass switch
+        {
+            ArmorWeightClass.Light => 1,
+            ArmorWeightClass.Medium => 2,
+            ArmorWeightClass.Rigid => 3,
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(weightClass),
+                weightClass,
+                "Unknown armour weight class for the separation pass."),
+        };
+
+    /// <summary>
+    /// Writes the per-agent separation inputs that never change during a
+    /// battle, entity ID and weight, so <see cref="ApplySeparatingContact"/>
+    /// does not rewrite them every tick. Does nothing when the preset builds no
+    /// separation pass.
+    /// </summary>
+    private void FillSeparationConstants()
+    {
+        if (_collision.Separation is null)
+        {
+            return;
+        }
+
+        for (var index = 0; index < _agentStates.Length; index++)
+        {
+            var agent = _agentStates[index];
+            _collision.SeparationEntityId[index] = agent.EntityId;
+            _collision.SeparationWeight[index] = SeparationWeightFor(
+                ArmorWeightClasses.Resolve(agent.Loadout.Armor));
+        }
+    }
+
+    /// <summary>
+    /// The one separation pass of the tick, run only under a preset that applies
+    /// separating contact (<c>docs/decisions/2026-11-21-separating-contact.md</c>
+    /// item 4). It reads the positions <see cref="CommitMovement"/> just
+    /// committed and writes the pass's post-clamp positions back, so the state
+    /// hash and everything later in the tick see them. It emits no event: each
+    /// Move event keeps the distance <see cref="CommitMovement"/> moved the
+    /// agent, and the pass's displacement is not reported as movement.
+    /// </summary>
+    /// <remarks>
+    /// Weight is the armour weight class (<see cref="SeparationWeightFor"/>:
+    /// light 1, medium 2, rigid 3). Weight and entity ID are fixed for a whole
+    /// battle, so <see cref="FillSeparationConstants"/> writes them once at
+    /// construction. A body counts as committed to a fight when its
+    /// <see cref="AgentIntent"/> is <see cref="AgentIntent.Attacking"/>, which
+    /// target selection assigns only to an agent already in body contact with
+    /// its target. That is the same hashed state the rest of the tick reads, so
+    /// the choice needs no extra query and cannot disagree with it.
+    /// </remarks>
+    private void ApplySeparatingContact()
+    {
+        var pass = _collision.Separation
+            ?? throw new InvalidOperationException(
+                "The separation pass is built whenever the gate is on.");
+        var xRaw = _collision.SeparationXRaw;
+        var yRaw = _collision.SeparationYRaw;
+
+        for (var index = 0; index < _agentStates.Length; index++)
+        {
+            var agent = _agentStates[index];
+            xRaw[index] = agent.XRaw;
+            yRaw[index] = agent.YRaw;
+            _collision.SeparationIsAlive[index] = agent.IsAlive;
+            _collision.SeparationIsCommitted[index] =
+                agent.Intent == AgentIntent.Attacking;
+        }
+
+        pass.Run(
+            xRaw,
+            yRaw,
+            _collision.SeparationIsAlive,
+            _collision.SeparationWeight,
+            _collision.SeparationIsCommitted,
+            _collision.SeparationEntityId,
+            _collision.SeparationSettings);
+
+        var separatedX = pass.OutX;
+        var separatedY = pass.OutY;
+        for (var index = 0; index < _agentStates.Length; index++)
+        {
+            var agent = _agentStates[index];
+            if (!agent.IsAlive)
+            {
+                continue;
+            }
+
+            agent.XRaw = separatedX[index];
+            agent.YRaw = separatedY[index];
+        }
+    }
+
+    /// <summary>
     /// Derives this tick's collision counters from committed positions. Pure
     /// observation: nothing here writes agent state, and none of it is hashed.
     /// </summary>
@@ -6006,6 +6263,9 @@ public sealed class BattleSimulation
     /// of <see cref="MovementPresetId.CohortLateralSpreadV13"/>'s behaviour, so
     /// it inherits all three battlefield-realism behaviours unchanged before
     /// the contingent-cohesion gate of its own is layered on top.
+    /// <see cref="MovementPresetId.SeparatingContactV17"/> is admitted because
+    /// it is defined as V14 plus separating contact and nothing else, so it
+    /// inherits every V14 behaviour and the experiment changes one variable.
     /// </summary>
     private static bool UsesBattlefieldRealism(MovementPresetId preset) =>
         preset is MovementPresetId.BattlefieldRealismV10
@@ -6013,7 +6273,8 @@ public sealed class BattleSimulation
             or MovementPresetId.ContingentShapeV12
             or MovementPresetId.CohortLateralSpreadV13
             or MovementPresetId.EvasiveFootworkV14
-            or MovementPresetId.ContingentCohesionBeforeContactV15;
+            or MovementPresetId.ContingentCohesionBeforeContactV15
+            or MovementPresetId.SeparatingContactV17;
 
     /// <summary>
     /// The single approved reach test. Attack range is measured centre to
