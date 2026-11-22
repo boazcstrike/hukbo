@@ -156,6 +156,35 @@ public sealed class CollisionResolverIndexEquivalenceTests
         Assert.Equal(centreRaw, resolver.Results[1].YRaw);
     }
 
+    /// <summary>
+    /// A mover that starts outside the legal centre band, here asking to stay put, has its candidates
+    /// clamped up to a radius away from the start, farther than the step alone
+    /// suggests. The obstacle that refuses the clamped slides is two cells from
+    /// the start cell on the map edge, outside the block a step-sized gather would
+    /// cover, so the resolver must query the grid directly for such a mover.
+    /// </summary>
+    [Fact]
+    public void Resolve_RefusesClampedCandidatesFromAMoverStartingOutsideTheLegalBand()
+    {
+        const int rowRaw = 5 * DiameterRaw;
+        var obstacleXRaw = MapWidthRaw - (3 * BodyRadiusRaw) + 1;
+        var requests = new[]
+        {
+            Stationary(1UL, obstacleXRaw, rowRaw),
+            Mover(2UL, MapWidthRaw, rowRaw, MapWidthRaw, rowRaw),
+        };
+        var resolver = new CollisionResolver(BodyRadiusRaw, MapWidthRaw, MapHeightRaw);
+
+        resolver.Resolve(requests);
+
+        Assert.Equal(
+            new CollisionMoveResult(2UL, MapWidthRaw, rowRaw, MovementResolution.Blocked),
+            resolver.Results[1]);
+        Assert.Equal(
+            NaiveCollisionResolution.Resolve(requests, BodyRadiusRaw, MapWidthRaw, MapHeightRaw)[1],
+            resolver.Results[1]);
+    }
+
     private static int? ToHardFloor(int floorPercent) => floorPercent switch
     {
         FloorPercentNone => null,
