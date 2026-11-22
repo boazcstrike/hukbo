@@ -262,8 +262,8 @@ internal sealed class CollisionResolver
         _diameterRaw = diameterRaw;
         _mapWidthRaw = mapWidthRaw;
         _mapHeightRaw = mapHeightRaw;
-        _committedGrid = new CollisionUniformGrid(diameterRaw);
-        _pendingGrid = new CollisionUniformGrid(diameterRaw);
+        _committedGrid = new CollisionUniformGrid(diameterRaw, mapWidthRaw, mapHeightRaw);
+        _pendingGrid = new CollisionUniformGrid(diameterRaw, mapWidthRaw, mapHeightRaw);
 
         // The radius is fixed for this resolver's whole lifetime, so the guard
         // that every query would otherwise re-run is run once, here. That is what

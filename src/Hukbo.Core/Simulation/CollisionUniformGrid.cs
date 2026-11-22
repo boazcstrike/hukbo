@@ -50,6 +50,13 @@ internal sealed class CollisionUniformGrid
     private const int InitialCapacity = 64;
 
     /// <summary>
+    /// The largest dense head array a grid will allocate, 4 MB of <see cref="int"/>.
+    /// A bounded grid whose rectangle needs more cells indexes every cell through
+    /// the dictionary instead, so a huge map can never allocate a huge array.
+    /// </summary>
+    internal const int MaximumDenseCells = 1_048_576;
+
+    /// <summary>
     /// The three-by-three neighbourhood in one fixed order: ascending offset Y,
     /// then ascending offset X, including the cell itself. A cell size of at
     /// least one body diameter is enforced by
@@ -93,6 +100,19 @@ internal sealed class CollisionUniformGrid
     /// <summary>Scratch copy of <see cref="_cellKeys"/> sorted for traversal.</summary>
     private long[] _traversalOrder = new long[InitialCapacity];
 
+    /// <summary>
+    /// First slot of each cell inside the dense rectangle, row-major by cell Y,
+    /// or <see cref="NoSlot"/>. Empty when the grid is unbounded or the rectangle
+    /// exceeds <see cref="MaximumDenseCells"/>.
+    /// </summary>
+    private readonly int[] _denseHeads = [];
+
+    /// <summary>Width of the dense rectangle in cells; zero when there is none.</summary>
+    private readonly int _denseWidth;
+
+    /// <summary>Height of the dense rectangle in cells; zero when there is none.</summary>
+    private readonly int _denseHeight;
+
     private int _bodyCount;
 
     private int _cellCount;
@@ -109,6 +129,48 @@ internal sealed class CollisionUniformGrid
 
         CellSizeRaw = cellSizeRaw;
     }
+
+    /// <summary>
+    /// A grid that indexes the cells covering the map rectangle, plus one spare
+    /// cell past the far edge so a neighbourhood scan at the edge stays inside
+    /// the dense array, through a flat array instead of the dictionary. Bodies
+    /// outside the rectangle still work: they take the dictionary path.
+    /// </summary>
+    /// <param name="cellSizeRaw">
+    /// The edge length of one square cell in raw fixed-point units.
+    /// </param>
+    /// <param name="mapWidthRaw">The map width in raw units.</param>
+    /// <param name="mapHeightRaw">The map height in raw units.</param>
+    /// <remarks>
+    /// Cell coordinates are never negative, so the rectangle starts at cell zero.
+    /// The bounds only choose which path is fast; answers never depend on them.
+    /// </remarks>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="cellSizeRaw"/>, <paramref name="mapWidthRaw"/> or
+    /// <paramref name="mapHeightRaw"/> is zero or negative.
+    /// </exception>
+    internal CollisionUniformGrid(int cellSizeRaw, int mapWidthRaw, int mapHeightRaw)
+        : this(cellSizeRaw)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(mapWidthRaw);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(mapHeightRaw);
+
+        var cellsX = (mapWidthRaw / cellSizeRaw) + 2L;
+        var cellsY = (mapHeightRaw / cellSizeRaw) + 2L;
+
+        if (cellsX * cellsY > MaximumDenseCells)
+        {
+            return;
+        }
+
+        _denseWidth = (int)cellsX;
+        _denseHeight = (int)cellsY;
+        _denseHeads = new int[_denseWidth * _denseHeight];
+        Array.Fill(_denseHeads, NoSlot);
+    }
+
+    /// <summary>True when cells inside the map rectangle use the dense array.</summary>
+    internal bool UsesDenseIndex => _denseHeads.Length > 0;
 
     /// <summary>The edge length of one square cell in raw fixed-point units.</summary>
     internal int CellSizeRaw { get; }
@@ -171,6 +233,11 @@ internal sealed class CollisionUniformGrid
     /// </summary>
     internal void Clear()
     {
+        if (_denseHeads.Length > 0)
+        {
+            ClearDenseHeads();
+        }
+
         _cellIndexByKey.Clear();
         _pairs.Clear();
         _bodyCount = 0;
@@ -200,13 +267,28 @@ internal sealed class CollisionUniformGrid
 
         ValidateCoordinates(body.XRaw, body.YRaw);
 
-        var key = PackCellKey(CellCoordinate(body.XRaw), CellCoordinate(body.YRaw));
+        var cellX = CellCoordinate(body.XRaw);
+        var cellY = CellCoordinate(body.YRaw);
+        var key = PackCellKey(cellX, cellY);
         var slot = _bodyCount;
 
         EnsureCapacity(slot + 1);
         _bodies[slot] = body;
 
-        if (_cellIndexByKey.TryGetValue(key, out var cellIndex))
+        if (TryDenseIndex(cellX, cellY, out var denseIndex))
+        {
+            var head = _denseHeads[denseIndex];
+
+            _nextSlotInCell[slot] = head;
+            _denseHeads[denseIndex] = slot;
+
+            if (head == NoSlot)
+            {
+                _cellKeys[_cellCount] = key;
+                _cellCount++;
+            }
+        }
+        else if (_cellIndexByKey.TryGetValue(key, out var cellIndex))
         {
             _nextSlotInCell[slot] = _cellHeadSlots[cellIndex];
             _cellHeadSlots[cellIndex] = slot;
@@ -261,14 +343,18 @@ internal sealed class CollisionUniformGrid
             return;
         }
 
-        var key = PackCellKey(CellCoordinate(body.XRaw), CellCoordinate(body.YRaw));
+        var cellX = CellCoordinate(body.XRaw);
+        var cellY = CellCoordinate(body.YRaw);
+        var isDense = TryDenseIndex(cellX, cellY, out var denseIndex);
+        var cellIndex = 0;
 
-        if (!_cellIndexByKey.TryGetValue(key, out var cellIndex))
+        if (!isDense &&
+            !_cellIndexByKey.TryGetValue(PackCellKey(cellX, cellY), out cellIndex))
         {
             return;
         }
 
-        var slot = _cellHeadSlots[cellIndex];
+        var slot = isDense ? _denseHeads[denseIndex] : _cellHeadSlots[cellIndex];
         var previousSlot = NoSlot;
 
         while (slot != NoSlot)
@@ -277,7 +363,14 @@ internal sealed class CollisionUniformGrid
             {
                 if (previousSlot == NoSlot)
                 {
-                    _cellHeadSlots[cellIndex] = _nextSlotInCell[slot];
+                    if (isDense)
+                    {
+                        _denseHeads[denseIndex] = _nextSlotInCell[slot];
+                    }
+                    else
+                    {
+                        _cellHeadSlots[cellIndex] = _nextSlotInCell[slot];
+                    }
                 }
                 else
                 {
@@ -546,7 +639,7 @@ internal sealed class CollisionUniformGrid
             var key = _traversalOrder[orderIndex];
             var cellX = UnpackCellX(key);
             var cellY = UnpackCellY(key);
-            var slot = _cellHeadSlots[_cellIndexByKey[key]];
+            var slot = FirstSlotInCell(cellX, cellY);
 
             while (slot != NoSlot)
             {
@@ -599,9 +692,49 @@ internal sealed class CollisionUniformGrid
             return NoSlot;
         }
 
+        if (TryDenseIndex(cellX, cellY, out var denseIndex))
+        {
+            return _denseHeads[denseIndex];
+        }
+
         return _cellIndexByKey.TryGetValue(PackCellKey(cellX, cellY), out var cellIndex)
             ? _cellHeadSlots[cellIndex]
             : NoSlot;
+    }
+
+    /// <summary>
+    /// The dense array index of a cell, or false when the cell lies outside the
+    /// dense rectangle (or the grid has none) and belongs to the dictionary.
+    /// </summary>
+    private bool TryDenseIndex(int cellX, int cellY, out int denseIndex)
+    {
+        if ((uint)cellX < (uint)_denseWidth && (uint)cellY < (uint)_denseHeight)
+        {
+            denseIndex = (cellY * _denseWidth) + cellX;
+
+            return true;
+        }
+
+        denseIndex = 0;
+
+        return false;
+    }
+
+    /// <summary>
+    /// Empties every dense cell this grid populated. Only the populated cells are
+    /// touched, so the cost follows the body count, not the rectangle's area.
+    /// </summary>
+    private void ClearDenseHeads()
+    {
+        for (var index = 0; index < _cellCount; index++)
+        {
+            var key = _cellKeys[index];
+
+            if (TryDenseIndex(UnpackCellX(key), UnpackCellY(key), out var denseIndex))
+            {
+                _denseHeads[denseIndex] = NoSlot;
+            }
+        }
     }
 
     private int CellCoordinate(int valueRaw) => valueRaw / CellSizeRaw;
