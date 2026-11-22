@@ -27,6 +27,11 @@ public sealed class BattleSimulation
     private readonly MovementRuleset _movementRules;
     private readonly AgentState[] _agentStates;
     private readonly AgentIndexMap _agentIndexes;
+
+    // Faction of each agent, indexed by entity ID, for the count-only collision
+    // metrics. Empty when the IDs are too sparse for an array, which sends
+    // MeasureCollision down the pair-list path instead.
+    private readonly int[] _factionByEntityId;
     private readonly int[] _damageTotals;
 
     // Armor identity: parallel to _damageTotals, one slot per agent,
@@ -391,6 +396,9 @@ public sealed class BattleSimulation
         }
 
         _agentIndexes = AgentIndexMap.Create(entityIds);
+        _factionByEntityId = _agentIndexes.IsDense
+            ? BuildFactionByEntityId(agents)
+            : [];
 
         for (var index = 0; index < agents.Length; index++)
         {
@@ -5195,50 +5203,15 @@ public sealed class BattleSimulation
     /// </summary>
     private void MeasureCollision()
     {
-        _collision.Bodies.Clear();
-        foreach (var agent in _agentStates)
-        {
-            _collision.Bodies.Add(
-                new CollisionBody(
-                    agent.EntityId,
-                    agent.XRaw,
-                    agent.YRaw,
-                    agent.IsAlive));
-        }
+        var (candidatePairs, contactPairs, penetrationRaw) =
+            _agentIndexes.IsDense
+                ? MeasureContactsByCount()
+                : MeasureContactsByPairList();
 
-        _collision.Grid.Rebuild(
-            _collision.Bodies,
-            _collision.ContactBandRadiusRaw);
-
-        var contactDistanceRaw = checked(2 * Scenario.BodyRadiusRaw);
-        var contactPairs = 0;
-        var penetrationRaw = 0;
         var minimumX = int.MaxValue;
         var maximumX = int.MinValue;
         var minimumY = int.MaxValue;
         var maximumY = int.MinValue;
-
-        foreach (var pair in _collision.Grid.PairsList)
-        {
-            var left = _agentStates[AgentIndexOf(pair.LowEntityId)];
-            var right = _agentStates[AgentIndexOf(pair.HighEntityId)];
-            var separationRaw = checked((int)IntegerSquareRoot(
-                CollisionGeometry.SquaredDistance(
-                    left.XRaw,
-                    left.YRaw,
-                    right.XRaw,
-                    right.YRaw)));
-            penetrationRaw = Math.Max(
-                penetrationRaw,
-                contactDistanceRaw - separationRaw);
-
-            if (left.FactionId == right.FactionId)
-            {
-                continue;
-            }
-
-            contactPairs++;
-        }
 
         // The front spans agents holding an enemy in reach, not strictly
         // touching bodies. The resolver leaves every living pair at or beyond
@@ -5268,7 +5241,7 @@ public sealed class BattleSimulation
         }
 
         _lastTickCollision = new CollisionTickMetrics(
-            _collision.Grid.Pairs.Count,
+            candidatePairs,
             contactPairs,
             _collision.Resolver.AcceptedMoveCount,
             _collision.Resolver.BlockedCount,
@@ -5276,6 +5249,118 @@ public sealed class BattleSimulation
             attackCapableAgents == 0 ? 0 : checked(maximumY - minimumY),
             attackCapableAgents == 0 ? 0 : checked(maximumX - minimumX),
             penetrationRaw);
+    }
+
+    /// <summary>
+    /// Candidate pairs, cross-faction pairs and deepest penetration over this
+    /// tick's bodies, counted by the grid without building a pair list. The
+    /// deepest penetration is <c>2R - floor(sqrt(d^2))</c> for the closest pair,
+    /// floored at zero: the integer square root never falls as its argument
+    /// grows, so the closest pair is the deepest one.
+    /// </summary>
+    private (int CandidatePairs, int ContactPairs, int PenetrationRaw)
+        MeasureContactsByCount()
+    {
+        _collision.Grid.Clear();
+        foreach (var agent in _agentStates)
+        {
+            _collision.Grid.Insert(
+                new CollisionBody(
+                    agent.EntityId,
+                    agent.XRaw,
+                    agent.YRaw,
+                    agent.IsAlive));
+        }
+
+        var counts = _collision.Grid.CountContacts(
+            _collision.ContactBandRadiusRaw,
+            _factionByEntityId);
+        var penetrationRaw = 0;
+
+        if (counts.MinimumSquaredDistance is { } minimumSquaredDistance)
+        {
+            var contactDistanceRaw = checked(2 * Scenario.BodyRadiusRaw);
+
+            penetrationRaw = Math.Max(
+                0,
+                contactDistanceRaw -
+                    checked((int)IntegerSquareRoot(minimumSquaredDistance)));
+        }
+
+        return (counts.PairCount, counts.CrossFactionPairCount, penetrationRaw);
+    }
+
+    /// <summary>
+    /// The same three figures through the sorted pair list, for the agent arrays
+    /// whose entity IDs are too sparse for <see cref="_factionByEntityId"/>.
+    /// </summary>
+    private (int CandidatePairs, int ContactPairs, int PenetrationRaw)
+        MeasureContactsByPairList()
+    {
+        _collision.Bodies.Clear();
+        foreach (var agent in _agentStates)
+        {
+            _collision.Bodies.Add(
+                new CollisionBody(
+                    agent.EntityId,
+                    agent.XRaw,
+                    agent.YRaw,
+                    agent.IsAlive));
+        }
+
+        _collision.Grid.Rebuild(
+            _collision.Bodies,
+            _collision.ContactBandRadiusRaw);
+
+        var contactDistanceRaw = checked(2 * Scenario.BodyRadiusRaw);
+        var contactPairs = 0;
+        var penetrationRaw = 0;
+
+        foreach (var pair in _collision.Grid.PairsList)
+        {
+            var left = _agentStates[AgentIndexOf(pair.LowEntityId)];
+            var right = _agentStates[AgentIndexOf(pair.HighEntityId)];
+            var separationRaw = checked((int)IntegerSquareRoot(
+                CollisionGeometry.SquaredDistance(
+                    left.XRaw,
+                    left.YRaw,
+                    right.XRaw,
+                    right.YRaw)));
+            penetrationRaw = Math.Max(
+                penetrationRaw,
+                contactDistanceRaw - separationRaw);
+
+            if (left.FactionId == right.FactionId)
+            {
+                continue;
+            }
+
+            contactPairs++;
+        }
+
+        return (_collision.Grid.Pairs.Count, contactPairs, penetrationRaw);
+    }
+
+    /// <summary>
+    /// Faction of each agent at the index equal to its entity ID. Only called
+    /// when <see cref="AgentIndexMap"/> chose its flat array, so the largest ID
+    /// is bounded by a small multiple of the agent count.
+    /// </summary>
+    private static int[] BuildFactionByEntityId(AgentState[] agents)
+    {
+        ulong maxId = 0;
+        foreach (var agent in agents)
+        {
+            maxId = Math.Max(maxId, agent.EntityId);
+        }
+
+        var factions = new int[checked((int)maxId + 1)];
+        foreach (var agent in agents)
+        {
+            factions[(int)agent.EntityId] = agent.FactionId;
+        }
+
+        return factions;
     }
 
     /// <summary>
