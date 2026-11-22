@@ -117,16 +117,17 @@ internal readonly record struct CollisionMoveResult(
 /// byte-identical to what it was before this parameter existed.
 /// </para>
 /// <para>
-/// <b>Indices.</b> Both sets of obstacles are held in a
+/// <b>Index.</b> Both sets of obstacles are held in one
 /// <see cref="CollisionUniformGrid"/> and queried with
 /// <see cref="CollisionUniformGrid.AnyOverlapUnchecked"/>, so a candidate is
 /// tested against a bounded neighbourhood rather than against a list whose
-/// length grows with the agent count. A cell is one body diameter wide and both
-/// sets are pairwise non-overlapping, so a three-by-three neighbourhood holds at
+/// length grows with the agent count. A cell is one body diameter wide and each
+/// set is pairwise non-overlapping, so a three-by-three neighbourhood holds at
 /// most thirty-six bodies of either set however many agents are on the field.
-/// The committed index grows by one as each agent commits; the pending index is
-/// filled in <see cref="Reset"/> and shrinks by one as each mover's turn
-/// arrives.
+/// Committed bodies are inserted as each agent commits; pending movers are
+/// inserted in <see cref="Reset"/> and removed one at a time as each mover's
+/// turn arrives. The grid tags each body as committed or pending so that the
+/// co-location check can still see the committed set alone.
 /// </para>
 /// <para>
 /// <b>Budget.</b> Collision may only reduce displacement. Every candidate other
@@ -173,25 +174,20 @@ internal sealed class CollisionResolver
     private const int InitialCapacity = 64;
 
     /// <summary>
-    /// The bodies committed so far this tick, indexed for query. Rebuilt every
-    /// tick, never hashed, never snapshotted, never persisted, and bounded by the
-    /// living agent count.
-    /// </summary>
-    private readonly CollisionUniformGrid _committedGrid;
-
-    /// <summary>
-    /// The movers that have not been resolved yet, indexed at their tick-start
-    /// positions. Filled in <see cref="Reset"/> and drained by one removal per
-    /// mover as <see cref="CommitMovers"/> walks the resolution order, so that at
-    /// any point in that walk it holds exactly the movers that are still pending.
+    /// Every obstacle on the field: the bodies committed so far this tick, tagged
+    /// committed, and the movers that have not been resolved yet, indexed at their
+    /// tick-start positions and tagged pending. Pending movers are inserted in
+    /// <see cref="Reset"/> and drained by one removal per mover as
+    /// <see cref="CommitMovers"/> walks the resolution order, so at any point in
+    /// that walk the pending part holds exactly the movers still pending.
     /// </summary>
     /// <remarks>
-    /// Like <see cref="_committedGrid"/> this is a derived accelerator: rebuilt
-    /// every tick, never hashed, never snapshotted, never persisted, bounded by
-    /// the living mover count. Its cell lookup is a packed-integer dictionary
-    /// that is never enumerated; the thing actually traversed is an ordered chain.
+    /// A derived accelerator: rebuilt every tick, never hashed, never snapshotted,
+    /// never persisted, bounded by the living agent count. Its cell lookup is a
+    /// packed-integer dictionary that is never enumerated; the thing actually
+    /// traversed is an ordered chain.
     /// </remarks>
-    private readonly CollisionUniformGrid _pendingGrid;
+    private readonly CollisionUniformGrid _grid;
 
     private readonly List<CollisionMoveResult> _results = [];
 
@@ -262,14 +258,12 @@ internal sealed class CollisionResolver
         _diameterRaw = diameterRaw;
         _mapWidthRaw = mapWidthRaw;
         _mapHeightRaw = mapHeightRaw;
-        _committedGrid = new CollisionUniformGrid(diameterRaw, mapWidthRaw, mapHeightRaw);
-        _pendingGrid = new CollisionUniformGrid(diameterRaw, mapWidthRaw, mapHeightRaw);
+        _grid = new CollisionUniformGrid(diameterRaw, mapWidthRaw, mapHeightRaw);
 
         // The radius is fixed for this resolver's whole lifetime, so the guard
         // that every query would otherwise re-run is run once, here. That is what
         // lets the inner loop call the unchecked queries.
-        _committedGrid.ValidateRadiusForQueries(_overlapRadiusRaw);
-        _pendingGrid.ValidateRadiusForQueries(_overlapRadiusRaw);
+        _grid.ValidateRadiusForQueries(_overlapRadiusRaw);
     }
 
     /// <summary>
@@ -423,8 +417,7 @@ internal sealed class CollisionResolver
     /// </summary>
     private void Reset(IReadOnlyList<CollisionMoveRequest> requests)
     {
-        _committedGrid.Clear();
-        _pendingGrid.Clear();
+        _grid.Clear();
         _results.Clear();
         _moverCount = 0;
         AcceptedMoveCount = 0;
@@ -464,12 +457,13 @@ internal sealed class CollisionResolver
         {
             var request = requests[_moverIndices[moverIndex]];
 
-            _pendingGrid.Insert(
+            _grid.Insert(
                 new CollisionBody(
                     request.EntityId,
                     request.StartXRaw,
                     request.StartYRaw,
-                    IsAlive: true));
+                    IsAlive: true),
+                isCommitted: false);
         }
     }
 
@@ -525,7 +519,7 @@ internal sealed class CollisionResolver
             // is evaluated, is what makes the pending index hold exactly the
             // movers at resolution indices moverIndex + 1 onward -- the set the
             // linear walk this replaced enumerated from pendingFrom.
-            _pendingGrid.Remove(
+            _grid.Remove(
                 new CollisionBody(
                     request.EntityId,
                     request.StartXRaw,
@@ -739,26 +733,15 @@ internal sealed class CollisionResolver
     /// lets both halves be answered by a bounded neighbourhood query instead of a
     /// linear walk without changing a single committed position.
     /// </remarks>
-    private bool IsFree(int xRaw, int yRaw, ulong entityId)
-    {
-        return !_committedGrid.AnyOverlapUnchecked(
-                xRaw,
-                yRaw,
-                _overlapRadiusRaw,
-                entityId) &&
-            !_pendingGrid.AnyOverlapUnchecked(
-                xRaw,
-                yRaw,
-                _overlapRadiusRaw,
-                entityId);
-    }
+    private bool IsFree(int xRaw, int yRaw, ulong entityId) =>
+        !_grid.AnyOverlapUnchecked(xRaw, yRaw, _overlapRadiusRaw, entityId);
 
     /// <summary>
     /// True when the position exactly equals the centre of an already committed
     /// body.
     /// </summary>
     private bool IsCoincidentWithCommitted(int xRaw, int yRaw, ulong entityId) =>
-        _committedGrid.AnyCoincidentUnchecked(xRaw, yRaw, entityId);
+        _grid.AnyCoincidentCommittedUnchecked(xRaw, yRaw, entityId);
 
     /// <summary>
     /// Records one agent's outcome and makes its body an obstacle for everyone
@@ -774,7 +757,7 @@ internal sealed class CollisionResolver
         var body = new CollisionBody(entityId, xRaw, yRaw, IsAlive: true);
 
         _results[requestIndex] = new CollisionMoveResult(entityId, xRaw, yRaw, resolution);
-        _committedGrid.Insert(body);
+        _grid.Insert(body, isCommitted: true);
 
         switch (resolution)
         {
