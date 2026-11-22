@@ -311,6 +311,7 @@ internal sealed class CollisionUniformGrid
 
             if (head == NoSlot)
             {
+                // After a Remove empties a cell this records its key again; _hasRemovals gates the dedupe.
                 _cellKeys[_cellCount] = key;
                 _cellCount++;
             }

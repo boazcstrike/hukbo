@@ -1,3 +1,4 @@
+using System.Reflection;
 using Hukbo.Core.Combat;
 using Hukbo.Core.Determinism;
 using Hukbo.Core.Mathematics;
@@ -43,6 +44,13 @@ public sealed class MeasureCollisionEquivalenceTests
     private const int SmallArmyAgents = 200;
 
     private const int LargeArmyAgents = 500;
+
+    private const int SparseRowsPerFaction = 10;
+
+    /// <summary>Far past the dense limit of four slots per agent plus a slack of sixteen.</summary>
+    private const ulong SparseIdStride = 1_000;
+
+    private const int SparseBattleTicks = 60;
 
     public static TheoryData<bool> BoundedAndUnbounded() => new() { true, false };
 
@@ -234,12 +242,89 @@ public sealed class MeasureCollisionEquivalenceTests
         Assert.True(run.TicksWithPenetration > 0, "No tick ever measured a penetration.");
     }
 
+    /// <summary>
+    /// Every other battle here is built from <c>Scenario.CreateDefault</c>, whose
+    /// entity IDs are dense, so none reaches <c>MeasureContactsByPairList</c>.
+    /// This one spaces its IDs a thousand apart to force the dictionary fallback.
+    /// </summary>
+    [Fact]
+    public void LastTickCollision_MatchesThePairListOracleWhenEntityIdsAreSparse()
+    {
+        var scenario = new Scenario(
+            Seed: 1,
+            MapWidth: 200,
+            MapHeight: 200,
+            SparseRowsPerFaction,
+            TickRate: 20,
+            TickLimit: SparseBattleTicks);
+        var simulation = BattleSimulation.CreateForTesting(scenario, SparseOpposingLines(scenario));
+
+        Assert.False(
+            AgentIndexesOf(simulation).IsDense,
+            "The entity IDs were dense, so the pair-list fallback was not exercised.");
+
+        var run = AssertEveryTickMatchesTheOracle(simulation, scenario, SparseBattleTicks);
+
+        Assert.True(run.TicksWithContactPairs > 0, "The sparse battle never had a contact pair.");
+    }
+
     private static Scenario ShippedCombatScenario(ulong seed, int totalAgents, int ticks) =>
         Scenario.CreateDefault(seed, totalAgents) with
         {
             TickLimit = ticks,
             CombatPreset = CombatPresetId.PrecolonialPhilippinesV8,
         };
+
+    private static AgentIndexMap AgentIndexesOf(BattleSimulation simulation) =>
+        (AgentIndexMap)typeof(BattleSimulation)
+            .GetField("_agentIndexes", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .GetValue(simulation)!;
+
+    /// <summary>
+    /// Two vertical lines in tangent contact, one per faction, with entity IDs
+    /// <see cref="SparseIdStride"/> apart. Rows are spaced just clear of one
+    /// another so neighbours and opponents both fall inside the contact band.
+    /// </summary>
+    private static AgentState[] SparseOpposingLines(Scenario scenario)
+    {
+        var agents = new AgentState[SparseRowsPerFaction * 2];
+        var leftXRaw = 60 * FixedPoint.Scale;
+        var rightXRaw = leftXRaw + DiameterRaw;
+
+        for (var row = 0; row < SparseRowsPerFaction; row++)
+        {
+            var yRaw = (20 * FixedPoint.Scale) + (row * (DiameterRaw + FixedPoint.Scale));
+
+            agents[row] = SparseAgent(row, factionId: 0, leftXRaw, yRaw, scenario);
+            agents[SparseRowsPerFaction + row] = SparseAgent(
+                SparseRowsPerFaction + row,
+                factionId: 1,
+                rightXRaw,
+                yRaw,
+                scenario);
+        }
+
+        return agents;
+    }
+
+    private static AgentState SparseAgent(
+        int ordinal,
+        int factionId,
+        int xRaw,
+        int yRaw,
+        Scenario scenario) =>
+        new(
+            (ulong)(ordinal + 1) * SparseIdStride,
+            factionId,
+            xRaw,
+            yRaw,
+            scenario.MaximumHitPoints,
+            scenario.MovementSpeedRaw,
+            scenario.PerceptionRangeRaw,
+            scenario.AttackRangeRaw,
+            scenario.DamagePerAttack,
+            scenario.AttackCooldownTicks,
+            new CombatLoadout(WeaponId.Kampilan, ArmorId.LightOrganic, ShieldId.None));
 
     private static CollisionUniformGrid NewGrid(bool isBounded) =>
         isBounded
@@ -328,6 +413,14 @@ public sealed class MeasureCollisionEquivalenceTests
     /// every pair within the band, the cross-faction subset, and the deepest
     /// <c>2R - floor(sqrt(d^2))</c> over all pairs from a floor of zero.
     /// </summary>
+    /// <remarks>
+    /// The oracle runs after the tick, while <c>MeasureCollision</c> ran in the
+    /// middle of it. It reads <paramref name="positions"/> from the end of the
+    /// tick, which equals what <c>MeasureCollision</c> saw only because the
+    /// stages after it (attacks) move nobody. <paramref name="wasAlive"/> must be
+    /// the previous tick's liveness snapshot, because deaths in this tick's
+    /// attack stage happen after the measurement.
+    /// </remarks>
     private static (int CandidatePairs, int ContactPairs, int PenetrationRaw) PairListOracle(
         IReadOnlyList<AgentView> positions,
         IReadOnlyList<bool> wasAlive,
@@ -378,7 +471,15 @@ public sealed class MeasureCollisionEquivalenceTests
     private static RunSummary AssertEveryTickMatchesTheOracle(Scenario scenario, int ticks)
     {
         scenario.Validate();
-        var simulation = BattleSimulation.Create(scenario);
+
+        return AssertEveryTickMatchesTheOracle(BattleSimulation.Create(scenario), scenario, ticks);
+    }
+
+    private static RunSummary AssertEveryTickMatchesTheOracle(
+        BattleSimulation simulation,
+        Scenario scenario,
+        int ticks)
+    {
         var wasAlive = simulation.Agents.Select(agent => agent.IsAlive).ToArray();
         var withCandidates = 0;
         var withContacts = 0;

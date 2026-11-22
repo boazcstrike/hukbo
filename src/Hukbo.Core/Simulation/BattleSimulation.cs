@@ -30,7 +30,9 @@ public sealed class BattleSimulation
 
     // Faction of each agent, indexed by entity ID, for the count-only collision
     // metrics. Empty when the IDs are too sparse for an array, which sends
-    // MeasureCollision down the pair-list path instead.
+    // MeasureCollision down the pair-list path instead. Snapshotted once in the
+    // constructor: that is valid only because AgentState.FactionId is get-only,
+    // and a mutable faction would silently desync this array.
     private readonly int[] _factionByEntityId;
     private readonly int[] _damageTotals;
 
@@ -276,7 +278,7 @@ public sealed class BattleSimulation
     private CombatMetrics _lastTickCombat;
     private FactionCombatMetrics _lastTickCombatByFaction;
 
-    // Same contract as Dictionary.TryGetValue: false for 0 and unknown IDs.
+    // Same contract as Dictionary.TryGetValue: false for unknown IDs; 0 is found only if an agent owns it.
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private bool TryGetAgentIndex(ulong entityId, out int index) =>
         _agentIndexes.TryGetIndex(entityId, out index);
@@ -285,6 +287,7 @@ public sealed class BattleSimulation
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private int AgentIndexOf(ulong entityId) =>
         _agentIndexes.IndexOf(entityId);
+
     private BattleSimulation(
         Scenario scenario,
         AgentState[] agents,

@@ -1064,7 +1064,6 @@ public sealed class CollisionUniformGridTests
             "50 warm rebuild, clear and insert rounds on a bounded grid");
     }
 
-
     private static CollisionBody BodyOf(
         IReadOnlyList<CollisionBody> bodies,
         ulong entityId) =>
