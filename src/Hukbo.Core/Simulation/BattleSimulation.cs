@@ -26,7 +26,7 @@ public sealed class BattleSimulation
     private readonly CombatRuleset _rules;
     private readonly MovementRuleset _movementRules;
     private readonly AgentState[] _agentStates;
-    private readonly Dictionary<ulong, int> _agentIndexes;
+    private readonly AgentIndexMap _agentIndexes;
     private readonly int[] _damageTotals;
 
     // Armor identity: parallel to _damageTotals, one slot per agent,
@@ -271,6 +271,15 @@ public sealed class BattleSimulation
     private CombatMetrics _lastTickCombat;
     private FactionCombatMetrics _lastTickCombatByFaction;
 
+    // Same contract as Dictionary.TryGetValue: false for 0 and unknown IDs.
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private bool TryGetAgentIndex(ulong entityId, out int index) =>
+        _agentIndexes.TryGetIndex(entityId, out index);
+
+    // Same contract as the Dictionary indexer: throws KeyNotFoundException.
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private int AgentIndexOf(ulong entityId) =>
+        _agentIndexes.IndexOf(entityId);
     private BattleSimulation(
         Scenario scenario,
         AgentState[] agents,
@@ -280,7 +289,6 @@ public sealed class BattleSimulation
         _rules = rules;
         _movementRules = MovementPresetRegistry.Get(scenario.MovementPreset);
         _agentStates = agents;
-        _agentIndexes = new Dictionary<ulong, int>(agents.Length);
         _damageTotals = new int[agents.Length];
         _armorSavedTargets = new bool[agents.Length];
         _armorSavedPoints = new int[agents.Length];
@@ -376,15 +384,16 @@ public sealed class BattleSimulation
         _contingentSquareOverlapsAnother = new bool[ContingentSlotCount];
         _contingentResolvedStates = new ContingentState[ContingentSlotCount];
 
+        var entityIds = new ulong[agents.Length];
         for (var index = 0; index < agents.Length; index++)
         {
-            if (!_agentIndexes.TryAdd(agents[index].EntityId, index))
-            {
-                throw new ArgumentException(
-                    $"Duplicate entity ID {agents[index].EntityId}.",
-                    nameof(agents));
-            }
+            entityIds[index] = agents[index].EntityId;
+        }
 
+        _agentIndexes = AgentIndexMap.Create(entityIds);
+
+        for (var index = 0; index < agents.Length; index++)
+        {
             var agent = agents[index];
             var slot = checked(
                 (agent.FactionId * FormationPlanner.MaximumContingents) +
@@ -573,7 +582,7 @@ public sealed class BattleSimulation
                 $"{_movementRules.Id}.");
         }
 
-        return _localMovementContexts[_agentIndexes[entityId]];
+        return _localMovementContexts[AgentIndexOf(entityId)];
     }
 
     /// <summary>
@@ -595,7 +604,7 @@ public sealed class BattleSimulation
                 $"preset {Scenario.MovementPreset}.");
         }
 
-        return _nearestMeleeThreatSquared[_agentIndexes[entityId]];
+        return _nearestMeleeThreatSquared[AgentIndexOf(entityId)];
     }
 
     /// <summary>
@@ -1852,7 +1861,7 @@ public sealed class BattleSimulation
             if (_factionLivingCounts[faction] >
                     Scenario.LastStandThresholdAgents ||
                 _factionRallyEntityIds[faction] == 0 ||
-                !_agentIndexes.TryGetValue(
+                !TryGetAgentIndex(
                     _factionRallyEntityIds[faction], out var rallyIndex))
             {
                 continue;
@@ -2008,7 +2017,7 @@ public sealed class BattleSimulation
 
             if (leaderEntityId != 0 &&
                 agent.EntityId != leaderEntityId &&
-                _agentIndexes.TryGetValue(leaderEntityId, out var leaderIndex))
+                TryGetAgentIndex(leaderEntityId, out var leaderIndex))
             {
                 var memberSquared = SquaredDistance(agent, _agentStates[leaderIndex]);
                 if (memberSquared > _contingentSpreadSquared[slot])
@@ -2018,7 +2027,7 @@ public sealed class BattleSimulation
             }
 
             if (agent.TargetEntityId is { } targetId &&
-                _agentIndexes.TryGetValue(targetId, out var targetIndex))
+                TryGetAgentIndex(targetId, out var targetIndex))
             {
                 var distanceSquared = SquaredDistance(agent, _agentStates[targetIndex]);
                 if (distanceSquared <= closeRadiusSquared)
@@ -2043,7 +2052,7 @@ public sealed class BattleSimulation
                 continue;
             }
 
-            var leader = _agentStates[_agentIndexes[_contingentLeaderEntityIds[slot]]];
+            var leader = _agentStates[AgentIndexOf(_contingentLeaderEntityIds[slot])];
             var jitterRaw = FormationRules.ComputeContingentJitterRaw(
                 Scenario.BodyRadiusRaw,
                 _contingentLivingCounts[slot]);
@@ -2184,7 +2193,7 @@ public sealed class BattleSimulation
                 continue;
             }
 
-            var leader = _agentStates[_agentIndexes[_contingentLeaderEntityIds[slot]]];
+            var leader = _agentStates[AgentIndexOf(_contingentLeaderEntityIds[slot])];
             var previousState = leader.ContingentState;
             var windowOpen = MovementRules.IsCohesionWindowOpen(
                 tick,
@@ -2255,7 +2264,7 @@ public sealed class BattleSimulation
             return true;
         }
 
-        var leader = _agentStates[_agentIndexes[_contingentLeaderEntityIds[slot]]];
+        var leader = _agentStates[AgentIndexOf(_contingentLeaderEntityIds[slot])];
         return MovementRules.ParticipatesInCrossContingentScan(leader.ContingentState);
     }
 
@@ -2312,7 +2321,7 @@ public sealed class BattleSimulation
             if (agent.Intent == AgentIntent.Moving &&
                 agent.TargetEntityId is { } enemyTargetId)
             {
-                var target = _agentStates[_agentIndexes[enemyTargetId]];
+                var target = _agentStates[AgentIndexOf(enemyTargetId)];
 
                 // Ranged standoff. Confined to RangedStandoffV8 and
                 // BattlefieldRealismV10 — battlefield realism design section
@@ -2554,7 +2563,7 @@ public sealed class BattleSimulation
             }
 
             if (agent.TargetEntityId is not { } targetId ||
-                !_agentIndexes.TryGetValue(targetId, out var targetIndex))
+                !TryGetAgentIndex(targetId, out var targetIndex))
             {
                 continue;
             }
@@ -3023,7 +3032,7 @@ public sealed class BattleSimulation
             var hasTarget = false;
             var targetAtOrInsidePreferredDistance = false;
             if (agent.TargetEntityId is { } targetId &&
-                _agentIndexes.TryGetValue(targetId, out var targetIndex))
+                TryGetAgentIndex(targetId, out var targetIndex))
             {
                 var target = _agentStates[targetIndex];
                 hasTarget = true;
@@ -3748,7 +3757,7 @@ public sealed class BattleSimulation
                     var context = _localMovementContexts[index];
                     var anchorExists = false;
                     if (context.NearestAllyEntityId is { } allyId &&
-                        _agentIndexes.TryGetValue(allyId, out var allyIndex))
+                        TryGetAgentIndex(allyId, out var allyIndex))
                     {
                         var ally = _agentStates[allyIndex];
                         if (ally.IsAlive)
@@ -3774,7 +3783,7 @@ public sealed class BattleSimulation
                     var leaderEntityId = _contingentLeaderEntityIds[slot];
                     if (leaderEntityId != 0 &&
                         leaderEntityId != agent.EntityId &&
-                        _agentIndexes.TryGetValue(leaderEntityId, out var leaderIndex))
+                        TryGetAgentIndex(leaderEntityId, out var leaderIndex))
                     {
                         var leader = _agentStates[leaderIndex];
                         if (leader.IsAlive)
@@ -3812,7 +3821,7 @@ public sealed class BattleSimulation
                     long escapeFromSecondX = 0;
                     long escapeFromSecondY = 0;
                     if (context.SecondThreatEntityId is { } secondThreatId &&
-                        _agentIndexes.TryGetValue(secondThreatId, out var secondIndex))
+                        TryGetAgentIndex(secondThreatId, out var secondIndex))
                     {
                         var second = _agentStates[secondIndex];
                         if (second.IsAlive)
@@ -3889,7 +3898,7 @@ public sealed class BattleSimulation
     {
         if (context.ImmediateEnemies < 2 ||
             context.SecondThreatEntityId is not { } secondThreatId ||
-            !_agentIndexes.TryGetValue(secondThreatId, out var secondIndex))
+            !TryGetAgentIndex(secondThreatId, out var secondIndex))
         {
             return false;
         }
@@ -4246,7 +4255,7 @@ public sealed class BattleSimulation
     /// </summary>
     private AgentState? ResolveLivingThreat(AgentState agent) =>
         agent.TargetEntityId is { } targetId &&
-        _agentIndexes.TryGetValue(targetId, out var targetIndex) &&
+        TryGetAgentIndex(targetId, out var targetIndex) &&
         _agentStates[targetIndex].IsAlive
             ? _agentStates[targetIndex]
             : null;
@@ -4473,7 +4482,7 @@ public sealed class BattleSimulation
         leaderEntityId = _contingentLeaderEntityIds[slot];
 
         if (leaderEntityId == 0 ||
-            !_agentIndexes.TryGetValue(leaderEntityId, out var leaderIndex))
+            !TryGetAgentIndex(leaderEntityId, out var leaderIndex))
         {
             return false;
         }
@@ -4733,7 +4742,7 @@ public sealed class BattleSimulation
     {
         var rallyEntityId = _factionRallyEntityIds[agent.FactionId];
         if (rallyEntityId == 0 ||
-            !_agentIndexes.TryGetValue(rallyEntityId, out var rallyIndex))
+            !TryGetAgentIndex(rallyEntityId, out var rallyIndex))
         {
             return null;
         }
@@ -4818,7 +4827,7 @@ public sealed class BattleSimulation
         AgentState leader)
     {
         if (leader.TargetEntityId is not { } targetId ||
-            !_agentIndexes.TryGetValue(targetId, out var targetIndex))
+            !TryGetAgentIndex(targetId, out var targetIndex))
         {
             return (0, 0, 0);
         }
@@ -5211,8 +5220,8 @@ public sealed class BattleSimulation
 
         foreach (var pair in _collision.Grid.PairsList)
         {
-            var left = _agentStates[_agentIndexes[pair.LowEntityId]];
-            var right = _agentStates[_agentIndexes[pair.HighEntityId]];
+            var left = _agentStates[AgentIndexOf(pair.LowEntityId)];
+            var right = _agentStates[AgentIndexOf(pair.HighEntityId)];
             var separationRaw = checked((int)IntegerSquareRoot(
                 CollisionGeometry.SquaredDistance(
                     left.XRaw,
@@ -5245,7 +5254,7 @@ public sealed class BattleSimulation
                 continue;
             }
 
-            var target = _agentStates[_agentIndexes[targetId]];
+            var target = _agentStates[AgentIndexOf(targetId)];
             if (!target.IsAlive || !IsWithinAttackRange(agent, target))
             {
                 continue;
@@ -5362,9 +5371,9 @@ public sealed class BattleSimulation
             // reading them here from a source that may itself have died
             // since launch is exactly as safe as the shared code below
             // already treats a melee source.
-            var arrivalSourceIndex = _agentIndexes[projectile.SourceEntityId];
+            var arrivalSourceIndex = AgentIndexOf(projectile.SourceEntityId);
             var arrivalSource = _agentStates[arrivalSourceIndex];
-            var arrivalTargetIndex = _agentIndexes[projectile.TargetEntityId];
+            var arrivalTargetIndex = AgentIndexOf(projectile.TargetEntityId);
             var arrivalTarget = _agentStates[arrivalTargetIndex];
 
             if (!arrivalTarget.IsAlive)
@@ -5502,7 +5511,7 @@ public sealed class BattleSimulation
                 continue;
             }
 
-            var target = _agentStates[_agentIndexes[targetId]];
+            var target = _agentStates[AgentIndexOf(targetId)];
             if (!target.IsAlive)
             {
                 ClearActiveComboChain(source);
@@ -5584,7 +5593,7 @@ public sealed class BattleSimulation
             // the combo transition, because which cooldown to write now
             // depends on the combo outcome.
             source.Intent = AgentIntent.Attacking;
-            var targetIndex = _agentIndexes[target.EntityId];
+            var targetIndex = AgentIndexOf(target.EntityId);
             var hitLocation = HitLocationResolver.Resolve(
                 _rules,
                 source.Loadout,
