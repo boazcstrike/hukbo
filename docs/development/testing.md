@@ -150,6 +150,31 @@ merge. Its result is recorded on the line below.
 formatting and the Release build `PASS`, Core 3,415 passed, Client 4,310 passed,
 and all seven workloads `PASS` with exactly the digests in the table above.
 
+## Canonical gate result — Hukbo, 2026-11-22 (resolver grid, simulation split)
+
+`./scripts/verify.ps1 -Game Hukbo`, on branch `integ-1122` at `9e80337` in an
+isolated worktree, based on `main` at `19dd7a7`. The branch carries three
+changes. The first merges the collision resolver's two indexes into one grid
+(`d4df7ed`, with a later step reverted in `dfecdb4`). The second splits
+`BattleSimulation.cs` into partial class files with no code changed (`16d5931`,
+`85e50eb`). The third is the render matrix re-baseline below. Exit code 0:
+prerequisites, the locked restore, formatting and the Release build `PASS`,
+Core 3,423 passed and Client 4,310 passed, and all seven headless workloads
+`PASS` with exactly the digests in the table in the previous section.
+
+The split was also checked mechanically. The lines of the original file and the
+lines of the new files were each sorted and compared, ignoring `using` lines,
+the namespace, the class header, brace-only lines and blank lines, and the two
+sets were identical. Every field declaration stayed in `BattleSimulation.cs`,
+because C# does not define the order of field initializers across partial
+files.
+
+Sandata was not changed. Its seed-1 benchmark, `./scripts/benchmark.ps1 -Game
+Sandata -Seed 1`, matched the recorded baseline: `stateHash DA3D1BEB99978A75`,
+`eventHash 260A20BC8F578E19`, `deterministic: true`. The Sandata test suite was
+not run, because three `RoomSweepAngleHouseTests` already fail on `main` and are
+owned by the Sandata about-face work.
+
 ## Render matrix re-baseline, 2026-11-22 (thousand-unit plan TU-1 and TU-4)
 
 Task TU-1 of `docs/plans/2026-08-14-thousand-unit-performance.md`. The render

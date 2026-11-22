@@ -4200,3 +4200,43 @@ time and collision measurement by 72%. Inside `MeasureCollision`, the new
 
 Collision resolution is still the largest stage, but it is now a third of the
 tick rather than half. No other single stage is above a quarter.
+
+## Collision resolver, one combined grid — 2026-11-22
+
+The resolver used to hold two indexes, one for committed bodies and one for
+movers still pending, and every candidate position queried both. Commit
+`d4df7ed` merges them into one `CollisionUniformGrid` that tags each body as
+committed or pending. The overlap test now walks one three-by-three
+neighbourhood instead of two. The co-location check in the stationary pass reads
+the tag, so it still sees committed bodies only. The change is hash-neutral by
+construction: the overlap answer is a boolean over the union of the two sets, so
+the order in which bodies are visited cannot change it.
+
+A second step gathered a mover's whole neighbourhood once, after its preferred
+step was refused, and tested the remaining candidates against that list. It was
+correct, but it was slower than the combined grid alone, and it was reverted in
+`dfecdb4`.
+
+Three headless runners were built with `dotnet build src/Hukbo.Headless -c
+Release -o <dir>`: **base** from `main` at `19dd7a7`, **A** from `d4df7ed`
+(combined grid), and **B** from `9f66637` (combined grid plus the gather). The
+runs used seed 1 and 10,000 requested ticks. Each repeat ran every binary back to
+back, and the order reversed on alternate repeats. The figures are the median,
+across repeats, of each run's own tick percentile in milliseconds. Every binary
+produced the same state and event hash at each size.
+
+| Presets | Agents | Repeats | Base p50 | A p50 | B p50 | Base p95 | A p95 | B p95 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| combat V8, movement V14 (shipped) | 1,000 | 7 | 0.649 | 0.635 (−2%) | 0.673 (+4%) | 1.217 | 1.178 (−3%) | 1.401 (+15%) |
+| combat V8, movement V14 (shipped) | 500 | 7 | 0.211 | 0.201 (−5%) | — | 1.413 | 1.337 (−5%) | — |
+| headless default (gate workload) | 1,000 | 5 | 0.654 | 0.571 (−13%) | — | 1.115 | 0.966 (−13%) | — |
+
+The shipped-preset gain is small. A CPU trace of A at 1,000 agents under the
+shipped presets, taken with `dotnet-trace collect` against the absolute runner
+path, shows why: `ResolveCollisions` is 16.6% of the process and about 28% of
+`AdvanceOneTick`. Within it, `AnyOverlapUnchecked` is only 4.9% exclusive, and
+`CommitMovers` itself is 6.8%. The rest of the tick is target selection at 16.7%
+(`TargetingGrid.VisitRing` 11.4%), movement proposals at 10.0%, and collision
+measurement at 6.8%. `Buffer.ZeroMemoryInternal` is 6.5% exclusive, which is the
+per-tick array clears. The headless runner's own per-tick state hash is 30.9% of
+the process, and the game client does not pay that cost.
