@@ -150,6 +150,57 @@ merge. Its result is recorded on the line below.
 formatting and the Release build `PASS`, Core 3,415 passed, Client 4,310 passed,
 and all seven workloads `PASS` with exactly the digests in the table above.
 
+## Render matrix re-baseline, 2026-11-22 (thousand-unit plan TU-1 and TU-4)
+
+Task TU-1 of `docs/plans/2026-08-14-thousand-unit-performance.md`. The render
+probe was built in Release from `main` at `19dd7a7` and run from its apphost:
+
+```powershell
+dotnet build tools/Hukbo.Tools.RenderProbe -c Release
+./tools/Hukbo.Tools.RenderProbe/bin/Release/net10.0/win-x64/Hukbo.Tools.RenderProbe.exe `
+  --matrix 1 120 docs/development/render-baselines/render-matrix-2026-11-22.json
+```
+
+The fingerprint records `backend spritebatch-1x1`, `verticalRetraceSynchronized:
+false`, and a probe duplication factor of 2.000, the same settings as both
+2026-07-29 matrices, so the three files are comparable. Seed 1, 120 frames per
+station. The machine was shared with other sessions during the run, so read the
+figures as one sample rather than as a controlled benchmark. The probe does not
+drive the pawn sprite body (`B`) or the weapon atlas (`V`) toggles, so each took
+the client's default.
+
+Frame time in milliseconds (`Draw`), with Tier 1 `submitMicroseconds` p95. The
+2026-07-29 columns are the Phase 2 matrix, `render-matrix-phase2-2026-07-29.json`,
+which is the run the closed GPU render workstream's 3.28 ms verdict quotes.
+
+| Agents | Station | p50 then → now | p95 then → now | p99 then → now | submit p95 µs then → now |
+| --- | --- | --- | --- | --- | --- |
+| 200 | minimum zoom | 1.57 → 0.36 | 1.86 → 0.56 | 2.65 → 4.48 | 662 → 252 |
+| 200 | default fit | 1.51 → 0.36 | 1.75 → 0.47 | 1.96 → 0.60 | 571 → 219 |
+| 200 | maximum zoom | 0.75 → 0.14 | 0.88 → 0.18 | 0.93 → 0.29 | 77 → 31 |
+| 500 | minimum zoom | 3.18 → 1.23 | 3.60 → 1.80 | 5.05 → 2.39 | 1,206 → 864 |
+| 500 | default fit | 2.66 → 1.19 | 2.98 → 1.93 | 3.44 → 2.20 | 921 → 928 |
+| 500 | maximum zoom | 1.29 → 0.46 | 1.46 → 0.83 | 1.68 → 1.03 | 77 → 205 |
+| 1,000 | minimum zoom | 4.12 → 1.55 | 4.51 → 2.50 | 4.68 → 3.04 | 1,194 → 1,192 |
+| 1,000 | default fit | 2.84 → 1.50 | 3.28 → 1.87 | 8.05 → 2.46 | 767 → 924 |
+| 1,000 | maximum zoom | 1.52 → 0.46 | 1.75 → 0.52 | 2.08 → 0.67 | 46 → 98 |
+
+At 1,000 agents the default-fit station drew at most 17,876 quads, called pawn
+geometry 2,000 times (two passes over 1,000 pawns, the cost TU-11 names), hit the
+appearance cache on all 1,000 pawns with no misses, and used one batch and one
+texture bind. The single 4.48 ms p99 at 200 agents, minimum zoom, is one slow
+frame among 120 at the first station of the first cell; its p95 is 0.56 ms.
+
+**TU-4 verdict: NO-GO, and the frame holds at all three stations.** The trigger
+needs both clauses. Clause one, the 1,000-unit default-fit `Draw` p95 above
+8.0 ms, measured 1.87 ms and fails. The worst p95 anywhere in the matrix is
+2.50 ms, at 1,000 agents and minimum zoom. Clause two is therefore moot; for
+the record, submission p95 was 924 µs, about 49 percent of the 1.87 ms frame and
+12 percent of the 8.0 ms budget. Under the plan's own stop condition, Phase 2
+(the client per-frame path, TU-11 to TU-13) is not authorized by this evidence.
+Phase 1 is simulation cost, which this probe does not measure. That work is
+tracked by the collision hot path records in `measurement-history.md`.
+
 ## Canonical gate result — both games, 2026-08-15 (contingent cohesion V15)
 
 `./scripts/verify.ps1 -SkipBootstrap`, on branch `hukbo-cohesion-v14` in an
