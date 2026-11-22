@@ -23,13 +23,14 @@ namespace Hukbo.Core.Movement;
 /// it does reach the state hash, conditionally.
 /// <c>BattleSimulation.ComputeStateHash</c> always folds
 /// <c>_rules.ContentHash</c>, where <c>_rules</c> is the
-/// <c>CombatRuleset</c> (src/Hukbo.Core/Simulation/BattleSimulation.cs:25,
-/// 628), and it additionally hands this type's <see cref="ContentHash"/> to
+/// <c>CombatRuleset</c> (src/Hukbo.Core/Simulation/BattleSimulation.cs, the
+/// <c>_rules</c> field), and it additionally hands this type's
+/// <see cref="ContentHash"/> to
 /// <c>StateHasher.Compute</c> for every preset whose
 /// <see cref="UsesEquipmentRelativeFootwork"/> is <see langword="true"/>, and
 /// <see langword="null"/> for every preset where that flag is
 /// <see langword="false"/>
-/// (src/Hukbo.Core/Simulation/BattleSimulation.cs:642-656).
+/// (src/Hukbo.Core/Simulation/BattleSimulation.cs, ComputeStateHash).
 /// <c>StateHasher.Compute</c> folds that value immediately after the combat
 /// content hash when it is non-null, and writes nothing at all when it is
 /// null (src/Hukbo.Core/Determinism/StateHasher.cs:81-84). Adding a field

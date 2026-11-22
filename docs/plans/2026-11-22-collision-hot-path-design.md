@@ -70,17 +70,17 @@ nondeterministic. A single-threaded scatter is already deterministic.
 
 `BattleSimulation._agentIndexes` is a `Dictionary<ulong, int>`
 (`BattleSimulation.cs:29`). It is read about 30 times in the file, several of
-them per living agent per tick: contingent states (`:2011`, `:2021`),
-proposals (`:2315`), footwork (`:2557`), collision measurement (`:5214`,
-`:5215`, `:5248`) and attacks (`:5505`, `:5587`).
+them per living agent per tick: contingent states (`BattleSimulation.Cohesion.cs`),
+proposals and footwork (`BattleSimulation.Movement.cs`), collision measurement
+(`BattleSimulation.Collision.cs`) and attacks (`BattleSimulation.Combat.cs`).
 
 In every production battle, entity IDs are dense: agent `i` has
-`EntityId = i + 1` (`BattleSimulation.cs:812`, `:833`). An array indexed by ID
+`EntityId = i + 1` (`BattleSimulation.Create` in `BattleSimulation.Spawn.cs`). An array indexed by ID
 answers the same question with one bounds check.
 
 ### 2.3 `MeasureCollision` rebuilds a second grid and sorts every pair
 
-`MeasureCollision` (`BattleSimulation.cs:5187-5270`) runs once per tick and:
+`MeasureCollision` (`BattleSimulation.Collision.cs`) runs once per tick and:
 
 - copies every agent into `_collision.Bodies`
 - runs a full `Grid.Rebuild`, which sorts the cell traversal order

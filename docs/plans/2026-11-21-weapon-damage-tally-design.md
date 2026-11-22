@@ -59,12 +59,12 @@ All the data already reaches the client. No `Hukbo.Core` change is needed.
 - A `BattleEventKind.Attack` event carries `SourceEntityId`, `TargetEntityId`,
   `FactionId`, `Weapon`, `Shield`, `Resolution`, `HitLocation`, and `Value`
   (`BattleEvent.cs:72-241`). `Value` is the attacker's nominal damage when the
-  blow lands and 0 otherwise (`BattleSimulation.cs:5466-5478`).
+  blow lands and 0 otherwise (`AddAttackEvent` in `BattleSimulation.cs`, called from `GatherAndCommitAttacks` in `BattleSimulation.Combat.cs`).
 - Ranged impacts arrive as ordinary `Attack` events at arrival
-  (`BattleSimulation.cs:5146-5161`). The tally counts an arrow when it lands,
+  (`GatherAndCommitAttacks` in `BattleSimulation.Combat.cs`). The tally counts an arrow when it lands,
   not when it is loosed.
 - A `BattleEventKind.Damage` event carries the target's total damage after
-  armour for the tick, with **no attacker** (`BattleSimulation.cs:5481-5497`).
+  armour for the tick, with **no attacker** (`GatherAndCommitAttacks` in `BattleSimulation.Combat.cs`).
   `Death` events carry no killer either, so kills cannot be attributed honestly
   and the card does not show them.
 

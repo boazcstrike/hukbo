@@ -316,7 +316,7 @@ public sealed class DeterminismTests
     /// RU-26 control. Both sides are built with an explicit
     /// <see cref="Scenario.RosterCounts"/> so both resolve loadouts through
     /// the identical code path, <c>RosterCountExpansion.Expand</c>
-    /// (<c>BattleSimulation.cs:563-574</c>), rather than comparing that path
+    /// (<c>BattleSimulation.Create</c>), rather than comparing that path
     /// against <c>CombatRuleset.ResolveLoadout</c>'s unrelated interleaved
     /// round-robin -- an earlier version of this control compared V5-with-
     /// <c>RosterCounts</c> against V4's own pinned no-<c>RosterCounts</c> run

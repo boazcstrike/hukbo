@@ -46,7 +46,7 @@ namespace Hukbo.Core.Tests;
 /// preset.</b> <c>Scenario.RosterCounts</c> is set explicitly on every
 /// scenario this harness builds; <see cref="PhilippineCombatPresetV5"/> is
 /// never edited to bias its own roster distribution, because
-/// <c>BattleSimulation.cs:571-574</c> spreads warriors evenly over all nine
+/// <c>BattleSimulation.Create</c> spreads warriors evenly over all nine
 /// roster entries whenever <c>RosterCounts</c> is left unset, which would
 /// field far more melee than ranged and never reach a defensible calibration.
 /// </para>
