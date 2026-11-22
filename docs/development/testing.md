@@ -146,6 +146,10 @@ A later commit, `1140fce`, added one test for the sparse-ID fallback and changed
 only comments in `src/`. The Hukbo gate was re-run on the final commit before the
 merge. Its result is recorded on the line below.
 
+`./scripts/verify.ps1 -Game Hukbo -SkipBootstrap` at `b93417c`, exit code 0:
+formatting and the Release build `PASS`, Core 3,415 passed, Client 4,310 passed,
+and all seven workloads `PASS` with exactly the digests in the table above.
+
 ## Canonical gate result — both games, 2026-08-15 (contingent cohesion V15)
 
 `./scripts/verify.ps1 -SkipBootstrap`, on branch `hukbo-cohesion-v14` in an
