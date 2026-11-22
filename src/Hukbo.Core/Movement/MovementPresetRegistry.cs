@@ -21,7 +21,7 @@ public static class MovementPresetRegistry
     /// <see langword="true"/>: <c>BattleSimulation.ComputeStateHash</c> hands
     /// the movement content hash to <c>StateHasher.Compute</c> for those and
     /// hands <see langword="null"/> for the rest
-    /// (src/Hukbo.Core/Simulation/BattleSimulation.cs:642-656,
+    /// (src/Hukbo.Core/Simulation/BattleSimulation.cs, ComputeStateHash,
     /// src/Hukbo.Core/Determinism/StateHasher.cs:81-84). This preset
     /// registers that flag <see langword="false"/>, so a task that adds a
     /// field to <see cref="MovementRuleset"/> moves only the pinned
@@ -245,10 +245,13 @@ public static class MovementPresetRegistry
     /// per-loadout movement profile rows in canonical
     /// <c>KP, WA, KA, IT, KS, IS</c> order. Both radii and every profile
     /// value are provisional reconstructions: gameplay tuning; no historical
-    /// measurement. This entry is no longer registration only: twelve
-    /// <c>BattleSimulation</c> code paths consult the flag — lines 142, 146,
-    /// 297, 420, 584, 593, 606, 654, 922, 1461, 3183, and 3337 of
-    /// src/Hukbo.Core/Simulation/BattleSimulation.cs — so selecting this
+    /// measurement. This entry is no longer registration only:
+    /// <c>BattleSimulation</c> code paths consult the flag in its constructor,
+    /// <c>Create</c>, <c>AdvanceOneTick</c>, <c>ComputeStateHash</c>,
+    /// <c>SelectTargetsAndIntents</c>, <c>GatherMovementProposals</c>,
+    /// <c>CommitMovement</c>, and <c>GatherAndCommitAttacks</c>, across the
+    /// <c>BattleSimulation*.cs</c> files in src/Hukbo.Core/Simulation — so
+    /// selecting this
     /// preset changes local-context derivation, footwork pacing, attack
     /// marking, and the state hash fold itself. The shipped default
     /// nonetheless stays

@@ -24,6 +24,11 @@ namespace Hukbo.Core.Tests;
 /// is written the slow way. A divergence therefore localizes to the lookup.
 /// </para>
 /// <para>
+/// The optional hard floor is applied the way the resolver applies it: the overlap
+/// test radius is half the floor rounded up, while boundary clamping keeps using the
+/// body radius.
+/// </para>
+/// <para>
 /// It is test-only and is not a second implementation anybody is expected to
 /// maintain in step with gameplay changes. If the ladder itself ever changes,
 /// this file changes with it or the test that consumes it is deleted.
@@ -50,9 +55,11 @@ internal static class NaiveCollisionResolution
         IReadOnlyList<CollisionMoveRequest> requests,
         int bodyRadiusRaw,
         int mapWidthRaw,
-        int mapHeightRaw)
+        int mapHeightRaw,
+        int? hardFloorRaw = null)
     {
         var diameterRaw = 2 * bodyRadiusRaw;
+        var overlapRadiusRaw = ((hardFloorRaw ?? diameterRaw) + 1) / 2;
         var results = new CollisionMoveResult[requests.Count];
         var committed = new List<CollisionBody>();
         var moverIndices = new List<int>();
@@ -105,6 +112,7 @@ internal static class NaiveCollisionResolution
                     order,
                     request,
                     bodyRadiusRaw,
+                    overlapRadiusRaw,
                     diameterRaw,
                     mapWidthRaw,
                     mapHeightRaw,
@@ -145,6 +153,7 @@ internal static class NaiveCollisionResolution
                 pendingFrom,
                 rejectStartPosition: false,
                 bodyRadiusRaw,
+                overlapRadiusRaw,
                 mapWidthRaw,
                 mapHeightRaw,
                 out var xRaw,
@@ -164,6 +173,7 @@ internal static class NaiveCollisionResolution
                     pendingFrom,
                     rejectStartPosition: true,
                     bodyRadiusRaw,
+                    overlapRadiusRaw,
                     mapWidthRaw,
                     mapHeightRaw,
                     out xRaw,
@@ -178,6 +188,7 @@ internal static class NaiveCollisionResolution
                     pendingFrom,
                     rejectStartPosition: true,
                     bodyRadiusRaw,
+                    overlapRadiusRaw,
                     mapWidthRaw,
                     mapHeightRaw,
                     out xRaw,
@@ -194,6 +205,7 @@ internal static class NaiveCollisionResolution
                 request,
                 pendingFrom,
                 bodyRadiusRaw,
+                overlapRadiusRaw,
                 mapWidthRaw,
                 mapHeightRaw,
                 out xRaw,
@@ -240,6 +252,7 @@ internal static class NaiveCollisionResolution
         in CollisionMoveRequest request,
         int pendingFrom,
         int bodyRadiusRaw,
+        int overlapRadiusRaw,
         int mapWidthRaw,
         int mapHeightRaw,
         out int xRaw,
@@ -279,6 +292,7 @@ internal static class NaiveCollisionResolution
                     pendingFrom,
                     rejectStartPosition: true,
                     bodyRadiusRaw,
+                    overlapRadiusRaw,
                     mapWidthRaw,
                     mapHeightRaw,
                     out xRaw,
@@ -304,6 +318,7 @@ internal static class NaiveCollisionResolution
         int pendingFrom,
         bool rejectStartPosition,
         int bodyRadiusRaw,
+        int overlapRadiusRaw,
         int mapWidthRaw,
         int mapHeightRaw,
         out int xRaw,
@@ -333,7 +348,7 @@ internal static class NaiveCollisionResolution
             yRaw,
             request.EntityId,
             pendingFrom,
-            bodyRadiusRaw);
+            overlapRadiusRaw);
     }
 
     private static bool TrySeparate(
@@ -342,6 +357,7 @@ internal static class NaiveCollisionResolution
         int[] order,
         in CollisionMoveRequest request,
         int bodyRadiusRaw,
+        int overlapRadiusRaw,
         int diameterRaw,
         int mapWidthRaw,
         int mapHeightRaw,
@@ -374,7 +390,7 @@ internal static class NaiveCollisionResolution
                 yRaw,
                 request.EntityId,
                 pendingFrom: 0,
-                bodyRadiusRaw))
+                overlapRadiusRaw))
             {
                 return true;
             }
@@ -398,7 +414,7 @@ internal static class NaiveCollisionResolution
         int yRaw,
         ulong entityId,
         int pendingFrom,
-        int bodyRadiusRaw)
+        int overlapRadiusRaw)
     {
         for (var index = 0; index < committed.Count; index++)
         {
@@ -410,7 +426,7 @@ internal static class NaiveCollisionResolution
                     yRaw,
                     body.XRaw,
                     body.YRaw,
-                    bodyRadiusRaw))
+                    overlapRadiusRaw))
             {
                 return false;
             }
@@ -426,7 +442,7 @@ internal static class NaiveCollisionResolution
                     yRaw,
                     pending.StartXRaw,
                     pending.StartYRaw,
-                    bodyRadiusRaw))
+                    overlapRadiusRaw))
             {
                 return false;
             }

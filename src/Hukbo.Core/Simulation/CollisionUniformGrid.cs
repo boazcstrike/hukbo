@@ -106,6 +106,13 @@ internal sealed class CollisionUniformGrid
     /// <summary>Bodies in insertion order. Index doubles as the chain slot.</summary>
     private CollisionBody[] _bodies = new CollisionBody[InitialCapacity];
 
+    /// <summary>
+    /// Whether each slot holds a committed body, parallel to <see cref="_bodies"/>.
+    /// Only <see cref="AnyCoincidentCommittedUnchecked"/> reads it; every other
+    /// query treats all indexed bodies alike.
+    /// </summary>
+    private bool[] _isCommitted = new bool[InitialCapacity];
+
     /// <summary>Next slot in the same cell, or <see cref="NoSlot"/>.</summary>
     private int[] _nextSlotInCell = new int[InitialCapacity];
 
@@ -285,7 +292,18 @@ internal sealed class CollisionUniformGrid
     /// positions are clamped to <c>[R, dimension - R]</c>, so the grid needs no
     /// negative origin handling.
     /// </exception>
-    internal void Insert(in CollisionBody body)
+    internal void Insert(in CollisionBody body) => Insert(body, isCommitted: true);
+
+    /// <summary>
+    /// <see cref="Insert(in CollisionBody)"/> that also records whether the body
+    /// is committed, so that one grid can hold two populations and still answer
+    /// <see cref="AnyCoincidentCommittedUnchecked"/> for the committed one alone.
+    /// </summary>
+    /// <param name="isCommitted">
+    /// False for a body that is only indexed as an obstacle, such as a mover
+    /// still pending at its tick-start position.
+    /// </param>
+    internal void Insert(in CollisionBody body, bool isCommitted)
     {
         if (!body.IsAlive)
         {
@@ -301,6 +319,7 @@ internal sealed class CollisionUniformGrid
 
         EnsureCapacity(slot + 1);
         _bodies[slot] = body;
+        _isCommitted[slot] = isCommitted;
 
         if (TryDenseIndex(cellX, cellY, out var denseIndex))
         {
@@ -583,7 +602,25 @@ internal sealed class CollisionUniformGrid
     /// <see cref="AnyCoincident"/> without the per-call coordinate validation.
     /// The caller guarantees both coordinates are non-negative.
     /// </summary>
-    internal bool AnyCoincidentUnchecked(int xRaw, int yRaw, ulong excludeEntityId)
+    internal bool AnyCoincidentUnchecked(int xRaw, int yRaw, ulong excludeEntityId) =>
+        AnyCoincidentCore(xRaw, yRaw, excludeEntityId, committedOnly: false);
+
+    /// <summary>
+    /// <see cref="AnyCoincidentUnchecked"/> restricted to bodies inserted with
+    /// <c>isCommitted: true</c>; a body inserted as uncommitted is invisible to it.
+    /// The caller guarantees both coordinates are non-negative.
+    /// </summary>
+    internal bool AnyCoincidentCommittedUnchecked(
+        int xRaw,
+        int yRaw,
+        ulong excludeEntityId) =>
+        AnyCoincidentCore(xRaw, yRaw, excludeEntityId, committedOnly: true);
+
+    private bool AnyCoincidentCore(
+        int xRaw,
+        int yRaw,
+        ulong excludeEntityId,
+        bool committedOnly)
     {
         var cellX = CellCoordinate(xRaw);
         var cellY = CellCoordinate(yRaw);
@@ -597,6 +634,7 @@ internal sealed class CollisionUniformGrid
                 var other = _bodies[slot];
 
                 if (other.EntityId != excludeEntityId &&
+                    (!committedOnly || _isCommitted[slot]) &&
                     CollisionGeometry.IsCoincident(xRaw, yRaw, other.XRaw, other.YRaw))
                 {
                     return true;
@@ -913,6 +951,7 @@ internal sealed class CollisionUniformGrid
         }
 
         Grow(ref _bodies, requiredSlots, _bodyCount);
+        Grow(ref _isCommitted, requiredSlots, _bodyCount);
         Grow(ref _nextSlotInCell, requiredSlots, _bodyCount);
         Grow(ref _cellKeys, requiredSlots, _cellCount);
         Grow(ref _cellHeadSlots, requiredSlots, _cellCount);

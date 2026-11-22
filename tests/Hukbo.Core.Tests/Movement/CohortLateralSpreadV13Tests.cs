@@ -181,7 +181,7 @@ public sealed class CohortLateralSpreadV13Tests
     /// except <see cref="MovementPresetId.CohortLateralSpreadV13"/> passes,
     /// including <see cref="MovementPresetId.BattlefieldRealismV10"/> and
     /// <see cref="MovementPresetId.LastStandEngagementV11"/>
-    /// (<c>BattleSimulation.cs:708-713</c>) -- still produces the ascending
+    /// (<c>BattleSimulation.Create</c>) -- still produces the ascending
     /// contingent-id traversal the design's section 2 pins as today's
     /// pathology, observed through the same synthetic single-cohort setup
     /// as the riffle tests above so the two traversal modes are read off
@@ -286,7 +286,7 @@ public sealed class CohortLateralSpreadV13Tests
     /// seven-lane span. Under
     /// <see cref="MovementPresetId.LastStandEngagementV11"/> (the
     /// size-ranked traversal every preset before V13 uses, same
-    /// <c>BattleSimulation.cs:708-713</c> call site with
+    /// <c>BattleSimulation.Create</c> call site with
     /// <c>spreadCohortsLaterally: false</c>), the two shield-bearing rows
     /// sort last in cohort rank -- neither is the largest cohort -- and so
     /// collect at one edge of the span instead, exactly the row-58 defect.

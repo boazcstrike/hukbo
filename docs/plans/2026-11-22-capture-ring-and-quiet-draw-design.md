@@ -105,9 +105,9 @@ specific to those presets too.
 ## 3. Facts about the code that both designs depend on
 
 - **The outcome rule** is `BattleSimulation.ResolveOutcome`
-  (`BattleSimulation.cs:5967`). It is a switch over whether each faction has a
+  (`BattleSimulation.Combat.cs`). It is a switch over whether each faction has a
   living warrior. Its fourth arm, `_ when Tick >= Scenario.TickLimit =>
-  BattleOutcome.Draw` at `:5994`, is the only place the tick limit decides
+  BattleOutcome.Draw` in the same method, is the only place the tick limit decides
   anything.
 - **The outcome event carries no reason.** `ResolveOutcome` emits one
   `BattleEventKind.Outcome` with `Value = (int)Outcome` and `FactionId` set to

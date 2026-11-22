@@ -11,8 +11,8 @@ carries the ordered task list. The user authorized execution of this package on
 ## 1. The question this document answers
 
 `BattleSimulation.SelectTargetsAndIntents` gives every living agent a target by
-scanning the whole agent array: one outer loop at `BattleSimulation.cs:1399` and
-one inner loop at `:1451`. At 1,000 agents that is a million candidate visits
+scanning the whole agent array: one outer loop and one inner loop, both in
+`BattleSimulation.Targeting.cs`. At 1,000 agents that is a million candidate visits
 per tick. The 2026-08-14 measurements put the cost curve's exponent at 2.13
 between 1,000 and 2,000 agents, which is what an all-pairs scan looks like.
 
@@ -44,7 +44,7 @@ rings regardless of how large the perception range is.
 
 ### 2.1 The selection rule is a total order
 
-The current comparison at `BattleSimulation.cs:1536-1539` keeps the candidate
+The current comparison in `BattleSimulation.Targeting.cs` keeps the candidate
 with the smallest squared distance, and among equal distances the smallest
 `EntityId`. That rule orders every candidate, so the winner does not depend on
 the order candidates are visited in. A search that visits a different subset in
@@ -132,7 +132,7 @@ contract is that the selected targets equal those of the O(n²) scan.
 
 ### 4.1 Why not reuse `CollisionUniformGrid`
 
-- It is rebuilt in `MeasureCollision` (`BattleSimulation.cs:4943`), after
+- It is rebuilt in `MeasureCollision` (`BattleSimulation.Collision.cs`), after
   `CommitMovement` and before `GatherAndCommitAttacks`. Positions are current
   at the next `SelectTargetsAndIntents`, but **liveness is stale**: agents that
   die in the attack stage are still in it.

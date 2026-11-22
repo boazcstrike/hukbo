@@ -207,7 +207,7 @@ objections are fair, and this proposal answers them directly.
 - Attack reach stays centre-to-centre.
 - Agents still advance to body contact. The proposal step still stops `2R`
   short of its target, as `BuildMovementProposal` does today
-  (`BattleSimulation.cs:5768-5783`).
+  (`BattleSimulation.Movement.cs`).
 - Corpses still do not collide.
 - Movement proposals still read tick-start state only.
 
