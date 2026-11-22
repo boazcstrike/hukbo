@@ -1,4 +1,22 @@
+using System.Runtime.CompilerServices;
+
 namespace Hukbo.Core.Simulation;
+
+/// <summary>
+/// What <see cref="CollisionUniformGrid.CountContacts"/> reports about the
+/// pairs <see cref="CollisionUniformGrid.Rebuild"/> would have emitted, without
+/// materialising them.
+/// </summary>
+/// <param name="PairCount">Every unordered pair of living bodies in contact.</param>
+/// <param name="CrossFactionPairCount">The subset whose bodies differ in faction.</param>
+/// <param name="MinimumSquaredDistance">
+/// The smallest squared centre distance over all pairs, or
+/// <see langword="null"/> when there are none.
+/// </param>
+internal readonly record struct CollisionContactCounts(
+    int PairCount,
+    int CrossFactionPairCount,
+    long? MinimumSquaredDistance);
 
 /// <summary>
 /// A deterministic uniform-grid broad phase over living agent bodies. It exists
@@ -116,6 +134,14 @@ internal sealed class CollisionUniformGrid
     private int _bodyCount;
 
     private int _cellCount;
+
+    /// <summary>
+    /// True once <see cref="Remove"/> has unlinked a body since the last
+    /// <see cref="Clear"/>. A dense cell emptied by removal and then refilled by
+    /// <see cref="Insert"/> records its key a second time, so only a grid in
+    /// this state needs its cell keys de-duplicated before a traversal.
+    /// </summary>
+    private bool _hasRemovals;
 
     /// <param name="cellSizeRaw">
     /// The edge length of one square cell in raw fixed-point units.
@@ -242,6 +268,7 @@ internal sealed class CollisionUniformGrid
         _pairs.Clear();
         _bodyCount = 0;
         _cellCount = 0;
+        _hasRemovals = false;
     }
 
     /// <summary>
@@ -376,6 +403,8 @@ internal sealed class CollisionUniformGrid
                 {
                     _nextSlotInCell[previousSlot] = _nextSlotInCell[slot];
                 }
+
+                _hasRemovals = true;
 
                 return;
             }
@@ -618,7 +647,142 @@ internal sealed class CollisionUniformGrid
     }
 
     /// <summary>
-    /// Sorts the occupied cells, then walks each cell's bodies against its
+    /// Counts the pairs <see cref="Rebuild"/> would emit, the cross-faction
+    /// subset, and the closest pair's squared distance, without building,
+    /// sorting or retaining a pair list. Every figure is order-free, so no
+    /// traversal order is needed either.
+    /// </summary>
+    /// <remarks>
+    /// The predicate is the one <see cref="GeneratePairs"/> applies: a pair is
+    /// counted from the body with the lower entity ID, and only when
+    /// <see cref="CollisionGeometry.SquaredDistance"/> is at most
+    /// <see cref="CollisionGeometry.ContactSquaredDistance"/>, which is
+    /// <see cref="CollisionGeometry.IsContact"/> with the distance kept. Dead
+    /// bodies were never inserted. This grid's contents are not changed.
+    /// </remarks>
+    /// <param name="bodyRadiusRaw">The common body radius in raw units.</param>
+    /// <param name="factionByEntityId">
+    /// Faction of each entity, indexed by entity ID. Faction is not a
+    /// <see cref="CollisionBody"/> field, so the caller supplies it, and it must
+    /// cover the ID of every inserted body.
+    /// </param>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="bodyRadiusRaw"/> is negative or so large that a body
+    /// diameter exceeds <see cref="CellSizeRaw"/>.
+    /// </exception>
+    // Runs once per tick over every body, so it skips the tiered-JIT warm-up
+    // exactly as the TargetingGrid loops do.
+    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+    internal CollisionContactCounts CountContacts(
+        int bodyRadiusRaw,
+        ReadOnlySpan<int> factionByEntityId)
+    {
+        ValidateBodyRadius(bodyRadiusRaw);
+
+        var pairCount = 0;
+        var crossFactionPairCount = 0;
+        var minimumSquaredDistance = long.MaxValue;
+
+        if (_bodyCount >= 2)
+        {
+            var contactSquared = CollisionGeometry.ContactSquaredDistance(bodyRadiusRaw);
+
+            foreach (var key in OccupiedCellKeys())
+            {
+                var cellX = UnpackCellX(key);
+                var cellY = UnpackCellY(key);
+                var slot = FirstSlotInCell(cellX, cellY);
+
+                while (slot != NoSlot)
+                {
+                    ref readonly var body = ref _bodies[slot];
+
+                    foreach (var offset in NeighbourOffsets)
+                    {
+                        var otherSlot = FirstSlotInCell(
+                            cellX + offset.X,
+                            cellY + offset.Y);
+
+                        while (otherSlot != NoSlot)
+                        {
+                            ref readonly var other = ref _bodies[otherSlot];
+
+                            if (other.EntityId > body.EntityId)
+                            {
+                                var squaredDistance = CollisionGeometry.SquaredDistance(
+                                    body.XRaw,
+                                    body.YRaw,
+                                    other.XRaw,
+                                    other.YRaw);
+
+                                if (squaredDistance <= contactSquared)
+                                {
+                                    pairCount++;
+                                    minimumSquaredDistance = Math.Min(
+                                        minimumSquaredDistance,
+                                        squaredDistance);
+
+                                    if (factionByEntityId[(int)body.EntityId] !=
+                                        factionByEntityId[(int)other.EntityId])
+                                    {
+                                        crossFactionPairCount++;
+                                    }
+                                }
+                            }
+
+                            otherSlot = _nextSlotInCell[otherSlot];
+                        }
+                    }
+
+                    slot = _nextSlotInCell[slot];
+                }
+            }
+        }
+
+        return new CollisionContactCounts(
+            pairCount,
+            crossFactionPairCount,
+            pairCount == 0 ? null : minimumSquaredDistance);
+    }
+
+    /// <summary>
+    /// The occupied cell keys, each exactly once. Unordered while no body has
+    /// been removed; sorted and de-duplicated afterwards, because
+    /// <see cref="Remove"/> then <see cref="Insert"/> on a dense cell records
+    /// its key twice and a traversal would otherwise visit that cell twice.
+    /// </summary>
+    private ReadOnlySpan<long> OccupiedCellKeys() =>
+        _hasRemovals
+            ? SortedDistinctCellKeys()
+            : _cellKeys.AsSpan(0, _cellCount);
+
+    /// <summary>
+    /// <see cref="_cellKeys"/> sorted ascending with repeats dropped, in
+    /// <see cref="_traversalOrder"/>.
+    /// </summary>
+    private ReadOnlySpan<long> SortedDistinctCellKeys()
+    {
+        Array.Copy(_cellKeys, _traversalOrder, _cellCount);
+        Array.Sort(_traversalOrder, 0, _cellCount);
+
+        var distinctCount = 0;
+
+        for (var index = 0; index < _cellCount; index++)
+        {
+            if (index > 0 && _traversalOrder[index] == _traversalOrder[index - 1])
+            {
+                continue;
+            }
+
+            _traversalOrder[distinctCount] = _traversalOrder[index];
+            distinctCount++;
+        }
+
+        return _traversalOrder.AsSpan(0, distinctCount);
+    }
+
+    /// <summary>
+    /// Walks each occupied cell's bodies, in ascending cell order, against its
     /// three-by-three neighbourhood, emitting a pair only from the body with the
     /// lower entity ID.
     /// </summary>
@@ -631,12 +795,8 @@ internal sealed class CollisionUniformGrid
             return;
         }
 
-        Array.Copy(_cellKeys, _traversalOrder, _cellCount);
-        Array.Sort(_traversalOrder, 0, _cellCount);
-
-        for (var orderIndex = 0; orderIndex < _cellCount; orderIndex++)
+        foreach (var key in SortedDistinctCellKeys())
         {
-            var key = _traversalOrder[orderIndex];
             var cellX = UnpackCellX(key);
             var cellY = UnpackCellY(key);
             var slot = FirstSlotInCell(cellX, cellY);
