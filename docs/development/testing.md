@@ -108,6 +108,44 @@ not prove a sound was audible, that it arrived at the right moment, or that it
 sounded right. Smoke rows below still require a human at an interactive desktop;
 see `.claude/skills/hukbo-debug-logging/SKILL.md` for the full reading guide.
 
+## Canonical gate result — both games, 2026-11-22 (collision hot path)
+
+`./scripts/verify.ps1`, on branch `collision-hot-path` at `2c992de` in an
+isolated worktree, based on `main` at `073f6ca`. The package changes only
+`Hukbo.Core` internals and is hash-neutral by design
+(`docs/plans/2026-11-22-collision-hot-path-design.md`). **These are two results,
+not one.**
+
+**Hukbo: green.** Formatting, the Release build, Core 3,414 passed and Client
+4,310 passed, then all seven headless workloads `PASS` with
+`deterministic: true`. Every digest equals the value already recorded:
+
+| Workload | State hash | Event hash |
+| --- | --- | --- |
+| Default | `5460D13E3F7FD3E5` | `8E18ED1437B2924B` |
+| Ranged standoff V8 | `C8023D3B5BEB005E` | `F709A345E2F7370E` |
+| Battlefield realism V10 | `7C145A9E05916E4C` | `77626E104234206C` |
+| Last-stand engagement V11 | `6225182B4A470F91` | `C4DABE6AF98B6BEC` |
+| Cohort lateral spread V13 | `4A0723BC9A1B924B` | `E0CE32CF8830A864` |
+| Evasive footwork V14 | `155326060E6FAC82` | `289980C2B3F9E1D2` |
+| Combat V8 with movement V14 | `7A1838EB4D835A45` | `447727A6E82FB9FD` |
+
+**Sandata: red, and not because of this package.** Sandata Core ran 1,179 tests,
+1,176 passed and 3 failed. The failures are
+`RoomSweepAngleHouseTests.SweepingTheRealMap_TheSquadReachesTheClosetRoom`,
+`SweepingTheRealMap_EveryRoomIsClearedEventually` and
+`SweepingTheRealMap_TheSquadNeverStopsForGood`, the same three that already fail
+on `main` at `0ccc0d3` and are owned by the Sandata about-face work. No
+`Sandata.*` project references `Hukbo.Core`, and this package changed no file
+outside it. Because the bare gate stops at that suite, Sandata's seed-1 benchmark
+was run separately with `./scripts/benchmark.ps1 -Game Sandata -Seed 1`. It
+matched the recorded baseline exactly: `stateHash DA3D1BEB99978A75`,
+`eventHash 260A20BC8F578E19`, `deterministic: true`.
+
+A later commit, `1140fce`, added one test for the sparse-ID fallback and changed
+only comments in `src/`. The Hukbo gate was re-run on the final commit before the
+merge. Its result is recorded on the line below.
+
 ## Canonical gate result — both games, 2026-08-15 (contingent cohesion V15)
 
 `./scripts/verify.ps1 -SkipBootstrap`, on branch `hukbo-cohesion-v14` in an

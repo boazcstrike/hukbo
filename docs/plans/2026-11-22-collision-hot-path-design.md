@@ -1,6 +1,6 @@
 # Collision hot path — design
 
-**Status: authorized for implementation on 2026-11-22.** The user set the goal
+**Status: implemented 2026-11-22; measured results are in `docs/development/measurement-history.md` under "Collision hot path, before and after".** The user set the goal
 "compare three rounds on the standards of implementation with We March as One and
 my game, and implement the optimized and carefully good architectures based on
 research". The plan document `docs/plans/2026-11-22-collision-hot-path.md`
