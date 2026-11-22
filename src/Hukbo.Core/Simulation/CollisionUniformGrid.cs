@@ -648,58 +648,6 @@ internal sealed class CollisionUniformGrid
     }
 
     /// <summary>
-    /// Copies every indexed body other than <paramref name="excludeEntityId"/>
-    /// whose cell lies within <paramref name="cellRadius"/> cells of the cell
-    /// containing (<paramref name="xRaw"/>, <paramref name="yRaw"/>), on either
-    /// axis, into <paramref name="buffer"/> from index zero, and returns how many
-    /// it copied. The order is by ascending cell, then chain order, and is for
-    /// the caller to treat as arbitrary.
-    /// </summary>
-    /// <remarks>
-    /// <paramref name="buffer"/> is replaced by a larger array when it is too
-    /// small, so a caller that keeps it between calls allocates only while the
-    /// neighbourhood is still growing past anything seen before. Both coordinates
-    /// must be non-negative.
-    /// </remarks>
-    internal int GatherBodies(
-        int xRaw,
-        int yRaw,
-        int cellRadius,
-        ulong excludeEntityId,
-        ref CollisionBody[] buffer)
-    {
-        var cellX = CellCoordinate(xRaw);
-        var cellY = CellCoordinate(yRaw);
-        var count = 0;
-
-        for (var offsetY = -cellRadius; offsetY <= cellRadius; offsetY++)
-        {
-            for (var offsetX = -cellRadius; offsetX <= cellRadius; offsetX++)
-            {
-                var slot = FirstSlotInCell(cellX + offsetX, cellY + offsetY);
-
-                while (slot != NoSlot)
-                {
-                    if (_bodies[slot].EntityId != excludeEntityId)
-                    {
-                        if (count == buffer.Length)
-                        {
-                            Array.Resize(ref buffer, Math.Max(InitialCapacity, buffer.Length * 2));
-                        }
-
-                        buffer[count] = _bodies[slot];
-                        count++;
-                    }
-
-                    slot = _nextSlotInCell[slot];
-                }
-            }
-        }
-
-        return count;
-    }
-
-    /// <summary>
     /// Rejects a radius this index cannot serve, once, on behalf of a caller that
     /// will then use the unchecked queries. The resolver holds a radius fixed for
     /// its whole lifetime, so it validates at construction rather than per query.

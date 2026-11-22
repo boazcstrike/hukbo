@@ -128,10 +128,6 @@ internal readonly record struct CollisionMoveResult(
 /// inserted in <see cref="Reset"/> and removed one at a time as each mover's
 /// turn arrives. The grid tags each body as committed or pending so that the
 /// co-location check can still see the committed set alone.
-/// Once a mover's preferred destination is refused, the obstacles near it are
-/// gathered once into a short list that its slides and truncation rungs share;
-/// see <see cref="GatherCandidateNeighbourhood"/> for the bound that makes that
-/// exact.
 /// </para>
 /// <para>
 /// <b>Budget.</b> Collision may only reduce displacement. Every candidate other
@@ -176,15 +172,6 @@ internal sealed class CollisionResolver
     private const int MaximumTruncationRungs = 11;
 
     private const int InitialCapacity = 64;
-
-    /// <summary>
-    /// The widest neighbourhood <see cref="GatherCandidateNeighbourhood"/> will
-    /// gather, in cells either side of the mover's start cell: a five-by-five
-    /// block. A step of up to one body radius, which scenario validation
-    /// guarantees, needs exactly this and no more; a longer step falls back to
-    /// direct grid queries instead of widening the block.
-    /// </summary>
-    private const int MaximumGatherCellRadius = 2;
 
     /// <summary>
     /// Every obstacle on the field: the bodies committed so far this tick, tagged
@@ -232,21 +219,6 @@ internal sealed class CollisionResolver
     private ulong[] _moverKeys = new ulong[InitialCapacity];
 
     private int _moverCount;
-
-    /// <summary>
-    /// The obstacles near the mover under consideration, filled by
-    /// <see cref="GatherCandidateNeighbourhood"/> and valid only while
-    /// <see cref="_isGathered"/> is true. Reused between movers and ticks.
-    /// </summary>
-    private CollisionBody[] _gathered = new CollisionBody[InitialCapacity];
-
-    private int _gatheredCount;
-
-    /// <summary>
-    /// True while <see cref="IsFree"/> may answer from <see cref="_gathered"/>
-    /// instead of the grid. Cleared at the start of every mover and every tick.
-    /// </summary>
-    private bool _isGathered;
 
     /// <param name="bodyRadiusRaw">
     /// The common body radius in raw fixed-point units.
@@ -448,7 +420,6 @@ internal sealed class CollisionResolver
         _grid.Clear();
         _results.Clear();
         _moverCount = 0;
-        _isGathered = false;
         AcceptedMoveCount = 0;
         BlockedCount = 0;
 
@@ -555,8 +526,6 @@ internal sealed class CollisionResolver
                     request.StartYRaw,
                     IsAlive: true));
 
-            _isGathered = false;
-
             // 1. The preferred destination at the full step.
             if (TryAccept(
                 request,
@@ -569,10 +538,6 @@ internal sealed class CollisionResolver
                 Commit(requestIndex, request.EntityId, xRaw, yRaw, MovementResolution.Moved);
                 continue;
             }
-
-            // Every later candidate is a short walk from the start, so one
-            // gather answers all of them.
-            GatherCandidateNeighbourhood(request);
 
             // 2. and 3. Single-axis slides. A slide that lands back on the start
             // position is not a slide, so it is skipped rather than mislabelled;
@@ -768,100 +733,8 @@ internal sealed class CollisionResolver
     /// lets both halves be answered by a bounded neighbourhood query instead of a
     /// linear walk without changing a single committed position.
     /// </remarks>
-    private bool IsFree(int xRaw, int yRaw, ulong entityId)
-    {
-        if (!_isGathered)
-        {
-            return !_grid.AnyOverlapUnchecked(xRaw, yRaw, _overlapRadiusRaw, entityId);
-        }
-
-        // The gather already excluded the mover, so entityId needs no test here.
-        for (var index = 0; index < _gatheredCount; index++)
-        {
-            if (CollisionGeometry.Overlaps(
-                xRaw,
-                yRaw,
-                _gathered[index].XRaw,
-                _gathered[index].YRaw,
-                _overlapRadiusRaw))
-            {
-                return false;
-            }
-        }
-
-        return true;
-    }
-
-    /// <summary>
-    /// Copies into <see cref="_gathered"/> every obstacle that could strictly
-    /// overlap any slide or truncation candidate of this mover, so that those
-    /// candidates are tested against a short list instead of the grid. Leaves
-    /// <see cref="_isGathered"/> false, and so every later query direct, when
-    /// the bound below cannot be established.
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// Let <c>s</c> be the start, <c>dx</c> and <c>dy</c> the preferred step's
-    /// per-axis lengths, and <c>r</c> the overlap radius. Every candidate this
-    /// mover can still test is a slide, which keeps one axis of the preferred
-    /// destination and one of the start, or a truncation rung, which is the
-    /// start plus the step scaled by at most one half and rounded toward zero.
-    /// Before clamping, each candidate is within <c>|dx|</c> of <c>s.x</c> and
-    /// within <c>|dy|</c> of <c>s.y</c>.
-    /// </para>
-    /// <para>
-    /// Clamping moves an axis only toward <c>[R, dimension - R]</c>. When the
-    /// start is inside that interval, which is checked here, the clamped value is
-    /// no farther from the start than the unclamped one, so the bound survives
-    /// clamping. When the start is outside it, no bound is claimed and nothing is
-    /// gathered.
-    /// </para>
-    /// <para>
-    /// A body at <c>o</c> overlaps a candidate <c>c</c> only if
-    /// <c>dist(c, o) &lt; 2r</c>, which forces <c>|c.x - o.x| &lt; 2r</c> and the
-    /// same on y. By the triangle inequality <c>|o.x - s.x| &lt; |dx| + 2r</c>,
-    /// and likewise on y. Let <c>L</c> be the larger of the two right-hand sides
-    /// and <c>k = ceil(L / cell)</c>. A cell is one diameter wide, so two
-    /// non-negative coordinates less than <c>L &lt;= k * cell</c> apart have cells
-    /// at most <c>k</c> apart. Every body that can overlap any remaining
-    /// candidate is therefore inside the <c>(2k + 1)</c> by <c>(2k + 1)</c> block
-    /// centred on the start cell, and a body outside that block overlaps none of
-    /// them. Rejecting a candidate against the gathered list is then exactly
-    /// rejecting it against the whole field. For a step of at most one radius,
-    /// <c>L &lt;= 3R &lt; 2 * cell</c>, so <c>k</c> is at most two.
-    /// </para>
-    /// <para>
-    /// The gathered set is the grid at this moment, which does not change before
-    /// this mover commits, because the mover has already been removed from the
-    /// pending part and <see cref="Commit"/> runs after its last candidate.
-    /// </para>
-    /// </remarks>
-    private void GatherCandidateNeighbourhood(in CollisionMoveRequest request)
-    {
-        if (!IsInsideBounds(request.StartXRaw, request.StartYRaw))
-        {
-            return;
-        }
-
-        var reachRaw = Math.Max(
-            Math.Abs((long)request.PreferredXRaw - request.StartXRaw),
-            Math.Abs((long)request.PreferredYRaw - request.StartYRaw));
-        var limitRaw = reachRaw + (2L * _overlapRadiusRaw);
-        var cellRadius = (limitRaw + _diameterRaw - 1) / _diameterRaw;
-
-        if (cellRadius > MaximumGatherCellRadius)
-        {
-            return;
-        }
-
-        _gatheredCount = _grid.GatherBodies(
-            request.StartXRaw,
-            request.StartYRaw,
-            (int)cellRadius,
-            request.EntityId,
-            ref _gathered);
-        _isGathered = true;
-    }
+    private bool IsFree(int xRaw, int yRaw, ulong entityId) =>
+        !_grid.AnyOverlapUnchecked(xRaw, yRaw, _overlapRadiusRaw, entityId);
 
     /// <summary>
     /// True when the position exactly equals the centre of an already committed
