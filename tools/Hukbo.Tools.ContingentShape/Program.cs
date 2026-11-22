@@ -37,7 +37,7 @@ using Hukbo.Core.Simulation;
 //      MovementRules.ScanContingentLeadersAndLivingCounts.
 //   2. The cohesion trail base - matching BattleSimulation.ComputeRallyDirection
 //      and BattleSimulation.ComputeRallyTrailBase
-//      (src/Hukbo.Core/Simulation/BattleSimulation.cs:1378-1429), including the
+//      (src/Hukbo.Core/Simulation/BattleSimulation.Cohesion.cs), including the
 //      integer square root and the leader-position fallback when the leader has
 //      no target.
 //   3. The hysteresis-banded gathering test of transition rule 5
@@ -216,7 +216,7 @@ for (var seedIndex = 0; seedIndex < seedCount; seedIndex++)
     var mapHeightRaw = checked(scenario.MapHeight * FixedPoint.Scale);
 
     // The view array is indexed by a stable agent index for the whole battle
-    // (BattleSimulation.cs:2303-2306 rewrites each slot in place), so this
+    // (BattleSimulation.UpdateViews rewrites each slot in place), so this
     // lookup is built once per seed rather than once per tick.
     var views = simulation.Agents;
     var indexByEntityId = new Dictionary<ulong, int>(views.Count);
