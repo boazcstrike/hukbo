@@ -4121,3 +4121,82 @@ shares rose because the tick they are a share of shrank. Collision resolution is
 now half of the tick, and `MeasureCollision`, which only produces derived
 metrics, is the next largest cost. `FindNearestMeleeThreatPosition` stays under
 the 5% threshold, so the plan's conditional task RS-5 does not start.
+
+## Collision hot path, before and after — 2026-11-22
+
+Task CH-4 of `docs/plans/2026-11-22-collision-hot-path.md`, judged against
+section 7 of `docs/plans/2026-11-22-collision-hot-path-design.md`. Three headless
+runners were built with `dotnet build src/Hukbo.Headless -c Release -o <dir>`,
+each from its own detached worktree:
+
+- **before:** `main` at `073f6ca`
+- **mid:** `collision-hot-path` at `7c18559`, with the dense collision cells (CH-1)
+  and the dense entity index (CH-2)
+- **after:** `collision-hot-path` at `61176dd`, which adds the count-only
+  collision metrics (CH-3)
+
+All three ran combat V8, movement V14, seed 1 and 10,000 requested ticks, one
+process at a time. Each repeat ran every binary back to back, and the order
+reversed on alternate repeats. The figures are the median, across repeats, of
+each run's own tick percentile. Every run of a given size produced the same state
+hash, whichever binary ran it.
+
+| Agents | Repeats | Before p50 ms | Mid p50 ms | After p50 ms | p50 change | Before p95 ms | After p95 ms | p95 change |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 200 | 21 | 0.0760 | 0.0554 | 0.0488 | −36% | 0.761 | 0.448 | −41% |
+| 500 | 12 | 0.232 | 0.153 | 0.140 | −40% | 1.530 | 0.998 | −35% |
+| 1,000 | 9 | 1.014 | 0.646 | 0.540 | −47% | 2.503 | 0.879 | −65% |
+| 2,000 | 5 | 3.763 | — | 1.705 | −55% | 8.439 | 2.949 | −65% |
+
+The mid binary was not run at 2,000 agents, to keep the run under half an hour.
+
+The before figures are higher than the 2026-11-21 table above (1.014 ms against
+0.62 ms at 1,000 agents) on the same commit's code. The machine was carrying
+other sessions' processes throughout. That is why the comparison is interleaved
+and only the ratios are quoted. Absolute figures from different days are not
+comparable here.
+
+**Acceptance: pass.** p50 falls by 47% at 1,000 agents, well past the 15% bar,
+and the 200-agent row improves rather than regressing.
+
+### Equivalence, run by run
+
+The before and after binaries were also run once each at seed 3 under combat V8
+with movement V11, V13, V14, V15, V16 and V17, at 200, 500 and 1,000 agents. That
+is 18 pairs. Every pair matched on state hash, event hash, outcome, measured
+ticks, both survivor counts, `deterministic`, and every field of
+`collisionMetrics`. V17, the only preset with nonzero penetration, reported
+`maximumPenetrationRaw` 1,733 at 200 agents and 1,737 at 500 and 1,000, the same
+in both binaries.
+
+### Where the tick goes at 1,000 agents, after
+
+The same `dotnet-trace collect --format speedscope` command as the phase-0
+section, run against the before and after binaries. Each column is that stage's
+share of inclusive `BattleSimulation.AdvanceOneTick` time on the simulation
+thread, and both columns were computed by the same script. The absolute column
+is sampled milliseconds over the whole run.
+
+| Stage | Before share | After share | Before ms | After ms |
+| --- | --- | --- | --- | --- |
+| `ResolveCollisions` | 47.9% | 32.2% | 4,274 | 1,307 |
+| `MeasureCollision` | 20.0% | 12.3% | 1,785 | 499 |
+| `SelectTargetsAndIntents` | 15.1% | 23.3% | 1,347 | 946 |
+| `GatherMovementProposals` | 7.4% | 14.4% | 660 | 585 |
+| `GatherAndCommitAttacks` | 2.2% | 6.5% | 196 | 264 |
+| `ResolveContingentStates` | 3.3% | 3.0% | 294 | 122 |
+| `UpdateViews` | 2.4% | 3.1% | 214 | 126 |
+| `CommitMovement` | 1.1% | 2.9% | 98 | 118 |
+| `FindNearestMeleeThreatPosition` | 0.7% | 2.0% | 62 | 81 |
+| `ResolveOutcome` | 0.1% | 0.5% | 9 | 20 |
+| **`AdvanceOneTick`** | 100% | 100% | **8,924** | **4,061** |
+
+The before shares reproduce the 2026-11-21 after-table to within about two
+points (47.9% against 49.9% for collision resolution, and 20.0% against 22.5% for
+collision measurement), which is the check that the script measures the same
+thing. Total tick time fell by 54%. Collision resolution fell by 69% in absolute
+time and collision measurement by 72%. Inside `MeasureCollision`, the new
+`CountContacts` query is 9.7% of the tick.
+
+Collision resolution is still the largest stage, but it is now a third of the
+tick rather than half. No other single stage is above a quarter.

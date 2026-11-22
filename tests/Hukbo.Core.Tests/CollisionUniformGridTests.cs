@@ -877,6 +877,193 @@ public sealed class CollisionUniformGridTests
         return false;
     }
 
+    // ---- Dense cell index (bounded grid) ----
+
+    private const int GeneratedExtentRaw = 24 * DiameterRaw;
+
+    [Theory]
+    [InlineData(GeneratedExtentRaw)]
+    [InlineData(GeneratedExtentRaw / 2)]
+    [InlineData(DiameterRaw)]
+    [InlineData(MaximumCoordinateRaw)]
+    public void BoundedGrid_RebuildMatchesTheOracleInsideAndOutsideTheMap(int mapRaw)
+    {
+        var producedAtLeastOnePair = false;
+
+        for (var seed = 1UL; seed <= 8UL; seed++)
+        {
+            var world = GenerateWorld(seed, bodyCount: 60, extentRaw: GeneratedExtentRaw);
+            var expected = NaiveCollisionPairs.Enumerate(world, BodyRadiusRaw);
+            var grid = new CollisionUniformGrid(DiameterRaw, mapRaw, mapRaw);
+
+            grid.Rebuild(world, BodyRadiusRaw);
+
+            Assert.Equal(expected, grid.Pairs);
+            producedAtLeastOnePair |= expected.Count > 0;
+        }
+
+        Assert.True(producedAtLeastOnePair, "The generated worlds produced no pairs.");
+    }
+
+    [Theory]
+    [InlineData(GeneratedExtentRaw)]
+    [InlineData(GeneratedExtentRaw / 2)]
+    [InlineData(MaximumCoordinateRaw)]
+    public void BoundedGrid_QueriesAgreeWithTheUnboundedGridAndTheOracle(int mapRaw)
+    {
+        for (var seed = 1UL; seed <= 20UL; seed++)
+        {
+            var world = GenerateWorld(seed, bodyCount: 60, extentRaw: GeneratedExtentRaw);
+            var bounded = new CollisionUniformGrid(DiameterRaw, mapRaw, mapRaw);
+            var unbounded = new CollisionUniformGrid(DiameterRaw);
+
+            foreach (var body in world)
+            {
+                bounded.Insert(body);
+                unbounded.Insert(body);
+            }
+
+            var probes = new SplitMix64(seed + 2_000UL);
+
+            for (var probe = 0; probe < 200; probe++)
+            {
+                var xRaw = probes.NextInt(GeneratedExtentRaw);
+                var yRaw = probes.NextInt(GeneratedExtentRaw);
+                var excludeEntityId = world[probes.NextInt(world.Length)].EntityId;
+
+                Assert.Equal(
+                    NaiveAnyOverlap(world, xRaw, yRaw, excludeEntityId),
+                    bounded.AnyOverlap(xRaw, yRaw, BodyRadiusRaw, excludeEntityId));
+                Assert.Equal(
+                    unbounded.AnyContact(xRaw, yRaw, BodyRadiusRaw, excludeEntityId),
+                    bounded.AnyContact(xRaw, yRaw, BodyRadiusRaw, excludeEntityId));
+                Assert.Equal(
+                    NaiveAnyCoincident(world, xRaw, yRaw, excludeEntityId),
+                    bounded.AnyCoincident(xRaw, yRaw, excludeEntityId));
+            }
+        }
+    }
+
+    [Fact]
+    public void BoundedGrid_UsesTheDenseIndexOnlyBelowTheCellCap()
+    {
+        // 1,022 cells per axis plus the two spare cells is exactly the cap.
+        const int AtCapRaw = 1_022 * DiameterRaw;
+
+        Assert.Equal(
+            CollisionUniformGrid.MaximumDenseCells,
+            (1_022 + 2) * (1_022 + 2));
+        Assert.False(new CollisionUniformGrid(DiameterRaw).UsesDenseIndex);
+        Assert.True(
+            new CollisionUniformGrid(DiameterRaw, GeneratedExtentRaw, GeneratedExtentRaw)
+                .UsesDenseIndex);
+        Assert.True(new CollisionUniformGrid(DiameterRaw, AtCapRaw, AtCapRaw).UsesDenseIndex);
+        Assert.False(
+            new CollisionUniformGrid(DiameterRaw, AtCapRaw + DiameterRaw, AtCapRaw)
+                .UsesDenseIndex);
+        Assert.False(
+            new CollisionUniformGrid(DiameterRaw, MaximumCoordinateRaw, MaximumCoordinateRaw)
+                .UsesDenseIndex);
+    }
+
+    [Fact]
+    public void BoundedConstructor_RejectsANonPositiveCellSizeOrMapDimension()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => new CollisionUniformGrid(0, GeneratedExtentRaw, GeneratedExtentRaw));
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => new CollisionUniformGrid(DiameterRaw, 0, GeneratedExtentRaw));
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => new CollisionUniformGrid(DiameterRaw, GeneratedExtentRaw, -1));
+    }
+
+    [Fact]
+    public void BoundedGrid_LeavesNoGhostBodyWhenADenseCellIsReusedAfterClear()
+    {
+        var grid = new CollisionUniformGrid(DiameterRaw, GeneratedExtentRaw, GeneratedExtentRaw);
+        var inMapRaw = 5 * DiameterRaw;
+        var outsideMapRaw = GeneratedExtentRaw + (3 * DiameterRaw);
+
+        grid.Insert(Living(1UL, inMapRaw, inMapRaw));
+        grid.Insert(Living(2UL, outsideMapRaw, outsideMapRaw));
+        grid.Clear();
+
+        Assert.False(grid.AnyCoincident(inMapRaw, inMapRaw, excludeEntityId: 99UL));
+        Assert.False(grid.AnyContact(inMapRaw, inMapRaw, BodyRadiusRaw, 99UL));
+        Assert.False(grid.AnyOverlap(outsideMapRaw, outsideMapRaw, BodyRadiusRaw, 99UL));
+
+        grid.Insert(Living(3UL, inMapRaw + 1, inMapRaw));
+
+        Assert.False(grid.AnyCoincident(inMapRaw, inMapRaw, excludeEntityId: 99UL));
+        Assert.True(grid.AnyCoincident(inMapRaw + 1, inMapRaw, excludeEntityId: 99UL));
+        Assert.False(grid.AnyContact(inMapRaw, inMapRaw, BodyRadiusRaw, excludeEntityId: 3UL));
+
+        grid.Rebuild(
+            [Living(4UL, inMapRaw, inMapRaw), Living(5UL, inMapRaw + 1, inMapRaw)],
+            BodyRadiusRaw);
+
+        Assert.Equal([CollisionPair.Create(4UL, 5UL)], grid.Pairs);
+    }
+
+    [Fact]
+    public void BoundedGrid_RemoveThenInsertRestoresADenseCellAndClearEmptiesIt()
+    {
+        var grid = new CollisionUniformGrid(DiameterRaw, GeneratedExtentRaw, GeneratedExtentRaw);
+        var body = Living(1UL, 3 * DiameterRaw, 3 * DiameterRaw);
+
+        grid.Insert(body);
+        grid.Remove(body);
+
+        Assert.False(grid.AnyCoincident(body.XRaw, body.YRaw, excludeEntityId: 99UL));
+
+        grid.Insert(body);
+
+        Assert.True(grid.AnyCoincident(body.XRaw, body.YRaw, excludeEntityId: 99UL));
+
+        grid.Clear();
+
+        Assert.False(grid.AnyCoincident(body.XRaw, body.YRaw, excludeEntityId: 99UL));
+    }
+
+    [Fact]
+    public void BoundedGrid_AWarmRebuildAndQueryLoopAllocatesNothing()
+    {
+        var world = GenerateWorld(7UL, bodyCount: 200, extentRaw: GeneratedExtentRaw);
+
+        WarmAllocationWindow.AssertAllocatesNothing(
+            () =>
+            {
+                var grid = new CollisionUniformGrid(
+                    DiameterRaw,
+                    GeneratedExtentRaw / 2,
+                    GeneratedExtentRaw / 2);
+
+                grid.Rebuild(world, BodyRadiusRaw);
+                grid.Rebuild(world, BodyRadiusRaw);
+
+                return () =>
+                {
+                    for (var repeat = 0; repeat < 50; repeat++)
+                    {
+                        grid.Rebuild(world, BodyRadiusRaw);
+                        grid.Clear();
+
+                        foreach (var body in world)
+                        {
+                            grid.Insert(body);
+                        }
+
+                        grid.AnyOverlapUnchecked(
+                            DiameterRaw,
+                            DiameterRaw,
+                            BodyRadiusRaw,
+                            excludeEntityId: 0UL);
+                    }
+                };
+            },
+            "50 warm rebuild, clear and insert rounds on a bounded grid");
+    }
+
     private static CollisionBody BodyOf(
         IReadOnlyList<CollisionBody> bodies,
         ulong entityId) =>

@@ -26,7 +26,14 @@ public sealed class BattleSimulation
     private readonly CombatRuleset _rules;
     private readonly MovementRuleset _movementRules;
     private readonly AgentState[] _agentStates;
-    private readonly Dictionary<ulong, int> _agentIndexes;
+    private readonly AgentIndexMap _agentIndexes;
+
+    // Faction of each agent, indexed by entity ID, for the count-only collision
+    // metrics. Empty when the IDs are too sparse for an array, which sends
+    // MeasureCollision down the pair-list path instead. Snapshotted once in the
+    // constructor: that is valid only because AgentState.FactionId is get-only,
+    // and a mutable faction would silently desync this array.
+    private readonly int[] _factionByEntityId;
     private readonly int[] _damageTotals;
 
     // Armor identity: parallel to _damageTotals, one slot per agent,
@@ -271,6 +278,16 @@ public sealed class BattleSimulation
     private CombatMetrics _lastTickCombat;
     private FactionCombatMetrics _lastTickCombatByFaction;
 
+    // Same contract as Dictionary.TryGetValue: false for unknown IDs; 0 is found only if an agent owns it.
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private bool TryGetAgentIndex(ulong entityId, out int index) =>
+        _agentIndexes.TryGetIndex(entityId, out index);
+
+    // Same contract as the Dictionary indexer: throws KeyNotFoundException.
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private int AgentIndexOf(ulong entityId) =>
+        _agentIndexes.IndexOf(entityId);
+
     private BattleSimulation(
         Scenario scenario,
         AgentState[] agents,
@@ -280,7 +297,6 @@ public sealed class BattleSimulation
         _rules = rules;
         _movementRules = MovementPresetRegistry.Get(scenario.MovementPreset);
         _agentStates = agents;
-        _agentIndexes = new Dictionary<ulong, int>(agents.Length);
         _damageTotals = new int[agents.Length];
         _armorSavedTargets = new bool[agents.Length];
         _armorSavedPoints = new int[agents.Length];
@@ -376,15 +392,19 @@ public sealed class BattleSimulation
         _contingentSquareOverlapsAnother = new bool[ContingentSlotCount];
         _contingentResolvedStates = new ContingentState[ContingentSlotCount];
 
+        var entityIds = new ulong[agents.Length];
         for (var index = 0; index < agents.Length; index++)
         {
-            if (!_agentIndexes.TryAdd(agents[index].EntityId, index))
-            {
-                throw new ArgumentException(
-                    $"Duplicate entity ID {agents[index].EntityId}.",
-                    nameof(agents));
-            }
+            entityIds[index] = agents[index].EntityId;
+        }
 
+        _agentIndexes = AgentIndexMap.Create(entityIds);
+        _factionByEntityId = _agentIndexes.IsDense
+            ? BuildFactionByEntityId(agents)
+            : [];
+
+        for (var index = 0; index < agents.Length; index++)
+        {
             var agent = agents[index];
             var slot = checked(
                 (agent.FactionId * FormationPlanner.MaximumContingents) +
@@ -573,7 +593,7 @@ public sealed class BattleSimulation
                 $"{_movementRules.Id}.");
         }
 
-        return _localMovementContexts[_agentIndexes[entityId]];
+        return _localMovementContexts[AgentIndexOf(entityId)];
     }
 
     /// <summary>
@@ -595,7 +615,7 @@ public sealed class BattleSimulation
                 $"preset {Scenario.MovementPreset}.");
         }
 
-        return _nearestMeleeThreatSquared[_agentIndexes[entityId]];
+        return _nearestMeleeThreatSquared[AgentIndexOf(entityId)];
     }
 
     /// <summary>
@@ -1852,7 +1872,7 @@ public sealed class BattleSimulation
             if (_factionLivingCounts[faction] >
                     Scenario.LastStandThresholdAgents ||
                 _factionRallyEntityIds[faction] == 0 ||
-                !_agentIndexes.TryGetValue(
+                !TryGetAgentIndex(
                     _factionRallyEntityIds[faction], out var rallyIndex))
             {
                 continue;
@@ -2008,7 +2028,7 @@ public sealed class BattleSimulation
 
             if (leaderEntityId != 0 &&
                 agent.EntityId != leaderEntityId &&
-                _agentIndexes.TryGetValue(leaderEntityId, out var leaderIndex))
+                TryGetAgentIndex(leaderEntityId, out var leaderIndex))
             {
                 var memberSquared = SquaredDistance(agent, _agentStates[leaderIndex]);
                 if (memberSquared > _contingentSpreadSquared[slot])
@@ -2018,7 +2038,7 @@ public sealed class BattleSimulation
             }
 
             if (agent.TargetEntityId is { } targetId &&
-                _agentIndexes.TryGetValue(targetId, out var targetIndex))
+                TryGetAgentIndex(targetId, out var targetIndex))
             {
                 var distanceSquared = SquaredDistance(agent, _agentStates[targetIndex]);
                 if (distanceSquared <= closeRadiusSquared)
@@ -2043,7 +2063,7 @@ public sealed class BattleSimulation
                 continue;
             }
 
-            var leader = _agentStates[_agentIndexes[_contingentLeaderEntityIds[slot]]];
+            var leader = _agentStates[AgentIndexOf(_contingentLeaderEntityIds[slot])];
             var jitterRaw = FormationRules.ComputeContingentJitterRaw(
                 Scenario.BodyRadiusRaw,
                 _contingentLivingCounts[slot]);
@@ -2184,7 +2204,7 @@ public sealed class BattleSimulation
                 continue;
             }
 
-            var leader = _agentStates[_agentIndexes[_contingentLeaderEntityIds[slot]]];
+            var leader = _agentStates[AgentIndexOf(_contingentLeaderEntityIds[slot])];
             var previousState = leader.ContingentState;
             var windowOpen = MovementRules.IsCohesionWindowOpen(
                 tick,
@@ -2255,7 +2275,7 @@ public sealed class BattleSimulation
             return true;
         }
 
-        var leader = _agentStates[_agentIndexes[_contingentLeaderEntityIds[slot]]];
+        var leader = _agentStates[AgentIndexOf(_contingentLeaderEntityIds[slot])];
         return MovementRules.ParticipatesInCrossContingentScan(leader.ContingentState);
     }
 
@@ -2312,7 +2332,7 @@ public sealed class BattleSimulation
             if (agent.Intent == AgentIntent.Moving &&
                 agent.TargetEntityId is { } enemyTargetId)
             {
-                var target = _agentStates[_agentIndexes[enemyTargetId]];
+                var target = _agentStates[AgentIndexOf(enemyTargetId)];
 
                 // Ranged standoff. Confined to RangedStandoffV8 and
                 // BattlefieldRealismV10 — battlefield realism design section
@@ -2554,7 +2574,7 @@ public sealed class BattleSimulation
             }
 
             if (agent.TargetEntityId is not { } targetId ||
-                !_agentIndexes.TryGetValue(targetId, out var targetIndex))
+                !TryGetAgentIndex(targetId, out var targetIndex))
             {
                 continue;
             }
@@ -3023,7 +3043,7 @@ public sealed class BattleSimulation
             var hasTarget = false;
             var targetAtOrInsidePreferredDistance = false;
             if (agent.TargetEntityId is { } targetId &&
-                _agentIndexes.TryGetValue(targetId, out var targetIndex))
+                TryGetAgentIndex(targetId, out var targetIndex))
             {
                 var target = _agentStates[targetIndex];
                 hasTarget = true;
@@ -3748,7 +3768,7 @@ public sealed class BattleSimulation
                     var context = _localMovementContexts[index];
                     var anchorExists = false;
                     if (context.NearestAllyEntityId is { } allyId &&
-                        _agentIndexes.TryGetValue(allyId, out var allyIndex))
+                        TryGetAgentIndex(allyId, out var allyIndex))
                     {
                         var ally = _agentStates[allyIndex];
                         if (ally.IsAlive)
@@ -3774,7 +3794,7 @@ public sealed class BattleSimulation
                     var leaderEntityId = _contingentLeaderEntityIds[slot];
                     if (leaderEntityId != 0 &&
                         leaderEntityId != agent.EntityId &&
-                        _agentIndexes.TryGetValue(leaderEntityId, out var leaderIndex))
+                        TryGetAgentIndex(leaderEntityId, out var leaderIndex))
                     {
                         var leader = _agentStates[leaderIndex];
                         if (leader.IsAlive)
@@ -3812,7 +3832,7 @@ public sealed class BattleSimulation
                     long escapeFromSecondX = 0;
                     long escapeFromSecondY = 0;
                     if (context.SecondThreatEntityId is { } secondThreatId &&
-                        _agentIndexes.TryGetValue(secondThreatId, out var secondIndex))
+                        TryGetAgentIndex(secondThreatId, out var secondIndex))
                     {
                         var second = _agentStates[secondIndex];
                         if (second.IsAlive)
@@ -3889,7 +3909,7 @@ public sealed class BattleSimulation
     {
         if (context.ImmediateEnemies < 2 ||
             context.SecondThreatEntityId is not { } secondThreatId ||
-            !_agentIndexes.TryGetValue(secondThreatId, out var secondIndex))
+            !TryGetAgentIndex(secondThreatId, out var secondIndex))
         {
             return false;
         }
@@ -4246,7 +4266,7 @@ public sealed class BattleSimulation
     /// </summary>
     private AgentState? ResolveLivingThreat(AgentState agent) =>
         agent.TargetEntityId is { } targetId &&
-        _agentIndexes.TryGetValue(targetId, out var targetIndex) &&
+        TryGetAgentIndex(targetId, out var targetIndex) &&
         _agentStates[targetIndex].IsAlive
             ? _agentStates[targetIndex]
             : null;
@@ -4473,7 +4493,7 @@ public sealed class BattleSimulation
         leaderEntityId = _contingentLeaderEntityIds[slot];
 
         if (leaderEntityId == 0 ||
-            !_agentIndexes.TryGetValue(leaderEntityId, out var leaderIndex))
+            !TryGetAgentIndex(leaderEntityId, out var leaderIndex))
         {
             return false;
         }
@@ -4733,7 +4753,7 @@ public sealed class BattleSimulation
     {
         var rallyEntityId = _factionRallyEntityIds[agent.FactionId];
         if (rallyEntityId == 0 ||
-            !_agentIndexes.TryGetValue(rallyEntityId, out var rallyIndex))
+            !TryGetAgentIndex(rallyEntityId, out var rallyIndex))
         {
             return null;
         }
@@ -4818,7 +4838,7 @@ public sealed class BattleSimulation
         AgentState leader)
     {
         if (leader.TargetEntityId is not { } targetId ||
-            !_agentIndexes.TryGetValue(targetId, out var targetIndex))
+            !TryGetAgentIndex(targetId, out var targetIndex))
         {
             return (0, 0, 0);
         }
@@ -5186,6 +5206,100 @@ public sealed class BattleSimulation
     /// </summary>
     private void MeasureCollision()
     {
+        var (candidatePairs, contactPairs, penetrationRaw) =
+            _agentIndexes.IsDense
+                ? MeasureContactsByCount()
+                : MeasureContactsByPairList();
+
+        var minimumX = int.MaxValue;
+        var maximumX = int.MinValue;
+        var minimumY = int.MaxValue;
+        var maximumY = int.MinValue;
+
+        // The front spans agents holding an enemy in reach, not strictly
+        // touching bodies. The resolver leaves every living pair at or beyond
+        // the contact distance, so strict touching means a squared distance of
+        // exactly (2R)^2 — a Pythagorean coincidence on an integer lattice — and
+        // a span built on it would read zero through an entire battle. Contact
+        // pairs are counted separately, over a proximity band.
+        var attackCapableAgents = 0;
+        foreach (var agent in _agentStates)
+        {
+            if (!agent.IsAlive || agent.TargetEntityId is not { } targetId)
+            {
+                continue;
+            }
+
+            var target = _agentStates[AgentIndexOf(targetId)];
+            if (!target.IsAlive || !IsWithinAttackRange(agent, target))
+            {
+                continue;
+            }
+
+            attackCapableAgents++;
+            minimumX = Math.Min(minimumX, agent.XRaw);
+            maximumX = Math.Max(maximumX, agent.XRaw);
+            minimumY = Math.Min(minimumY, agent.YRaw);
+            maximumY = Math.Max(maximumY, agent.YRaw);
+        }
+
+        _lastTickCollision = new CollisionTickMetrics(
+            candidatePairs,
+            contactPairs,
+            _collision.Resolver.AcceptedMoveCount,
+            _collision.Resolver.BlockedCount,
+            attackCapableAgents,
+            attackCapableAgents == 0 ? 0 : checked(maximumY - minimumY),
+            attackCapableAgents == 0 ? 0 : checked(maximumX - minimumX),
+            penetrationRaw);
+    }
+
+    /// <summary>
+    /// Candidate pairs, cross-faction pairs and deepest penetration over this
+    /// tick's bodies, counted by the grid without building a pair list. The
+    /// deepest penetration is <c>2R - floor(sqrt(d^2))</c> for the closest pair,
+    /// floored at zero: the integer square root never falls as its argument
+    /// grows, so the closest pair is the deepest one.
+    /// </summary>
+    private (int CandidatePairs, int ContactPairs, int PenetrationRaw)
+        MeasureContactsByCount()
+    {
+        _collision.Grid.Clear();
+        foreach (var agent in _agentStates)
+        {
+            _collision.Grid.Insert(
+                new CollisionBody(
+                    agent.EntityId,
+                    agent.XRaw,
+                    agent.YRaw,
+                    agent.IsAlive));
+        }
+
+        var counts = _collision.Grid.CountContacts(
+            _collision.ContactBandRadiusRaw,
+            _factionByEntityId);
+        var penetrationRaw = 0;
+
+        if (counts.MinimumSquaredDistance is { } minimumSquaredDistance)
+        {
+            var contactDistanceRaw = checked(2 * Scenario.BodyRadiusRaw);
+
+            penetrationRaw = Math.Max(
+                0,
+                contactDistanceRaw -
+                    checked((int)IntegerSquareRoot(minimumSquaredDistance)));
+        }
+
+        return (counts.PairCount, counts.CrossFactionPairCount, penetrationRaw);
+    }
+
+    /// <summary>
+    /// The same three figures through the sorted pair list, for the agent arrays
+    /// whose entity IDs are too sparse for <see cref="_factionByEntityId"/>.
+    /// </summary>
+    private (int CandidatePairs, int ContactPairs, int PenetrationRaw)
+        MeasureContactsByPairList()
+    {
         _collision.Bodies.Clear();
         foreach (var agent in _agentStates)
         {
@@ -5204,15 +5318,11 @@ public sealed class BattleSimulation
         var contactDistanceRaw = checked(2 * Scenario.BodyRadiusRaw);
         var contactPairs = 0;
         var penetrationRaw = 0;
-        var minimumX = int.MaxValue;
-        var maximumX = int.MinValue;
-        var minimumY = int.MaxValue;
-        var maximumY = int.MinValue;
 
         foreach (var pair in _collision.Grid.PairsList)
         {
-            var left = _agentStates[_agentIndexes[pair.LowEntityId]];
-            var right = _agentStates[_agentIndexes[pair.HighEntityId]];
+            var left = _agentStates[AgentIndexOf(pair.LowEntityId)];
+            var right = _agentStates[AgentIndexOf(pair.HighEntityId)];
             var separationRaw = checked((int)IntegerSquareRoot(
                 CollisionGeometry.SquaredDistance(
                     left.XRaw,
@@ -5231,42 +5341,29 @@ public sealed class BattleSimulation
             contactPairs++;
         }
 
-        // The front spans agents holding an enemy in reach, not strictly
-        // touching bodies. The resolver leaves every living pair at or beyond
-        // the contact distance, so strict touching means a squared distance of
-        // exactly (2R)^2 — a Pythagorean coincidence on an integer lattice — and
-        // a span built on it would read zero through an entire battle. Contact
-        // pairs are counted separately, over a proximity band.
-        var attackCapableAgents = 0;
-        foreach (var agent in _agentStates)
+        return (_collision.Grid.Pairs.Count, contactPairs, penetrationRaw);
+    }
+
+    /// <summary>
+    /// Faction of each agent at the index equal to its entity ID. Only called
+    /// when <see cref="AgentIndexMap"/> chose its flat array, so the largest ID
+    /// is bounded by a small multiple of the agent count.
+    /// </summary>
+    private static int[] BuildFactionByEntityId(AgentState[] agents)
+    {
+        ulong maxId = 0;
+        foreach (var agent in agents)
         {
-            if (!agent.IsAlive || agent.TargetEntityId is not { } targetId)
-            {
-                continue;
-            }
-
-            var target = _agentStates[_agentIndexes[targetId]];
-            if (!target.IsAlive || !IsWithinAttackRange(agent, target))
-            {
-                continue;
-            }
-
-            attackCapableAgents++;
-            minimumX = Math.Min(minimumX, agent.XRaw);
-            maximumX = Math.Max(maximumX, agent.XRaw);
-            minimumY = Math.Min(minimumY, agent.YRaw);
-            maximumY = Math.Max(maximumY, agent.YRaw);
+            maxId = Math.Max(maxId, agent.EntityId);
         }
 
-        _lastTickCollision = new CollisionTickMetrics(
-            _collision.Grid.Pairs.Count,
-            contactPairs,
-            _collision.Resolver.AcceptedMoveCount,
-            _collision.Resolver.BlockedCount,
-            attackCapableAgents,
-            attackCapableAgents == 0 ? 0 : checked(maximumY - minimumY),
-            attackCapableAgents == 0 ? 0 : checked(maximumX - minimumX),
-            penetrationRaw);
+        var factions = new int[checked((int)maxId + 1)];
+        foreach (var agent in agents)
+        {
+            factions[(int)agent.EntityId] = agent.FactionId;
+        }
+
+        return factions;
     }
 
     /// <summary>
@@ -5362,9 +5459,9 @@ public sealed class BattleSimulation
             // reading them here from a source that may itself have died
             // since launch is exactly as safe as the shared code below
             // already treats a melee source.
-            var arrivalSourceIndex = _agentIndexes[projectile.SourceEntityId];
+            var arrivalSourceIndex = AgentIndexOf(projectile.SourceEntityId);
             var arrivalSource = _agentStates[arrivalSourceIndex];
-            var arrivalTargetIndex = _agentIndexes[projectile.TargetEntityId];
+            var arrivalTargetIndex = AgentIndexOf(projectile.TargetEntityId);
             var arrivalTarget = _agentStates[arrivalTargetIndex];
 
             if (!arrivalTarget.IsAlive)
@@ -5502,7 +5599,7 @@ public sealed class BattleSimulation
                 continue;
             }
 
-            var target = _agentStates[_agentIndexes[targetId]];
+            var target = _agentStates[AgentIndexOf(targetId)];
             if (!target.IsAlive)
             {
                 ClearActiveComboChain(source);
@@ -5584,7 +5681,7 @@ public sealed class BattleSimulation
             // the combo transition, because which cooldown to write now
             // depends on the combo outcome.
             source.Intent = AgentIntent.Attacking;
-            var targetIndex = _agentIndexes[target.EntityId];
+            var targetIndex = AgentIndexOf(target.EntityId);
             var hitLocation = HitLocationResolver.Resolve(
                 _rules,
                 source.Loadout,
@@ -6458,5 +6555,125 @@ public sealed class BattleSimulation
 
             _agentViews[index] = view;
         }
+    }
+}
+
+/// <summary>
+/// Entity ID to agent-array-index lookup. Production IDs are dense (the
+/// entity ID is the index plus one), so a flat array answers a lookup with one
+/// bounds check and one load. IDs that are too sparse for an array of
+/// reasonable size fall back to a dictionary, so a test that builds agents
+/// with arbitrary IDs behaves exactly as a plain dictionary would: an unknown
+/// ID (including 0) is "not found" and the indexer-style lookup throws
+/// <see cref="KeyNotFoundException"/>.
+/// </summary>
+internal readonly struct AgentIndexMap
+{
+    // An array is used only while its length stays within this multiple of the
+    // agent count, plus a constant slack for tiny scenarios.
+    private const int DenseSlotsPerAgent = 4;
+    private const int DenseSlotSlack = 16;
+    private const int UnusedSlot = -1;
+
+    private readonly int[]? _dense;
+    private readonly Dictionary<ulong, int>? _sparse;
+
+    private AgentIndexMap(int[]? dense, Dictionary<ulong, int>? sparse)
+    {
+        _dense = dense;
+        _sparse = sparse;
+    }
+
+    /// <summary>True when the flat array is in use rather than the dictionary.</summary>
+    internal bool IsDense => _dense is not null;
+
+    /// <summary>
+    /// Builds the map for <paramref name="entityIds"/>, where the ID at
+    /// position <c>i</c> belongs to agent index <c>i</c>.
+    /// </summary>
+    /// <exception cref="ArgumentException">An ID appears twice.</exception>
+    internal static AgentIndexMap Create(ReadOnlySpan<ulong> entityIds)
+    {
+        ulong maxId = 0;
+        foreach (var id in entityIds)
+        {
+            maxId = Math.Max(maxId, id);
+        }
+
+        var denseLimit =
+            ((ulong)entityIds.Length * DenseSlotsPerAgent) + DenseSlotSlack;
+        if (maxId > denseLimit)
+        {
+            return CreateSparse(entityIds);
+        }
+
+        var dense = new int[(int)maxId + 1];
+        Array.Fill(dense, UnusedSlot);
+        for (var index = 0; index < entityIds.Length; index++)
+        {
+            ref var slot = ref dense[(int)entityIds[index]];
+            if (slot != UnusedSlot)
+            {
+                throw DuplicateId(entityIds[index]);
+            }
+
+            slot = index;
+        }
+
+        return new AgentIndexMap(dense, null);
+    }
+
+    private static AgentIndexMap CreateSparse(ReadOnlySpan<ulong> entityIds)
+    {
+        var sparse = new Dictionary<ulong, int>(entityIds.Length);
+        for (var index = 0; index < entityIds.Length; index++)
+        {
+            if (!sparse.TryAdd(entityIds[index], index))
+            {
+                throw DuplicateId(entityIds[index]);
+            }
+        }
+
+        return new AgentIndexMap(null, sparse);
+    }
+
+    private static ArgumentException DuplicateId(ulong entityId) =>
+        new($"Duplicate entity ID {entityId}.", "agents");
+
+    /// <summary>Same contract as <see cref="Dictionary{TKey, TValue}.TryGetValue"/>.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal bool TryGetIndex(ulong entityId, out int index)
+    {
+        var dense = _dense;
+        if (dense is not null)
+        {
+            if (entityId < (ulong)dense.Length)
+            {
+                index = dense[(int)entityId];
+                if (index != UnusedSlot)
+                {
+                    return true;
+                }
+            }
+
+            index = 0;
+            return false;
+        }
+
+        return _sparse!.TryGetValue(entityId, out index);
+    }
+
+    /// <summary>Same contract as the <see cref="Dictionary{TKey, TValue}"/> indexer.</summary>
+    /// <exception cref="KeyNotFoundException">The ID is unknown.</exception>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal int IndexOf(ulong entityId)
+    {
+        if (TryGetIndex(entityId, out var index))
+        {
+            return index;
+        }
+
+        throw new KeyNotFoundException(
+            $"Entity ID {entityId} is not in the simulation.");
     }
 }

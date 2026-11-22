@@ -1,4 +1,22 @@
+using System.Runtime.CompilerServices;
+
 namespace Hukbo.Core.Simulation;
+
+/// <summary>
+/// What <see cref="CollisionUniformGrid.CountContacts"/> reports about the
+/// pairs <see cref="CollisionUniformGrid.Rebuild"/> would have emitted, without
+/// materialising them.
+/// </summary>
+/// <param name="PairCount">Every unordered pair of living bodies in contact.</param>
+/// <param name="CrossFactionPairCount">The subset whose bodies differ in faction.</param>
+/// <param name="MinimumSquaredDistance">
+/// The smallest squared centre distance over all pairs, or
+/// <see langword="null"/> when there are none.
+/// </param>
+internal readonly record struct CollisionContactCounts(
+    int PairCount,
+    int CrossFactionPairCount,
+    long? MinimumSquaredDistance);
 
 /// <summary>
 /// A deterministic uniform-grid broad phase over living agent bodies. It exists
@@ -50,6 +68,13 @@ internal sealed class CollisionUniformGrid
     private const int InitialCapacity = 64;
 
     /// <summary>
+    /// The largest dense head array a grid will allocate, 4 MB of <see cref="int"/>.
+    /// A bounded grid whose rectangle needs more cells indexes every cell through
+    /// the dictionary instead, so a huge map can never allocate a huge array.
+    /// </summary>
+    internal const int MaximumDenseCells = 1_048_576;
+
+    /// <summary>
     /// The three-by-three neighbourhood in one fixed order: ascending offset Y,
     /// then ascending offset X, including the cell itself. A cell size of at
     /// least one body diameter is enforced by
@@ -93,9 +118,30 @@ internal sealed class CollisionUniformGrid
     /// <summary>Scratch copy of <see cref="_cellKeys"/> sorted for traversal.</summary>
     private long[] _traversalOrder = new long[InitialCapacity];
 
+    /// <summary>
+    /// First slot of each cell inside the dense rectangle, row-major by cell Y,
+    /// or <see cref="NoSlot"/>. Empty when the grid is unbounded or the rectangle
+    /// exceeds <see cref="MaximumDenseCells"/>.
+    /// </summary>
+    private readonly int[] _denseHeads = [];
+
+    /// <summary>Width of the dense rectangle in cells; zero when there is none.</summary>
+    private readonly int _denseWidth;
+
+    /// <summary>Height of the dense rectangle in cells; zero when there is none.</summary>
+    private readonly int _denseHeight;
+
     private int _bodyCount;
 
     private int _cellCount;
+
+    /// <summary>
+    /// True once <see cref="Remove"/> has unlinked a body since the last
+    /// <see cref="Clear"/>. A dense cell emptied by removal and then refilled by
+    /// <see cref="Insert"/> records its key a second time, so only a grid in
+    /// this state needs its cell keys de-duplicated before a traversal.
+    /// </summary>
+    private bool _hasRemovals;
 
     /// <param name="cellSizeRaw">
     /// The edge length of one square cell in raw fixed-point units.
@@ -109,6 +155,48 @@ internal sealed class CollisionUniformGrid
 
         CellSizeRaw = cellSizeRaw;
     }
+
+    /// <summary>
+    /// A grid that indexes the cells covering the map rectangle, plus one spare
+    /// cell past the far edge so a neighbourhood scan at the edge stays inside
+    /// the dense array, through a flat array instead of the dictionary. Bodies
+    /// outside the rectangle still work: they take the dictionary path.
+    /// </summary>
+    /// <param name="cellSizeRaw">
+    /// The edge length of one square cell in raw fixed-point units.
+    /// </param>
+    /// <param name="mapWidthRaw">The map width in raw units.</param>
+    /// <param name="mapHeightRaw">The map height in raw units.</param>
+    /// <remarks>
+    /// Cell coordinates are never negative, so the rectangle starts at cell zero.
+    /// The bounds only choose which path is fast; answers never depend on them.
+    /// </remarks>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="cellSizeRaw"/>, <paramref name="mapWidthRaw"/> or
+    /// <paramref name="mapHeightRaw"/> is zero or negative.
+    /// </exception>
+    internal CollisionUniformGrid(int cellSizeRaw, int mapWidthRaw, int mapHeightRaw)
+        : this(cellSizeRaw)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(mapWidthRaw);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(mapHeightRaw);
+
+        var cellsX = (mapWidthRaw / cellSizeRaw) + 2L;
+        var cellsY = (mapHeightRaw / cellSizeRaw) + 2L;
+
+        if (cellsX * cellsY > MaximumDenseCells)
+        {
+            return;
+        }
+
+        _denseWidth = (int)cellsX;
+        _denseHeight = (int)cellsY;
+        _denseHeads = new int[_denseWidth * _denseHeight];
+        Array.Fill(_denseHeads, NoSlot);
+    }
+
+    /// <summary>True when cells inside the map rectangle use the dense array.</summary>
+    internal bool UsesDenseIndex => _denseHeads.Length > 0;
 
     /// <summary>The edge length of one square cell in raw fixed-point units.</summary>
     internal int CellSizeRaw { get; }
@@ -171,10 +259,16 @@ internal sealed class CollisionUniformGrid
     /// </summary>
     internal void Clear()
     {
+        if (_denseHeads.Length > 0)
+        {
+            ClearDenseHeads();
+        }
+
         _cellIndexByKey.Clear();
         _pairs.Clear();
         _bodyCount = 0;
         _cellCount = 0;
+        _hasRemovals = false;
     }
 
     /// <summary>
@@ -200,13 +294,29 @@ internal sealed class CollisionUniformGrid
 
         ValidateCoordinates(body.XRaw, body.YRaw);
 
-        var key = PackCellKey(CellCoordinate(body.XRaw), CellCoordinate(body.YRaw));
+        var cellX = CellCoordinate(body.XRaw);
+        var cellY = CellCoordinate(body.YRaw);
+        var key = PackCellKey(cellX, cellY);
         var slot = _bodyCount;
 
         EnsureCapacity(slot + 1);
         _bodies[slot] = body;
 
-        if (_cellIndexByKey.TryGetValue(key, out var cellIndex))
+        if (TryDenseIndex(cellX, cellY, out var denseIndex))
+        {
+            var head = _denseHeads[denseIndex];
+
+            _nextSlotInCell[slot] = head;
+            _denseHeads[denseIndex] = slot;
+
+            if (head == NoSlot)
+            {
+                // After a Remove empties a cell this records its key again; _hasRemovals gates the dedupe.
+                _cellKeys[_cellCount] = key;
+                _cellCount++;
+            }
+        }
+        else if (_cellIndexByKey.TryGetValue(key, out var cellIndex))
         {
             _nextSlotInCell[slot] = _cellHeadSlots[cellIndex];
             _cellHeadSlots[cellIndex] = slot;
@@ -261,14 +371,18 @@ internal sealed class CollisionUniformGrid
             return;
         }
 
-        var key = PackCellKey(CellCoordinate(body.XRaw), CellCoordinate(body.YRaw));
+        var cellX = CellCoordinate(body.XRaw);
+        var cellY = CellCoordinate(body.YRaw);
+        var isDense = TryDenseIndex(cellX, cellY, out var denseIndex);
+        var cellIndex = 0;
 
-        if (!_cellIndexByKey.TryGetValue(key, out var cellIndex))
+        if (!isDense &&
+            !_cellIndexByKey.TryGetValue(PackCellKey(cellX, cellY), out cellIndex))
         {
             return;
         }
 
-        var slot = _cellHeadSlots[cellIndex];
+        var slot = isDense ? _denseHeads[denseIndex] : _cellHeadSlots[cellIndex];
         var previousSlot = NoSlot;
 
         while (slot != NoSlot)
@@ -277,12 +391,21 @@ internal sealed class CollisionUniformGrid
             {
                 if (previousSlot == NoSlot)
                 {
-                    _cellHeadSlots[cellIndex] = _nextSlotInCell[slot];
+                    if (isDense)
+                    {
+                        _denseHeads[denseIndex] = _nextSlotInCell[slot];
+                    }
+                    else
+                    {
+                        _cellHeadSlots[cellIndex] = _nextSlotInCell[slot];
+                    }
                 }
                 else
                 {
                     _nextSlotInCell[previousSlot] = _nextSlotInCell[slot];
                 }
+
+                _hasRemovals = true;
 
                 return;
             }
@@ -525,7 +648,142 @@ internal sealed class CollisionUniformGrid
     }
 
     /// <summary>
-    /// Sorts the occupied cells, then walks each cell's bodies against its
+    /// Counts the pairs <see cref="Rebuild"/> would emit, the cross-faction
+    /// subset, and the closest pair's squared distance, without building,
+    /// sorting or retaining a pair list. Every figure is order-free, so no
+    /// traversal order is needed either.
+    /// </summary>
+    /// <remarks>
+    /// The predicate is the one <see cref="GeneratePairs"/> applies: a pair is
+    /// counted from the body with the lower entity ID, and only when
+    /// <see cref="CollisionGeometry.SquaredDistance"/> is at most
+    /// <see cref="CollisionGeometry.ContactSquaredDistance"/>, which is
+    /// <see cref="CollisionGeometry.IsContact"/> with the distance kept. Dead
+    /// bodies were never inserted. This grid's contents are not changed.
+    /// </remarks>
+    /// <param name="bodyRadiusRaw">The common body radius in raw units.</param>
+    /// <param name="factionByEntityId">
+    /// Faction of each entity, indexed by entity ID. Faction is not a
+    /// <see cref="CollisionBody"/> field, so the caller supplies it, and it must
+    /// cover the ID of every inserted body.
+    /// </param>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="bodyRadiusRaw"/> is negative or so large that a body
+    /// diameter exceeds <see cref="CellSizeRaw"/>.
+    /// </exception>
+    // Runs once per tick over every body, so it skips the tiered-JIT warm-up
+    // exactly as the TargetingGrid loops do.
+    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+    internal CollisionContactCounts CountContacts(
+        int bodyRadiusRaw,
+        ReadOnlySpan<int> factionByEntityId)
+    {
+        ValidateBodyRadius(bodyRadiusRaw);
+
+        var pairCount = 0;
+        var crossFactionPairCount = 0;
+        var minimumSquaredDistance = long.MaxValue;
+
+        if (_bodyCount >= 2)
+        {
+            var contactSquared = CollisionGeometry.ContactSquaredDistance(bodyRadiusRaw);
+
+            foreach (var key in OccupiedCellKeys())
+            {
+                var cellX = UnpackCellX(key);
+                var cellY = UnpackCellY(key);
+                var slot = FirstSlotInCell(cellX, cellY);
+
+                while (slot != NoSlot)
+                {
+                    ref readonly var body = ref _bodies[slot];
+
+                    foreach (var offset in NeighbourOffsets)
+                    {
+                        var otherSlot = FirstSlotInCell(
+                            cellX + offset.X,
+                            cellY + offset.Y);
+
+                        while (otherSlot != NoSlot)
+                        {
+                            ref readonly var other = ref _bodies[otherSlot];
+
+                            if (other.EntityId > body.EntityId)
+                            {
+                                var squaredDistance = CollisionGeometry.SquaredDistance(
+                                    body.XRaw,
+                                    body.YRaw,
+                                    other.XRaw,
+                                    other.YRaw);
+
+                                if (squaredDistance <= contactSquared)
+                                {
+                                    pairCount++;
+                                    minimumSquaredDistance = Math.Min(
+                                        minimumSquaredDistance,
+                                        squaredDistance);
+
+                                    if (factionByEntityId[(int)body.EntityId] !=
+                                        factionByEntityId[(int)other.EntityId])
+                                    {
+                                        crossFactionPairCount++;
+                                    }
+                                }
+                            }
+
+                            otherSlot = _nextSlotInCell[otherSlot];
+                        }
+                    }
+
+                    slot = _nextSlotInCell[slot];
+                }
+            }
+        }
+
+        return new CollisionContactCounts(
+            pairCount,
+            crossFactionPairCount,
+            pairCount == 0 ? null : minimumSquaredDistance);
+    }
+
+    /// <summary>
+    /// The occupied cell keys, each exactly once. Unordered while no body has
+    /// been removed; sorted and de-duplicated afterwards, because
+    /// <see cref="Remove"/> then <see cref="Insert"/> on a dense cell records
+    /// its key twice and a traversal would otherwise visit that cell twice.
+    /// </summary>
+    private ReadOnlySpan<long> OccupiedCellKeys() =>
+        _hasRemovals
+            ? SortedDistinctCellKeys()
+            : _cellKeys.AsSpan(0, _cellCount);
+
+    /// <summary>
+    /// <see cref="_cellKeys"/> sorted ascending with repeats dropped, in
+    /// <see cref="_traversalOrder"/>.
+    /// </summary>
+    private ReadOnlySpan<long> SortedDistinctCellKeys()
+    {
+        Array.Copy(_cellKeys, _traversalOrder, _cellCount);
+        Array.Sort(_traversalOrder, 0, _cellCount);
+
+        var distinctCount = 0;
+
+        for (var index = 0; index < _cellCount; index++)
+        {
+            if (index > 0 && _traversalOrder[index] == _traversalOrder[index - 1])
+            {
+                continue;
+            }
+
+            _traversalOrder[distinctCount] = _traversalOrder[index];
+            distinctCount++;
+        }
+
+        return _traversalOrder.AsSpan(0, distinctCount);
+    }
+
+    /// <summary>
+    /// Walks each occupied cell's bodies, in ascending cell order, against its
     /// three-by-three neighbourhood, emitting a pair only from the body with the
     /// lower entity ID.
     /// </summary>
@@ -538,15 +796,11 @@ internal sealed class CollisionUniformGrid
             return;
         }
 
-        Array.Copy(_cellKeys, _traversalOrder, _cellCount);
-        Array.Sort(_traversalOrder, 0, _cellCount);
-
-        for (var orderIndex = 0; orderIndex < _cellCount; orderIndex++)
+        foreach (var key in SortedDistinctCellKeys())
         {
-            var key = _traversalOrder[orderIndex];
             var cellX = UnpackCellX(key);
             var cellY = UnpackCellY(key);
-            var slot = _cellHeadSlots[_cellIndexByKey[key]];
+            var slot = FirstSlotInCell(cellX, cellY);
 
             while (slot != NoSlot)
             {
@@ -599,9 +853,49 @@ internal sealed class CollisionUniformGrid
             return NoSlot;
         }
 
+        if (TryDenseIndex(cellX, cellY, out var denseIndex))
+        {
+            return _denseHeads[denseIndex];
+        }
+
         return _cellIndexByKey.TryGetValue(PackCellKey(cellX, cellY), out var cellIndex)
             ? _cellHeadSlots[cellIndex]
             : NoSlot;
+    }
+
+    /// <summary>
+    /// The dense array index of a cell, or false when the cell lies outside the
+    /// dense rectangle (or the grid has none) and belongs to the dictionary.
+    /// </summary>
+    private bool TryDenseIndex(int cellX, int cellY, out int denseIndex)
+    {
+        if ((uint)cellX < (uint)_denseWidth && (uint)cellY < (uint)_denseHeight)
+        {
+            denseIndex = (cellY * _denseWidth) + cellX;
+
+            return true;
+        }
+
+        denseIndex = 0;
+
+        return false;
+    }
+
+    /// <summary>
+    /// Empties every dense cell this grid populated. Only the populated cells are
+    /// touched, so the cost follows the body count, not the rectangle's area.
+    /// </summary>
+    private void ClearDenseHeads()
+    {
+        for (var index = 0; index < _cellCount; index++)
+        {
+            var key = _cellKeys[index];
+
+            if (TryDenseIndex(UnpackCellX(key), UnpackCellY(key), out var denseIndex))
+            {
+                _denseHeads[denseIndex] = NoSlot;
+            }
+        }
     }
 
     private int CellCoordinate(int valueRaw) => valueRaw / CellSizeRaw;
