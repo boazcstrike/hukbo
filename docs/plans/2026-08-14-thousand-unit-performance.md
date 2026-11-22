@@ -38,6 +38,18 @@ cost has not been attributed, so nobody has checked the frame against the
 two-clause trigger. A person watching is evidence about legibility; it is not
 the p95 comparison this plan's stop condition names.
 
+**Status, 2026-11-22: TU-1 is done and the render half of TU-4 is decided.** The
+matrix was re-run on `main` at `19dd7a7` and committed as
+`docs/development/render-baselines/render-matrix-2026-11-22.json`. The
+1,000-unit default-fit `Draw` p95 is 1.87 ms against the 8.0 ms clause, and the
+worst p95 at any station is 2.50 ms. The verdict is NO-GO and Phase 2 is not
+authorized. The figures and the verdict are in `docs/development/testing.md`,
+section "Render matrix re-baseline, 2026-11-22". Simulation-side tick
+attribution (TU-2) was measured separately by the collision hot path work of the
+same date and is recorded in `docs/development/measurement-history.md`. TU-3 was
+not run, because with the frame inside budget at every station it cannot change
+the verdict.
+
 ---
 
 ## Phase 0 — measure and attribute
