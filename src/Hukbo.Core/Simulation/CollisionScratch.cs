@@ -102,9 +102,12 @@ internal sealed class CollisionScratch
         // together as far as a spectator is concerned.
         ContactBandRadiusRaw = checked(
             scenario.BodyRadiusRaw + (scenario.MovementSpeedRaw / 2));
-        Grid = new CollisionUniformGrid(checked(2 * ContactBandRadiusRaw));
         var mapWidthRaw = checked(scenario.MapWidth * FixedPoint.Scale);
         var mapHeightRaw = checked(scenario.MapHeight * FixedPoint.Scale);
+        Grid = new CollisionUniformGrid(
+            checked(2 * ContactBandRadiusRaw),
+            mapWidthRaw,
+            mapHeightRaw);
         Resolver = new CollisionResolver(
             scenario.BodyRadiusRaw,
             mapWidthRaw,
